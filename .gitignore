@@ -1,3 +1,4 @@
 config/karabiner/automatic_backups/
 .claude/
 .agents/
+.config/.czrc
