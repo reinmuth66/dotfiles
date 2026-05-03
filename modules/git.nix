@@ -3,22 +3,23 @@
 {
   programs.git = {
     enable = true;
-    userName = "reinmuth66";
-    includes = [{ path = "~/.config/git/config.local"; }];
-    delta = {
-      enable = true;
-      options = {
-        navigate = true;
-        line-numbers = true;
-        side-by-side = true;
-      };
-    };
-    extraConfig = {
-      interactive.diffFilter = "delta --color-only";
+    settings = {
+      user.name = "reinmuth66";
       merge.conflictstyle = "diff3";
       diff.colorMoved = "default";
     };
+    includes = [{ path = "~/.config/git/config.local"; }];
     ignores = [ "**/.claude/settings.local.json" ];
+  };
+
+  programs.delta = {
+    enable = true;
+    enableGitIntegration = true;
+    options = {
+      navigate = true;
+      line-numbers = true;
+      side-by-side = true;
+    };
   };
 
   programs.lazygit.enable = true;

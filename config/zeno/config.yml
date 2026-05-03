@@ -1,0 +1,59 @@
+snippets:
+  # コマンド置換
+  - name: ls
+    keyword: ls
+    snippet: eza --icons
+  - name: ll
+    keyword: ll
+    snippet: eza -la --icons --git
+
+  # git
+  - name: git status
+    keyword: gs
+    snippet: git status --short --branch
+  - name: git add
+    keyword: ga
+    snippet: git add
+  - name: git add all
+    keyword: gaa
+    snippet: git add --all
+  - name: git commit
+    keyword: gc
+    snippet: git commit -m ''
+  - name: git commit amend
+    keyword: gca
+    snippet: git commit --amend
+  - name: git diff
+    keyword: gd
+    snippet: git diff
+  - name: git diff staged
+    keyword: gds
+    snippet: git diff --staged
+  - name: git log
+    keyword: gl
+    snippet: git log --oneline --graph
+  - name: git push
+    keyword: gp
+    snippet: git push
+  - name: git pull
+    keyword: gpl
+    snippet: git pull
+  - name: git switch
+    keyword: gsw
+    snippet: git switch
+  - name: git stash
+    keyword: gst
+    snippet: git stash
+
+  # nix
+  - name: darwin rebuild
+    keyword: dr
+    snippet: sudo darwin-rebuild switch --flake ~/dotfiles
+  - name: nix search
+    keyword: ns
+    snippet: nix search nixpkgs
+
+  # misc
+  - name: cd dotfiles
+    keyword: dot
+    snippet: cd ~/dotfiles

@@ -8,51 +8,58 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 
 - `flake.nix` — エントリポイント。`darwinConfigurations."ReinmuthLaptop"` を定義
 - `modules/darwin.nix` — nix-darwin 設定 (Homebrew cask 管理など)
-- `modules/home.nix` — home-manager 設定 (パッケージ、xdg.configFile シンボリックリンク)
-- `modules/zsh.nix` — zsh 設定 (home.nix から import される)
-- `config/` — 各ツールの設定ファイル実体 (home.nix から `xdg.configFile` でシンボリックリンクされる)
+- `modules/home.nix` — home-manager エントリ (パッケージ、全モジュールの import)
+- `modules/<tool>.nix` — ツールごとの設定モジュール
+- `config/` — `programs.*` で表現できないツールの設定ファイル実体
 
 ## 重要: 設定変更の反映方法
 
-`config/` 以下のファイルを編集しても、**`switch.sh` を実行するまで実際の環境には反映されない。**
+`modules/` または `config/` 以下のファイルを編集しても、**`darwin-rebuild switch` を実行するまで実際の環境には反映されない。**
 
-`~/.config/` 以下のファイルは Nix ストアへのシンボリックリンクであり、`darwin-rebuild switch` によって初めて新しいストアパスに切り替わる。ファイルを編集したら必ず `switch.sh` を実行すること。
+`~/.config/` 以下のファイルは Nix ストアへのシンボリックリンクであり、`darwin-rebuild switch` によって初めて新しいストアパスに切り替わる。
 
 ## よく使うコマンド
 
-`switch` / `update` は `programs.zsh.shellAliases` で定義されており、**どのディレクトリからでも実行できる。**
-
 ```bash
-# 設定を適用する (変更をステージング → darwin-rebuild switch → コミット&プッシュ)
-switch "コミットメッセージ"
-
-# flake inputs を更新して適用 (topgrade も実行)
-update
-
-# darwin-rebuild を直接実行 (switch を使わない場合)
+# 設定を適用する
+git -C ~/dotfiles add .
 sudo darwin-rebuild switch --flake ~/dotfiles
+stty sane
+git -C ~/dotfiles commit -m "メッセージ"
+git -C ~/dotfiles push
 ```
 
 ## アーキテクチャのポイント
 
 **パッケージ管理の分担:**
-- nixpkgs (home.packages) — CLI ツール全般
-- Homebrew casks (darwin.nix) — nixpkgs にない GUI アプリ
-- mise — 言語ランタイムのバージョン管理 (`config/mise/config.toml`)
+- nixpkgs `programs.*` (各 `modules/<tool>.nix`) — CLI ツールの設定を含む管理
+- nixpkgs `home.packages` (`modules/home.nix`) — 設定不要な CLI ツール
+- Homebrew casks (`modules/darwin.nix`) — nixpkgs にない GUI アプリ
 
-**設定ファイルの管理フロー:**
-1. 設定ファイルの実体は `config/` 以下に置く
-2. `modules/home.nix` の `xdg.configFile` でシンボリックリンクを宣言する
-3. `darwin-rebuild switch` 実行時に `~/.config/` 以下にリンクが張られる
-4. 例外: `starship.toml` は `STARSHIP_CONFIG` 環境変数で直接参照 (シンボリックリンクなし)
+**モジュール構成:**
 
-**zsh 設定の流れ:**
-- `modules/zsh.nix` ですべての zsh 設定を管理
-- home-manager の `programs.zsh` が `~/.zshrc` を自動生成 (直接編集不可)
-- zsh の設定を変更する場合は `modules/zsh.nix` を編集して `switch` を実行
+| モジュール | 内容 |
+|---|---|
+| `zsh.nix` | zsh、zoxide、direnv、fzf |
+| `git.nix` | programs.git、programs.delta、programs.lazygit |
+| `atuin.nix` | programs.atuin |
+| `bat.nix` | programs.bat |
+| `gh.nix` | programs.gh |
+| `starship.nix` | programs.starship (設定含む) |
+| `ghostty.nix` | xdg.configFile (config/ghostty/config) |
+| `zed.nix` | xdg.configFile (config/zed/) |
+| `wezterm.nix` | xdg.configFile (config/wezterm/) |
+| `nvim.nix` | neovim パッケージ + xdg.configFile (config/nvim/) |
+| `yazi.nix` | yazi パッケージ + xdg.configFile (config/yazi/ + プラグイン) |
+| `claude.nix` | home.file (config/claude/) |
+
+**config/ に設定ファイルを置くツール:**
+- `programs.*` で表現できない、または Lua/JSON-with-comments など Nix に変換しにくいもの
+- ghostty、zed、wezterm、nvim、yazi、claude
 
 **新しいツールを追加する手順:**
-1. nixpkgs にあるなら `modules/home.nix` の `home.packages` に追加
-2. GUI アプリなら `modules/darwin.nix` の `homebrew.casks` に追加
-3. 設定ファイルがあるなら `config/` に置き、`home.nix` の `xdg.configFile` にエントリを追加
-4. `./switch.sh` で適用
+1. `programs.*` サポートがあるなら `modules/<tool>.nix` を新規作成し `home.nix` の `imports` に追加
+2. 設定不要な CLI ツールなら `modules/home.nix` の `home.packages` に追加
+3. GUI アプリなら `modules/darwin.nix` の `homebrew.casks` に追加
+4. 設定ファイルが必要なら `config/<tool>/` に置き、モジュール内で `xdg.configFile` を宣言
+5. `sudo darwin-rebuild switch --flake ~/dotfiles` で適用

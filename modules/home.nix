@@ -1,11 +1,9 @@
 { pkgs, ... }:
 
-let
-  zmk-battery-center = pkgs.callPackage ../nix/zmk-battery-center.nix {};
-in
 {
   imports = [
     ./zsh.nix
+    ./zeno.nix
     ./yazi.nix
     ./git.nix
     ./bat.nix
@@ -17,49 +15,38 @@ in
     ./wezterm.nix
     ./nvim.nix
     ./claude.nix
+    ./zmk-battery-center.nix
   ];
 
-  home.username = "reinmuth";
-  home.homeDirectory = "/Users/reinmuth";
-  home.stateVersion = "24.11";
+  home = {
+    username = "reinmuth";
+    homeDirectory = "/Users/reinmuth";
+    stateVersion = "24.11";
+  };
 
   home.packages = with pkgs; [
-    # ファイル操作
-    eza fd dust rm-improved sd mcat
-
-    # 検索
-    ripgrep
-
-    # システム監視
     bottom
-
-    # ネットワーク / セキュリティ
+    colima
+    docker
+    dust
+    eza
+    fd
+    ffmpeg
     gnupg
-
-    # メディア処理
-    ffmpeg imagemagick resvg
-
-    # データ処理
-    jq poppler xan
-
-    # アーカイブ
-    p7zip
-
-    # コンテナ
-    colima docker
-
-    # フォント
+    imagemagick
+    jq
+    mcat
     moralerspace-hw
-
-    # アプリ
-    zmk-battery-center
+    poppler
+    p7zip
+    resvg
+    ripgrep
+    rm-improved
+    sd
+    xan
   ];
 
-  home.file.".markdownlint-cli2.yaml".text = ''
-    config:
-      MD012: false
-      MD013: false
-  '';
+  home.file.".markdownlint-cli2.yaml".source = ../config/markdownlint-cli2.yaml;
 
   programs.home-manager.enable = true;
 }

@@ -1,7 +1,13 @@
 { pkgs, ... }:
 
 {
-  home.packages = with pkgs; [ neovim ];
+  programs.neovim = {
+    enable = true;
+    defaultEditor = true;
+    withRuby = false;
+    withPython3 = false;
+    extraPackages = with pkgs; [ nil statix ];
+  };
 
   xdg.configFile."nvim".source = ../config/nvim;
 }

@@ -4,6 +4,17 @@ return {
     opts = {
       servers = {
         bashls = {},
+        nil_ls = {
+          settings = {
+            ["nil"] = {
+              nix = {
+                flake = {
+                  autoArchive = true,
+                },
+              },
+            },
+          },
+        },
       },
     },
   },

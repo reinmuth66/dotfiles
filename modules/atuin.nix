@@ -3,7 +3,8 @@
 {
   programs.atuin = {
     enable = true;
-    enableZshIntegration = false;
+    enableZshIntegration = true;
+    flags = [ "--disable-up-arrow" ];
     settings = {
       enter_accept = true;
       sync.records = true;
