@@ -64,7 +64,7 @@
         staged    = " 󱇬 $count";
         untracked = " 󰈉 $count";
         style = "bold fg:sky";
-        format = "[$all_status$ahead_behind ]($style)";
+        format = "[$all_status $ahead_behind ]($style)";
       };
 
       bun     = { symbol = ""; style = "bold fg:green"; format = "[$symbol( $version) ]($style)"; };
