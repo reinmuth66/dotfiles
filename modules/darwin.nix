@@ -5,8 +5,6 @@
   # brew install / brew install --cask を手動で叩く必要はなくなる
   homebrew = {
     enable = true;
-
-    # darwin-rebuild switch 時に、リストにないものを自動削除する
     onActivation = {
       autoUpdate = false;
       cleanup = "zap";

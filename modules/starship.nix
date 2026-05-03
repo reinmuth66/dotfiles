@@ -59,12 +59,12 @@
       };
 
       git_status = {
-        deleted   = " 󱘹 $count";
-        modified  = " 󰏫 $count";
-        staged    = " 󱇬 $count";
-        untracked = " 󰈉 $count";
+        deleted   = "󱘹 $count";
+        modified  = "󰏫 $count";
+        staged    = "󱇬 $count";
+        untracked = "󰈉 $count";
         style = "bold fg:sky";
-        format = "[$all_status $ahead_behind ]($style)";
+        format = "[$ahead_behind $all_status ]($style)";
       };
 
       bun     = { symbol = ""; style = "bold fg:green"; format = "[$symbol( $version) ]($style)"; };
