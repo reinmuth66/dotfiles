@@ -1,0 +1,10 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['config:recommended'],
+  labels: ['dependencies', 'renovate'],
+  dependencyDashboard: false,
+  minimumReleaseAge: '3 days',
+  nix: {
+    enabled: false,
+  },
+}

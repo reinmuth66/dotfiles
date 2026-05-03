@@ -1,0 +1,24 @@
+[mgr]
+sort_dir_first = true
+sort_by = "natural"
+show_hidden = false
+
+[[plugin.prepend_fetchers]]
+id = "git"
+url = "*"
+run = "git"
+group = "git"
+
+[[plugin.prepend_fetchers]]
+id = "git"
+url = "*/"
+run = "git"
+group = "git"
+
+[[plugin.prepend_previewers]]
+name = "*/"
+run  = "eza-preview"
+
+[[plugin.prepend_previewers]]
+mime = "image/tiff"
+run  = "magick"
