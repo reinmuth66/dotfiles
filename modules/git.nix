@@ -22,5 +22,18 @@
     };
   };
 
-  programs.lazygit.enable = true;
+  programs.lazygit = {
+    enable = true;
+    settings = {
+      customCommands = [
+        {
+          key = "A";
+          command = "gh copilot -p 'conventional commit メッセージを生成してステージ済みの変更をコミットしてください' --allow-all-tools";
+          context = "files";
+          output = "terminal";
+          description = "AI conventional commit (Copilot)";
+        }
+      ];
+    };
+  };
 }
