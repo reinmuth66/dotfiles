@@ -3,6 +3,39 @@ sort_dir_first = true
 sort_by = "natural"
 show_hidden = false
 
+[opener]
+open   = [{ run = 'open "$@"',    desc = "デフォルトアプリで開く", for = "macos" }]
+reveal = [{ run = 'open -R "$1"', desc = "Finder で表示",          for = "macos" }]
+
+# Office 系 — MIME が正確に取れないことがあるので拡張子で照合
+[[open.prepend_rules]]
+name = "*.{xlsx,xls,xlsm,xltx,numbers,csv}"
+use  = ["open", "reveal"]
+
+[[open.prepend_rules]]
+name = "*.{docx,doc,docm,dotx,pages}"
+use  = ["open", "reveal"]
+
+[[open.prepend_rules]]
+name = "*.{pptx,ppt,pptm,potx,key}"
+use  = ["open", "reveal"]
+
+[[open.prepend_rules]]
+mime = "application/pdf"
+use  = ["open", "reveal"]
+
+[[open.prepend_rules]]
+mime = "image/*"
+use  = ["open", "reveal"]
+
+[[open.prepend_rules]]
+mime = "video/*"
+use  = ["open", "reveal"]
+
+[[open.prepend_rules]]
+mime = "audio/*"
+use  = ["open", "reveal"]
+
 [[plugin.prepend_fetchers]]
 id = "git"
 url = "*"
