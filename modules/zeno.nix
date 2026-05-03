@@ -18,8 +18,6 @@ in
     ZENO_ROOT = zenoDir;
   };
 
-  # Nix ストアは読み取り専用なので、deno が node_modules を書き込めるよう
-  # プラグインを書き込み可能なディレクトリにコピーする
   home.activation.zenoSetup = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     if [[ ! -f "${zenoDir}/.nix-source" ]] || \
        [[ "$(cat "${zenoDir}/.nix-source")" != "${zenoSrc}" ]]; then
