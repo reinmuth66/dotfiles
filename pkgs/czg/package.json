@@ -1,0 +1,8 @@
+{
+  "name": "czg-nix",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "czg": "1.13.0"
+  }
+}

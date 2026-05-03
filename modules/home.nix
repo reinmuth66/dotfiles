@@ -16,6 +16,7 @@
     ./nvim.nix
     ./claude.nix
     ./zmk-battery-center.nix
+    ./czg.nix
   ];
 
   home = {
