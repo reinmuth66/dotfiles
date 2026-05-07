@@ -1,4 +1,4 @@
-{ config, ... }:
+{ config, pkgs, ... }:
 
 {
   home.sessionVariables = {
@@ -32,7 +32,13 @@
       '';
 
       autosuggestion.enable = true;
-      syntaxHighlighting.enable = true;
+
+      plugins = [
+        {
+          name = "fast-syntax-highlighting";
+          src = "${pkgs.zsh-fast-syntax-highlighting}/share/zsh/plugins/fast-syntax-highlighting";
+        }
+      ];
 
       initContent = ''
         [[ -f "$HOME/ssh-logs/.zshrc" ]] && source "$HOME/ssh-logs/.zshrc"

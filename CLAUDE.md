@@ -64,48 +64,5 @@ git -C ~/dotfiles push
 2. 設定不要な CLI ツールなら `modules/home.nix` の `home.packages` に追加
 3. GUI アプリなら `modules/darwin.nix` の `homebrew.casks` に追加
 4. 設定ファイルが必要なら `config/<tool>/` に置き、モジュール内で `xdg.configFile` を宣言
-5. nixpkgs にない npm パッケージなら下記の手順で `importNpmLock` を使って追加
+5. nixpkgs にない npm パッケージなら `/add-npm-pkg` スキルを使って追加
 6. `sudo darwin-rebuild switch --flake ~/dotfiles` で適用
-
-**nixpkgs にない npm パッケージを追加する手順 (`importNpmLock`):**
-
-```bash
-# 1. package.json を作成
-mkdir -p pkgs/<tool>
-cat > pkgs/<tool>/package.json <<EOF
-{
-  "name": "<tool>-nix",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "<tool>": "<version>"
-  }
-}
-EOF
-
-# 2. package-lock.json を生成 (node_modules は作らない)
-cd pkgs/<tool> && npm install --package-lock-only
-```
-
-```nix
-# 3. modules/<tool>.nix を作成
-{ pkgs, ... }:
-let
-  nodeModules = pkgs.importNpmLock.buildNodeModules {
-    npmRoot = ../pkgs/<tool>;
-    nodejs = pkgs.nodejs;
-  };
-  <tool> = pkgs.writeShellScriptBin "<tool>" ''
-    exec ${pkgs.nodejs}/bin/node ${nodeModules}/node_modules/.bin/<tool> "$@"
-  '';
-in {
-  home.packages = [ <tool> ];
-}
-```
-
-```nix
-# 4. modules/home.nix の imports に追加
-imports = [ ... ./<tool>.nix ];
-```
-
-実例: `pkgs/czg/`、`modules/czg.nix`

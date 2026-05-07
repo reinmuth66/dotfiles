@@ -14,7 +14,11 @@
     "cursor_shape": "bar",
     "dock": "right",
   },
-  "agent_servers": {},
+  "agent_servers": {
+    "claude-acp": {
+      "type": "registry"
+    }
+  },
   "session": {
     "trust_all_worktrees": true,
   },
