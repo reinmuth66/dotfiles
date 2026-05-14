@@ -4,6 +4,6 @@
   "private": true,
   "dependencies": {
     "czg": "1.13.0",
-    "cz-git": "1.13.0"
+    "cz-git": "1.13.1"
   }
 }
