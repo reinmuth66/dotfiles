@@ -4,20 +4,25 @@ sort_by = "natural"
 show_hidden = false
 
 [opener]
-open   = [{ run = 'open "$@"',    desc = "デフォルトアプリで開く", for = "macos" }]
-reveal = [{ run = 'open -R "$1"', desc = "Finder で表示",          for = "macos" }]
+open    = [{ run = 'open "$@"',    desc = "Open with default app", for = "macos" }]
+reveal  = [{ run = 'open -R "$1"', desc = "Reveal in Finder",      for = "macos" }]
+browser = [{ run = 'open "$@"',    desc = "Open in browser",       for = "macos" }]
+
+[[open.prepend_rules]]
+url  = "*.{html,htm}"
+use  = ["edit", "browser", "reveal"]
 
 # Office 系 — MIME が正確に取れないことがあるので拡張子で照合
 [[open.prepend_rules]]
-name = "*.{xlsx,xls,xlsm,xltx,numbers,csv}"
+url  = "*.{xlsx,xls,xlsm,xltx,numbers,csv}"
 use  = ["open", "reveal"]
 
 [[open.prepend_rules]]
-name = "*.{docx,doc,docm,dotx,pages}"
+url  = "*.{docx,doc,docm,dotx,pages}"
 use  = ["open", "reveal"]
 
 [[open.prepend_rules]]
-name = "*.{pptx,ppt,pptm,potx,key}"
+url  = "*.{pptx,ppt,pptm,potx,key}"
 use  = ["open", "reveal"]
 
 [[open.prepend_rules]]
@@ -49,7 +54,7 @@ run = "git"
 group = "git"
 
 [[plugin.prepend_previewers]]
-name = "*/"
+url  = "*/"
 run  = "eza-preview"
 
 [[plugin.prepend_previewers]]
