@@ -16,7 +16,7 @@
       flake = false;
     };
     yazi-plugins = {
-      url = "github:yazi-rs/plugins/ac82af3e10f9a32cecd9f87ac64b3f9de7c7aea7";
+      url = "github:yazi-rs/plugins";
       flake = false;
     };
     compress-yazi = {
