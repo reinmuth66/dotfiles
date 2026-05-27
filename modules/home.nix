@@ -36,6 +36,7 @@
     gnupg
     imagemagick
     jq
+    marp-cli
     mcat
     moralerspace-hw
     poppler
