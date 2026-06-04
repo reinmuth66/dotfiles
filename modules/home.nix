@@ -49,6 +49,7 @@
   ];
 
   home.file.".markdownlint-cli2.yaml".source = ../config/markdownlint-cli2.yaml;
+  home.file.".clang-format".source = ../config/clang-format;
 
   programs.home-manager.enable = true;
 }
