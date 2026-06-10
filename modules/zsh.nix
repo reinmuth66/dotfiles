@@ -68,9 +68,9 @@
         }
 
         # Claude Code
-        function claude() {
-          ~/life/scripts/boot_saver.sh "$@"
-        }
+        # function claude() {
+        #  ~/life/scripts/boot_saver.sh "$@"
+        # }
 
         # 今日の日報を開く
         function today() {
