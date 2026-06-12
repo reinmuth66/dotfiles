@@ -33,6 +33,7 @@ in
     bindkey ' ' zeno-auto-snippet
     bindkey '^m' zeno-auto-snippet-and-accept-line
     bindkey '^i' zeno-completion
+    (( $+functions[_zsh_highlight_bind_widgets] )) && _zsh_highlight_bind_widgets
   '';
 
   xdg.configFile."zeno/config.yml".source = ../config/zeno/config.yml;
