@@ -39,10 +39,9 @@ make_progress_bar() {
   local pct=$1
   local width=${2:-10}
   local filled=$((pct * width / 100))
-  local empty=$((width - filled))
   local bar=""
   for ((i = 0; i < filled; i++)); do bar+="█"; done
-  for ((i = 0; i < empty; i++)); do bar+="░"; done
+  for ((i = filled; i < width; i++)); do bar+="░"; done
   echo "$bar"
 }
 
@@ -72,6 +71,21 @@ make_dual_progress_bar() {
     fi
   done
   echo "$bar"
+}
+
+# カウントダウン表示フォーマット
+format_countdown() {
+  local secs=$1
+  local d=$((secs / 86400))
+  local h=$(((secs % 86400) / 3600))
+  local m=$(((secs % 3600) / 60))
+  if [ $d -gt 0 ]; then
+    printf "%dd%02dh" $d $h
+  elif [ $h -gt 0 ]; then
+    printf "%dh%02dm" $h $m
+  else
+    printf "%dm" $m
+  fi
 }
 
 # 入力JSON読み取り
@@ -154,7 +168,7 @@ if [ "$usage" != "null" ]; then
   [ "$remaining" -lt 0 ] && remaining=0
   k_int=$((remaining / 1000))
   k_dec=$(((remaining % 1000) / 100))
-  ctx_str="Cx [${ctx_color}${ctx_bar}${RESET}]${ctx_color}$(printf "%3d%%" $ctx_pct)${RESET} ${GRAY}$(printf "[%5d.%1dK]" $k_int $k_dec)${RESET}"
+  ctx_str="Cx ${ctx_color}${ctx_bar}${RESET}${ctx_color}$(printf "%3d%%" $ctx_pct)${RESET}  ${GRAY}▸$(printf " %6s" "${k_int}.${k_dec}K")${RESET}"
 fi
 
 # レート制限（v2.1.80+ rate_limits フィールドから直接取得）
@@ -164,18 +178,18 @@ if [ -n "$five_hour_pct" ]; then
   five_hour_int=$(printf "%.0f" "$five_hour_pct")
   hour_color=$(get_color $five_hour_int "$C_SKY")
   time_pct=0
-  time_left=""
+  time_str=""
   reset_epoch=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
   if [ -n "$reset_epoch" ]; then
     now=$(date +%s)
     diff=$((reset_epoch - now))
     if [ "$diff" -gt 0 ]; then
       time_pct=$((diff * 100 / 18000))
-      time_left=" ${GRAY}$(printf "[   %dh%02dm]" $((diff / 3600)) $(((diff % 3600) / 60)))${RESET}"
+      time_str="  ${GRAY}▸$(printf " %6s" "$(format_countdown $diff)")${RESET}"
     fi
   fi
   hour_bar=$(make_dual_progress_bar $five_hour_int $time_pct 10)
-  five_hour_str="5h [${hour_color}${hour_bar}${RESET}]${hour_color}$(printf "%3d%%" $five_hour_int)${RESET}${time_left}"
+  five_hour_str="5h ${hour_color}${hour_bar}${RESET}${hour_color}$(printf "%3d%%" $five_hour_int)${RESET}${time_str}"
 fi
 
 seven_day_str=""
@@ -184,18 +198,18 @@ if [ -n "$seven_day_pct" ]; then
   seven_day_int=$(printf "%.0f" "$seven_day_pct")
   week_color=$(get_color $seven_day_int "$C_MAUVE")
   time_pct_7d=0
-  time_left_7d=""
+  time_str_7d=""
   reset_epoch_7d=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
   if [ -n "$reset_epoch_7d" ]; then
     now=$(date +%s)
     diff_7d=$((reset_epoch_7d - now))
     if [ "$diff_7d" -gt 0 ]; then
       time_pct_7d=$((diff_7d * 100 / 604800))
-      time_left_7d=" ${GRAY}$(printf "[%dd%02dh%02dm]" $((diff_7d / 86400)) $(((diff_7d % 86400) / 3600)) $(((diff_7d % 3600) / 60)))${RESET}"
+      time_str_7d="  ${GRAY}▸$(printf " %6s" "$(format_countdown $diff_7d)")${RESET}"
     fi
   fi
   week_bar=$(make_dual_progress_bar $seven_day_int $time_pct_7d 10)
-  seven_day_str="7d [${week_color}${week_bar}${RESET}]${week_color}$(printf "%3d%%" $seven_day_int)${RESET}${time_left_7d}"
+  seven_day_str="7d ${week_color}${week_bar}${RESET}${week_color}$(printf "%3d%%" $seven_day_int)${RESET}${time_str_7d}"
 fi
 
 # 出力（ディレクトリ git モデル名 時刻 — すべてスペース区切り、すべて太字）
