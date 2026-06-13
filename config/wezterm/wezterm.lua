@@ -18,8 +18,7 @@ config.macos_window_background_blur = 20
 config.window_decorations = "RESIZE"
 -- タブバーの表示
 config.show_tabs_in_tab_bar = true
--- タブが一つの時は非表示
-config.hide_tab_bar_if_only_one_tab = true
+config.hide_tab_bar_if_only_one_tab = false
 -- falseにするとタブバーの透過が効かなくなる
 -- config.use_fancy_tab_bar = false
 
@@ -61,6 +60,38 @@ local SOLID_LEFT_ARROW = wezterm.nerdfonts.ple_left_half_circle_thick
 -- タブの右側の装飾
 local SOLID_RIGHT_ARROW = wezterm.nerdfonts.ple_right_half_circle_thick
 
+-- プロセス名 → Nerd Fonts アイコン
+local process_icons = {
+	nvim = wezterm.nerdfonts.custom_vim,
+	vim = wezterm.nerdfonts.custom_vim,
+	zsh = wezterm.nerdfonts.oct_terminal,
+	bash = wezterm.nerdfonts.oct_terminal,
+	fish = wezterm.nerdfonts.oct_terminal,
+	git = wezterm.nerdfonts.dev_git,
+	lazygit = wezterm.nerdfonts.dev_git,
+	yazi = wezterm.nerdfonts.md_folder_open,
+	ssh = wezterm.nerdfonts.fa_server,
+	node = wezterm.nerdfonts.dev_nodejs_small,
+	python3 = wezterm.nerdfonts.dev_python,
+	python = wezterm.nerdfonts.dev_python,
+	lua = wezterm.nerdfonts.seti_lua,
+	gh = wezterm.nerdfonts.dev_github_badge,
+}
+
+local function get_cwd(pane)
+	local cwd = pane.current_working_dir
+	if not cwd then
+		return ""
+	end
+	local path = type(cwd) == "userdata" and cwd.file_path or tostring(cwd)
+	path = path:gsub("/$", "")
+	local home = os.getenv("HOME") or ""
+	if home ~= "" and path:sub(1, #home) == home then
+		path = "~" .. path:sub(#home + 1)
+	end
+	return path:match("([^/]+)$") or path
+end
+
 wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_width)
 	local background = "#1e2132"
 	local foreground = "#FFFFFF"
@@ -70,11 +101,13 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_wid
 		foreground = "#FFFFFF"
 	end
 	local edge_foreground = background
-	local raw_title = tab.active_pane.title
-	if raw_title == "" then
-		raw_title = tab.active_pane.foreground_process_name:match("([^/]+)$") or "shell"
-	end
-	local title = " " .. wezterm.truncate_right(raw_title, max_width - 1) .. " "
+
+	local process_name = tab.active_pane.foreground_process_name:match("([^/]+)$") or ""
+	local icon = process_icons[process_name] or wezterm.nerdfonts.fa_terminal
+	local cwd = get_cwd(tab.active_pane)
+	local label = cwd ~= "" and cwd or process_name
+	local title = icon .. "   " .. wezterm.truncate_right(label, max_width - 4)
+
 	return {
 		{ Background = { Color = edge_background } },
 		{ Foreground = { Color = edge_foreground } },
