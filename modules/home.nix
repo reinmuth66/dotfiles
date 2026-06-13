@@ -9,7 +9,6 @@
     ./bat.nix
     ./atuin.nix
     ./gh.nix
-    ./ghostty.nix
     ./starship.nix
     ./zed.nix
     ./wezterm.nix
@@ -52,4 +51,7 @@
   home.file.".clang-format".source = ../config/clang-format;
 
   programs.home-manager.enable = true;
+
+  manual.manpages.enable = false;
+  manual.html.enable = false;
 }

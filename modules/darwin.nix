@@ -15,7 +15,6 @@
       "affinity"
       "copilot-cli"
       "discord"
-      "ghostty"
       "google-drive"
       "google-japanese-ime"
       "jordanbaird-ice"
@@ -24,8 +23,6 @@
       "microsoft-powerpoint"
       "microsoft-teams"
       "microsoft-word"
-      "notion"
-      "obsidian"
       "raycast"
       "tailscale-app"
       "thebrowsercompany-dia"
@@ -49,6 +46,9 @@
   security.sudo.extraConfig = ''
     reinmuth ALL=(ALL:ALL) NOPASSWD: /run/current-system/sw/bin/darwin-rebuild
   '';
+
+  # nix-darwin の options.json 生成を無効化 (Nix 2.33+ の builtins.derivation 警告を抑制)
+  documentation.enable = false;
 
   # system.stateVersion は変更しない
   system.stateVersion = 6;
