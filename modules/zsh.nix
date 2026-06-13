@@ -3,7 +3,6 @@
 {
   home.sessionVariables = {
     LANG = "en_US.UTF-8";
-    LESSUTFCHARDEF = "e000-e09f:w,e0a0-e0bf:p,e0c0-f8ff:w,f0001-fffff:w";
   };
 
   home.sessionPath = [ "${config.home.homeDirectory}/.local/bin" ];
@@ -61,20 +60,6 @@
           rm -f -- "$tmp"
         }
 
-        # Claude Code
-        # function claude() {
-        #  ~/life/scripts/boot_saver.sh "$@"
-        # }
-
-        # 今日の日報を開く
-        function today() {
-          local date daily
-          date="$(date +%Y-%m-%d)"
-          daily="$HOME/life/!daily/$(date +%Y)/$(date +%m)/$date.md"
-          mkdir -p "$(dirname "$daily")"
-          touch "$daily"
-          nvim "$daily"
-        }
       '';
     };
   };
