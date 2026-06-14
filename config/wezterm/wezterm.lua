@@ -62,20 +62,18 @@ local SOLID_RIGHT_ARROW = wezterm.nerdfonts.ple_right_half_circle_thick
 
 -- プロセス名 → Nerd Fonts アイコン
 local process_icons = {
-	nvim = wezterm.nerdfonts.custom_vim,
-	vim = wezterm.nerdfonts.custom_vim,
-	zsh = wezterm.nerdfonts.oct_terminal,
-	bash = wezterm.nerdfonts.oct_terminal,
-	fish = wezterm.nerdfonts.oct_terminal,
+	claude = wezterm.nerdfonts.md_chat,
+	gh = wezterm.nerdfonts.dev_github_badge,
 	git = wezterm.nerdfonts.dev_git,
+	-- issues-todo = wezterm.nerdfonts.md_calendar_check,
 	lazygit = wezterm.nerdfonts.dev_git,
-	yazi = wezterm.nerdfonts.md_folder_open,
-	ssh = wezterm.nerdfonts.fa_server,
-	node = wezterm.nerdfonts.dev_nodejs_small,
+	lua = wezterm.nerdfonts.seti_lua,
+	nvim = wezterm.nerdfonts.custom_vim,
 	python3 = wezterm.nerdfonts.dev_python,
 	python = wezterm.nerdfonts.dev_python,
-	lua = wezterm.nerdfonts.seti_lua,
-	gh = wezterm.nerdfonts.dev_github_badge,
+	ssh = wezterm.nerdfonts.fa_server,
+	vim = wezterm.nerdfonts.custom_vim,
+	yazi = wezterm.nerdfonts.md_folder_open,
 }
 
 local function get_cwd(pane)
@@ -103,7 +101,7 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_wid
 	local edge_foreground = background
 
 	local process_name = tab.active_pane.foreground_process_name:match("([^/]+)$") or ""
-	local icon = process_icons[process_name] or wezterm.nerdfonts.fa_terminal
+	local icon = process_icons[process_name] or wezterm.nerdfonts.oct_terminal
 	local cwd = get_cwd(tab.active_pane)
 	local label = cwd ~= "" and cwd or process_name
 	local title = icon .. "   " .. wezterm.truncate_right(label, max_width - 4)
