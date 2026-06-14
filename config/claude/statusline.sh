@@ -97,7 +97,7 @@ model=$(echo "$input" | jq -r '.model.display_name')
 # CWD取得
 cwd=$(echo "$input" | jq -r '.cwd // empty')
 
-# ディレクトリ表示（$HOME を ~ に置換、3階層超は …/ で切り詰め）
+# ディレクトリ表示（starship の truncate_to_repo + truncation_length=3 に合わせて実装）
 dir_str=""
 if [ -n "$cwd" ]; then
   if [[ "$cwd" == "$HOME"* ]]; then
@@ -105,21 +105,53 @@ if [ -n "$cwd" ]; then
   else
     display_path="$cwd"
   fi
-  rest="${display_path#\~}"
-  rest="${rest#/}"
-  if [ -z "$rest" ]; then
-    depth=0
-  else
-    slashes=$(echo "$rest" | tr -cd '/' | wc -c)
-    depth=$((slashes + 1))
+
+  git_root=""
+  if git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
+    git_root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)
   fi
-  if [ "$depth" -le 3 ]; then
-    short_cwd="$display_path"
+
+  if [ -n "$git_root" ]; then
+    # git リポジトリ内: リポジトリ名を基点にして上位パスを …/ で切り詰め
+    repo_name=$(basename "$git_root")
+    if [ "$cwd" = "$git_root" ]; then
+      repo_relative="$repo_name"
+    else
+      repo_relative="$repo_name/${cwd#$git_root/}"
+    fi
+    rel_slashes=$(echo "$repo_relative" | tr -cd '/' | wc -c)
+    if [ $((rel_slashes + 1)) -le 3 ]; then
+      short_cwd="…/$repo_relative"
+    else
+      IFS='/' read -ra parts <<<"$repo_relative"
+      len=${#parts[@]}
+      start=$((len - 3))
+      short_cwd="…/${parts[$start]}/${parts[$((start + 1))]}/${parts[$((start + 2))]}"
+    fi
   else
-    IFS='/' read -ra parts <<<"$rest"
-    len=${#parts[@]}
-    short_cwd="…/${parts[$((len - 3))]}/${parts[$((len - 2))]}/${parts[$((len - 1))]}"
+    # git リポジトリ外: ~ を1コンポーネントとして数えて depth > 3 で切り詰め
+    if [[ "$display_path" == "~/"* ]]; then
+      inner="${display_path#\~/}"
+      slashes=$(echo "$inner" | tr -cd '/' | wc -c)
+      depth=$((slashes + 2))
+    elif [[ "$display_path" == "~" ]]; then
+      depth=1
+      inner=""
+    else
+      inner="${display_path#/}"
+      slashes=$(echo "$inner" | tr -cd '/' | wc -c)
+      depth=$((slashes + 1))
+    fi
+    if [ "$depth" -le 3 ]; then
+      short_cwd="$display_path"
+    else
+      IFS='/' read -ra parts <<<"$inner"
+      len=${#parts[@]}
+      start=$((len - 3))
+      short_cwd="…/${parts[$start]}/${parts[$((start + 1))]}/${parts[$((start + 2))]}"
+    fi
   fi
+
   dir_str="${C_MAUVE_BOLD}${short_cwd}${RESET}"
 fi
 
