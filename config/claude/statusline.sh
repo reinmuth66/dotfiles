@@ -195,7 +195,7 @@ if [ -n "$git_root" ]; then
   branch=$(git -C "$cwd" branch --show-current 2>/dev/null)
   [ -z "$branch" ] && branch=$(git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
   if [ -n "$branch" ]; then
-    git_str="${SKY_BOLD} ${branch}${RESET}"
+    git_str="${SKY_BOLD} ${branch}${RESET}"
     staged=0
     modified=0
     deleted=0
