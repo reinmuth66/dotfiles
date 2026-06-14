@@ -1,34 +1,29 @@
 #!/bin/bash
 
-# ANSIカラーコード
-RED='\033[31m'
-GREEN='\033[32m'
-YELLOW='\033[33m'
-MAGENTA='\033[35m'
-CYAN='\033[36m'
-GRAY='\033[90m'
-RESET='\033[0m'
-
 # Catppuccin Mocha
-C_MAUVE='\033[38;2;203;166;247m'
-C_SKY='\033[38;2;137;220;235m'
-C_GREEN='\033[38;2;166;227;161m'
-C_BLUE='\033[38;2;137;180;250m'
+RED='\033[38;2;243;139;168m'
+PEACH='\033[38;2;250;179;135m'
+OVERLAY0='\033[38;2;108;112;134m'
+RESET='\033[0m'
+MAUVE='\033[38;2;203;166;247m'
+SKY='\033[38;2;137;220;235m'
+GREEN='\033[38;2;166;227;161m'
+BLUE='\033[38;2;137;180;250m'
 
-# Catppuccin Mocha 太字
-C_MAUVE_BOLD='\033[1;38;2;203;166;247m' # directory
-C_SKY_BOLD='\033[1;38;2;137;220;235m'   # git branch / status
-C_GREEN_BOLD='\033[1;38;2;166;227;161m' # モデル名
-C_BLUE_BOLD='\033[1;38;2;137;180;250m'  # 時刻
+# Catppuccin Mocha Bold
+MAUVE_BOLD='\033[1;38;2;203;166;247m'
+SKY_BOLD='\033[1;38;2;137;220;235m'
+GREEN_BOLD='\033[1;38;2;166;227;161m'
+BLUE_BOLD='\033[1;38;2;137;180;250m'
 
-# 使用率に応じた色を返す関数
+# 使用率に応じた色を返す関数（コンテキスト用）
 get_color() {
   local pct=$1
-  local base=${2:-$CYAN}
+  local base=${2:-$SKY}
   if [ "$pct" -ge 80 ]; then
     echo "$RED"
   elif [ "$pct" -ge 50 ]; then
-    echo "$YELLOW"
+    echo "$PEACH"
   else
     echo "$base"
   fi
@@ -45,27 +40,42 @@ make_progress_bar() {
   echo "$bar"
 }
 
-# デュアルプログレスバー生成関数
+# セグメントカラー付きデュアルプログレスバー生成関数
 # used_pct: 左から塗る（使用率）、time_pct: 右から塗る（回復待ち割合）
-make_dual_progress_bar() {
-  local used_pct=$1
-  local time_pct=$2
-  local width=${3:-10}
+# elapsed_pct: 経過時間割合（-1 = 不明、超過色なし）、base: 通常色
+make_segmented_bar() {
+  local used_pct=$1 time_pct=$2 elapsed_pct=$3 base=$4 width=${5:-10}
   local used_filled=$((used_pct * width / 100))
   local time_filled=$((time_pct * width / 100))
+  local elapsed_filled=0
+  [ "$elapsed_pct" -ge 0 ] && elapsed_filled=$((elapsed_pct * width / 100))
+  local over=0
+  [ "$elapsed_pct" -ge 0 ] && over=$((used_pct - elapsed_pct))
+  # 精度不足で超過セルが出ない場合、次のセル1つをYELLOWで示す
+  local show_next_marker=0
+  if [ "$elapsed_pct" -ge 0 ] && [ "$used_filled" -eq "$elapsed_filled" ] && [ "$over" -gt 0 ] && [ "$used_filled" -lt "$width" ]; then
+    show_next_marker=1
+  fi
   local bar=""
   for ((i = 0; i < width; i++)); do
     local right_idx=$((width - 1 - i))
-    local is_used=0
-    local is_time=0
+    local is_used=0 is_time=0
     [ $i -lt $used_filled ] && is_used=1
     [ $right_idx -lt $time_filled ] && is_time=1
-    if [ $is_used -eq 1 ] && [ $is_time -eq 1 ]; then
-      bar+="▓"
+    local cell_color="$base"
+    if [ $is_used -eq 1 ] && [ "$elapsed_pct" -ge 0 ] && [ $i -ge $elapsed_filled ]; then
+      [ "$over" -ge 10 ] && cell_color="$RED" || cell_color="$PEACH"
+    elif [ $show_next_marker -eq 1 ] && [ $i -eq $used_filled ]; then
+      cell_color="$PEACH"
+    fi
+    if [ "$cell_color" != "$base" ]; then
+      bar+="${cell_color}█${RESET}"
+    elif [ $is_used -eq 1 ] && [ $is_time -eq 1 ]; then
+      bar+="${base}▓${RESET}"
     elif [ $is_used -eq 1 ]; then
-      bar+="█"
+      bar+="${base}█${RESET}"
     elif [ $is_time -eq 1 ]; then
-      bar+="▒"
+      bar+="${base}▒${RESET}"
     else
       bar+="░"
     fi
@@ -88,6 +98,30 @@ format_countdown() {
   fi
 }
 
+# レート制限行を組み立てる関数
+# 引数: label used_int reset_epoch total_secs base
+build_rate_str() {
+  local label=$1 used_int=$2 reset_epoch=$3 total_secs=$4 base=$5
+  local time_pct=0 elapsed_pct=-1 time_str=""
+  if [ -n "$reset_epoch" ]; then
+    local now diff
+    now=$(date +%s)
+    diff=$((reset_epoch - now))
+    if [ "$diff" -gt 0 ]; then
+      time_pct=$((diff * 100 / total_secs))
+      elapsed_pct=$((100 - time_pct))
+      time_str="  ${OVERLAY0}▸$(printf " %6s" "$(format_countdown $diff)")${RESET}"
+    else
+      elapsed_pct=100
+    fi
+  fi
+  local num_color
+  [ "$used_int" -ge 90 ] && num_color="$RED" || num_color="$base"
+  local bar
+  bar=$(make_segmented_bar "$used_int" "$time_pct" "$elapsed_pct" "$base")
+  echo "${label} ${bar}${num_color}$(printf "%3d%%" "$used_int")${RESET}${time_str}"
+}
+
 # 入力JSON読み取り
 input=$(cat)
 
@@ -99,6 +133,7 @@ cwd=$(echo "$input" | jq -r '.cwd // empty')
 
 # ディレクトリ表示（starship の truncate_to_repo + truncation_length=3 に合わせて実装）
 dir_str=""
+git_root=""
 if [ -n "$cwd" ]; then
   if [[ "$cwd" == "$HOME"* ]]; then
     display_path="~${cwd#$HOME}"
@@ -106,7 +141,6 @@ if [ -n "$cwd" ]; then
     display_path="$cwd"
   fi
 
-  git_root=""
   if git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
     git_root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)
   fi
@@ -152,37 +186,35 @@ if [ -n "$cwd" ]; then
     fi
   fi
 
-  dir_str="${C_MAUVE_BOLD}${short_cwd}${RESET}"
+  dir_str="${MAUVE_BOLD}${short_cwd}${RESET}"
 fi
 
 # Git状態取得
 git_str=""
-if [ -n "$cwd" ]; then
-  if git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
-    branch=$(git -C "$cwd" branch --show-current 2>/dev/null)
-    [ -z "$branch" ] && branch=$(git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
-    if [ -n "$branch" ]; then
-      git_str="${C_SKY_BOLD} ${branch}${RESET}"
-      staged=0
-      modified=0
-      deleted=0
-      untracked=0
-      while IFS= read -r line; do
-        x="${line:0:1}"
-        y="${line:1:1}"
-        if [ "$x" = "?" ] && [ "$y" = "?" ]; then
-          untracked=$((untracked + 1))
-          continue
-        fi
-        [ "$x" != " " ] && staged=$((staged + 1))
-        if [ "$y" = "M" ] || [ "$y" = "T" ]; then modified=$((modified + 1)); fi
-        [ "$y" = "D" ] && deleted=$((deleted + 1))
-      done < <(git -C "$cwd" status --porcelain 2>/dev/null)
-      [ "$modified" -gt 0 ] && git_str="$git_str ${C_SKY_BOLD}󰏫 ${modified}${RESET}"
-      [ "$staged" -gt 0 ] && git_str="$git_str ${C_SKY_BOLD}󱇬 ${staged}${RESET}"
-      [ "$deleted" -gt 0 ] && git_str="$git_str ${C_SKY_BOLD}󱘹 ${deleted}${RESET}"
-      [ "$untracked" -gt 0 ] && git_str="$git_str ${C_SKY_BOLD}󰈉 ${untracked}${RESET}"
-    fi
+if [ -n "$git_root" ]; then
+  branch=$(git -C "$cwd" branch --show-current 2>/dev/null)
+  [ -z "$branch" ] && branch=$(git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
+  if [ -n "$branch" ]; then
+    git_str="${SKY_BOLD} ${branch}${RESET}"
+    staged=0
+    modified=0
+    deleted=0
+    untracked=0
+    while IFS= read -r line; do
+      x="${line:0:1}"
+      y="${line:1:1}"
+      if [ "$x" = "?" ] && [ "$y" = "?" ]; then
+        untracked=$((untracked + 1))
+        continue
+      fi
+      [ "$x" != " " ] && staged=$((staged + 1))
+      if [ "$y" = "M" ] || [ "$y" = "T" ]; then modified=$((modified + 1)); fi
+      [ "$y" = "D" ] && deleted=$((deleted + 1))
+    done < <(git -C "$cwd" status --porcelain 2>/dev/null)
+    [ "$modified" -gt 0 ] && git_str="$git_str ${SKY_BOLD}󰏫 ${modified}${RESET}"
+    [ "$staged" -gt 0 ] && git_str="$git_str ${SKY_BOLD}󱇬 ${staged}${RESET}"
+    [ "$deleted" -gt 0 ] && git_str="$git_str ${SKY_BOLD}󱘹 ${deleted}${RESET}"
+    [ "$untracked" -gt 0 ] && git_str="$git_str ${SKY_BOLD}󰈉 ${untracked}${RESET}"
   fi
 fi
 
@@ -193,14 +225,14 @@ if [ "$usage" != "null" ]; then
   current=$(echo "$input" | jq '.context_window.current_usage | .input_tokens + .cache_creation_input_tokens + .cache_read_input_tokens')
   size=$(echo "$input" | jq '.context_window.context_window_size')
   ctx_pct=$(((current * 100 + size / 2) / size))
-  ctx_color=$(get_color $ctx_pct "$C_GREEN")
+  ctx_color=$(get_color $ctx_pct "$GREEN")
   ctx_bar=$(make_progress_bar $ctx_pct 10)
   compact_threshold=$((size * 85 / 100))
   remaining=$((compact_threshold - current))
   [ "$remaining" -lt 0 ] && remaining=0
   k_int=$((remaining / 1000))
   k_dec=$(((remaining % 1000) / 100))
-  ctx_str="Cx ${ctx_color}${ctx_bar}${RESET}${ctx_color}$(printf "%3d%%" $ctx_pct)${RESET}  ${GRAY}▸$(printf " %6s" "${k_int}.${k_dec}K")${RESET}"
+  ctx_str="Cx ${ctx_color}${ctx_bar}${RESET}${ctx_color}$(printf "%3d%%" $ctx_pct)${RESET}  ${OVERLAY0}▸$(printf " %6s" "${k_int}.${k_dec}K")${RESET}"
 fi
 
 # レート制限（v2.1.80+ rate_limits フィールドから直接取得）
@@ -208,40 +240,16 @@ five_hour_str=""
 five_hour_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 if [ -n "$five_hour_pct" ]; then
   five_hour_int=$(printf "%.0f" "$five_hour_pct")
-  hour_color=$(get_color $five_hour_int "$C_SKY")
-  time_pct=0
-  time_str=""
   reset_epoch=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
-  if [ -n "$reset_epoch" ]; then
-    now=$(date +%s)
-    diff=$((reset_epoch - now))
-    if [ "$diff" -gt 0 ]; then
-      time_pct=$((diff * 100 / 18000))
-      time_str="  ${GRAY}▸$(printf " %6s" "$(format_countdown $diff)")${RESET}"
-    fi
-  fi
-  hour_bar=$(make_dual_progress_bar $five_hour_int $time_pct 10)
-  five_hour_str="5h ${hour_color}${hour_bar}${RESET}${hour_color}$(printf "%3d%%" $five_hour_int)${RESET}${time_str}"
+  five_hour_str=$(build_rate_str "5h" "$five_hour_int" "$reset_epoch" 18000 "$SKY")
 fi
 
 seven_day_str=""
 seven_day_pct=$(echo "$input" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 if [ -n "$seven_day_pct" ]; then
   seven_day_int=$(printf "%.0f" "$seven_day_pct")
-  week_color=$(get_color $seven_day_int "$C_MAUVE")
-  time_pct_7d=0
-  time_str_7d=""
   reset_epoch_7d=$(echo "$input" | jq -r '.rate_limits.seven_day.resets_at // empty')
-  if [ -n "$reset_epoch_7d" ]; then
-    now=$(date +%s)
-    diff_7d=$((reset_epoch_7d - now))
-    if [ "$diff_7d" -gt 0 ]; then
-      time_pct_7d=$((diff_7d * 100 / 604800))
-      time_str_7d="  ${GRAY}▸$(printf " %6s" "$(format_countdown $diff_7d)")${RESET}"
-    fi
-  fi
-  week_bar=$(make_dual_progress_bar $seven_day_int $time_pct_7d 10)
-  seven_day_str="7d ${week_color}${week_bar}${RESET}${week_color}$(printf "%3d%%" $seven_day_int)${RESET}${time_str_7d}"
+  seven_day_str=$(build_rate_str "7d" "$seven_day_int" "$reset_epoch_7d" 604800 "$MAUVE")
 fi
 
 # 出力（ディレクトリ git モデル名 時刻 — すべてスペース区切り、すべて太字）
@@ -252,7 +260,7 @@ if [ -n "$git_str" ]; then
   line1="$line1$git_str"
 fi
 [ -n "$line1" ] && line1="$line1 "
-line1="${line1}${C_GREEN_BOLD}󱌼 ${model}${RESET} ${C_BLUE_BOLD}󰥔 $(date +%H:%M)${RESET}"
+line1="${line1}${GREEN_BOLD}󱌼 ${model}${RESET} ${BLUE_BOLD}󰥔 $(date +%H:%M)${RESET}"
 
 echo -e "$line1"
 [ -n "$ctx_str" ] && echo -e "$ctx_str"
