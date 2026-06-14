@@ -6,6 +6,13 @@ return {
         ["<Down>"] = { "fallback" },
         ["<Up>"] = { "fallback" },
       },
+      completion = {
+        list = {
+          selection = {
+            preselect = false,
+          },
+        },
+      },
     },
   },
 }
