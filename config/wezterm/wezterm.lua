@@ -6,6 +6,7 @@ config.font = wezterm.font("Moralerspace Neon HW")
 config.font_size = 12.0
 config.use_ime = true
 config.macos_forward_to_ime_modifier_mask = "SHIFT|CTRL"
+config.enable_kitty_keyboard = true
 config.default_cursor_style = "SteadyBar"
 config.hide_mouse_cursor_when_typing = true
 config.window_background_opacity = 0.7
