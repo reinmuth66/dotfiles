@@ -18,4 +18,79 @@
       // "j k": "vim::NormalBefore"
     },
   },
+
+  // WezTerm からの移植: タブ(Pane内アイテム)操作
+  {
+    "context": "Pane",
+    "use_key_equivalents": true,
+    "bindings": {
+      // ActivateTabRelative(1) / (-1)
+      "ctrl-shift-d": "pane::ActivateNextItem",
+      "ctrl-shift-s": "pane::ActivatePreviousItem",
+      // CloseCurrentTab { confirm = true } ※Zedに「閉じる前確認」パラメータは無い
+      "ctrl-shift-w": ["pane::CloseActiveItem", { "close_pinned": false }],
+      // MoveTabRelative(1) / (-1) (Zed標準は ctrl-shift-pagedown/pageup。押しやすい別名を追加)
+      "ctrl-shift-c": "pane::SwapItemRight",
+      "ctrl-shift-x": "pane::SwapItemLeft",
+      // SplitVertical(新ペインは下) / SplitHorizontal(新ペインは右)
+      "ctrl-shift-,": "pane::SplitDown",
+      "ctrl-shift-.": "pane::SplitRight",
+      // CloseCurrentPane { confirm = true } (Zedに「ペイン自体を閉じる」アクションは無く、
+      // 全アイテムを閉じることで空ペインを自動消滅させて近似)
+      "ctrl-shift-m": ["pane::CloseAllItems", { "close_pinned": false }],
+    },
+  },
+
+  // WezTerm からの移植: ペイン移動・ズーム(エディタ以外にフォーカスがある場合のフォールバック)
+  {
+    "context": "Workspace",
+    "use_key_equivalents": true,
+    "bindings": {
+      // ActivatePaneDirection("Up"/"Left"/"Down"/"Right")
+      // 注: i=Up, j=Left, k=Down, l=Right という非標準配置。元のWezTerm設定どおり忠実に再現
+      "ctrl-shift-i": "workspace::ActivatePaneUp",
+      "ctrl-shift-j": "workspace::ActivatePaneLeft",
+      "ctrl-shift-k": "workspace::ActivatePaneDown",
+      "ctrl-shift-l": "workspace::ActivatePaneRight",
+      // TogglePaneZoomState
+      "ctrl-shift-p": "workspace::ToggleZoom",
+    },
+  },
+  {
+    "context": "Workspace && !Terminal",
+    "use_key_equivalents": true,
+    "bindings": {
+      // SpawnTab (エディタ側のフォールバック。Editorコンテキストでの上書きは下記)
+      "ctrl-shift-e": "workspace::NewFile",
+    },
+  },
+
+  // Editor コンテキストでの明示的上書き(Emacs風別名のシャドーイング回避)
+  {
+    "context": "Editor",
+    "use_key_equivalents": true,
+    "bindings": {
+      "ctrl-shift-p": "workspace::ToggleZoom",
+      "ctrl-shift-e": "workspace::NewFile",
+      // IncreaseFontSize / DecreaseFontSize (Pane の ctrl-- = GoBack を上書き)
+      "ctrl-=": ["zed::IncreaseBufferFontSize", { "persist": false }],
+      "ctrl-+": ["zed::IncreaseBufferFontSize", { "persist": false }],
+      "ctrl--": ["zed::DecreaseBufferFontSize", { "persist": false }],
+    },
+  },
+
+  // Terminal コンテキスト
+  {
+    "context": "Terminal",
+    "use_key_equivalents": true,
+    "bindings": {
+      // SpawnTab (ターミナル側)
+      "ctrl-shift-e": "workspace::NewTerminal",
+      // ActivateCopyMode (Zed標準では ctrl-shift-space に同機能あり。別名として追加)
+      "ctrl-shift-y": "terminal::ToggleViMode",
+      "ctrl-=": ["zed::IncreaseBufferFontSize", { "persist": false }],
+      "ctrl-+": ["zed::IncreaseBufferFontSize", { "persist": false }],
+      "ctrl--": ["zed::DecreaseBufferFontSize", { "persist": false }],
+    },
+  },
 ]
