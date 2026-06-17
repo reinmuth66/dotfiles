@@ -34,6 +34,19 @@ in
     bindkey '^m' zeno-auto-snippet-and-accept-line
     bindkey '^i' zeno-completion
     (( $+functions[_zsh_highlight_bind_widgets] )) && _zsh_highlight_bind_widgets
+
+    # Fix: zeno-completion declares 'local options' (scalar) which shadows
+    # zsh/parameter's special 'options' (associative array) via dynamic scoping.
+    # When _zsh_highlight is called via zle-line-pre-redraw inside zeno-completion,
+    # expanding options as key-value pairs on a scalar returns 1 element, causing
+    # "bad set of key/value pairs for associative array".
+    # Override the hook to detect and mask the shadowed scalar with an empty assoc.
+    if (( $+functions[_zsh_highlight__zle-line-pre-redraw] )); then
+      _zsh_highlight__zle-line-pre-redraw() {
+        [[ ''${(t)options} != *association* ]] && local -A options
+        true && _zsh_highlight "$@"
+      }
+    fi
   '';
 
   xdg.configFile."zeno/config.yml".source = ../config/zeno/config.yml;

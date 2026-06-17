@@ -16,6 +16,7 @@
     ./claude.nix
     ./zmk-battery-center.nix
     ./czg.nix
+    ./marp.nix
   ];
 
   home = {
@@ -51,6 +52,10 @@
   home.file.".clang-format".source = ../config/clang-format;
 
   programs.home-manager.enable = true;
+
+  xdg.configFile."nix/nix.conf".text = ''
+    warn-dirty = false
+  '';
 
   manual.manpages.enable = false;
   manual.html.enable = false;

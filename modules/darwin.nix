@@ -7,7 +7,7 @@
     enable = true;
     onActivation = {
       autoUpdate = false;
-      cleanup = "zap";
+      cleanup = "none";
     };
 
     # GUI アプリ
