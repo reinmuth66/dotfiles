@@ -1,0 +1,47 @@
+name: Update zmk-battery-center
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6.0.3
+      - uses: DeterminateSystems/nix-installer-action@v22
+      - name: Check for new release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LATEST=$(gh release view --repo kot149/zmk-battery-center --json tagName -q '.tagName' | sed 's/^v//')
+          CURRENT=$(grep -oP '(?<=version = ")[^"]+' nix/zmk-battery-center.nix)
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" != "$CURRENT" ]; then
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update version and hash
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          VERSION="${{ steps.check.outputs.latest }}"
+          URL="https://github.com/kot149/zmk-battery-center/releases/download/v${VERSION}/zmk-battery-center_aarch64.app.tar.gz"
+          HASH=$(nix store prefetch-file --hash-type sha256 --json "$URL" | jq -r '.hash')
+          sed -i "s/version = \"[^\"]*\"/version = \"${VERSION}\"/" nix/zmk-battery-center.nix
+          sed -i "s|hash = \"[^\"]*\"|hash = \"${HASH}\"|" nix/zmk-battery-center.nix
+      - name: Create Pull Request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          commit-message: 'chore: update zmk-battery-center to v${{ steps.check.outputs.latest }}'
+          title: 'chore: update zmk-battery-center to v${{ steps.check.outputs.latest }}'
+          body: |
+            Automated update of zmk-battery-center from v${{ steps.check.outputs.current }} to v${{ steps.check.outputs.latest }}.
+          branch: update/zmk-battery-center
+          labels: dependencies
+          delete-branch: true
