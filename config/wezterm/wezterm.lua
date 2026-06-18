@@ -101,8 +101,18 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_wid
 	end
 	local edge_foreground = background
 
-	local process_name = tab.active_pane.foreground_process_name:match("([^/]+)$") or ""
-	local icon = process_icons[process_name] or wezterm.nerdfonts.oct_terminal
+	local full_path = tab.active_pane.foreground_process_name
+	local process_name = full_path:match("([^/]+)$") or ""
+	local icon = process_icons[process_name]
+	if not icon then
+		for name, ico in pairs(process_icons) do
+			if full_path:find("/" .. name .. "/") or full_path:find("/" .. name .. "$") then
+				icon = ico
+				break
+			end
+		end
+	end
+	icon = icon or wezterm.nerdfonts.oct_terminal
 	local cwd = get_cwd(tab.active_pane)
 	local label = cwd ~= "" and cwd or process_name
 	local title = icon .. "   " .. wezterm.truncate_right(label, max_width - 4)
