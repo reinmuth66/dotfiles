@@ -16,6 +16,7 @@
       "copilot-cli"
       "discord"
       "google-drive"
+      "google-chrome"
       "google-japanese-ime"
       "jordanbaird-ice"
       "karabiner-elements"
