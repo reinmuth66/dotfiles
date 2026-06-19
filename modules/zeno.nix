@@ -47,6 +47,24 @@ in
         true && _zsh_highlight "$@"
       }
     fi
+
+    # zeno-start-server uses `nohup ... &!` (disown), so when a terminal pane is
+    # force-closed (SIGKILL to zsh), the zshexit hook never runs and the deno
+    # server becomes an orphan. Clean those up at each new shell startup.
+    () {
+      local sock_dir="''${XDG_RUNTIME_DIR:-''${TMPDIR:-/tmp}}/zeno-''${UID}"
+      local sock name zsh_pid deno_pid
+      for sock in "''${sock_dir}"/zeno-*.sock(N); do
+        name="''${sock:t}"
+        name="''${name#zeno-}"
+        zsh_pid="''${name%.sock}"
+        [[ "''${zsh_pid}" == "$$" ]] && continue
+        kill -0 "''${zsh_pid}" 2>/dev/null && continue
+        deno_pid="$(lsof -F p "''${sock}" 2>/dev/null | grep '^p' | cut -c2- | head -1)"
+        [[ -n "''${deno_pid}" ]] && kill "''${deno_pid}" 2>/dev/null
+        rm -f "''${sock}"
+      done
+    } 2>/dev/null
   '';
 
   xdg.configFile."zeno/config.yml".source = ../config/zeno/config.yml;
