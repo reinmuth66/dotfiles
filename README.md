@@ -73,6 +73,14 @@ git -C ~/dotfiles push
 brew upgrade --cask
 ```
 
+### 古い Nix ビルドを削除する
+
+```bash
+sudo nix-collect-garbage -d
+```
+
+古いすべての世代を削除してガベージコレクションを実行する。
+
 ### Google 日本語入力のアイコン復元
 
 `topgrade` 実行後にアイコンが上書きされた場合:
