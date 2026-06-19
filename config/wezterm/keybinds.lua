@@ -108,6 +108,9 @@ return {
 		{ key = "8", mods = "SUPER", action = act.ActivateTab(7) },
 		{ key = "9", mods = "SUPER", action = act.ActivateTab(-1) },
 
+		-- Deleteキーの有効化
+		{ key = "Delete", mods = "NONE", action = act.SendString("\x1b[3~") },
+
 		-- スクロール
 		{ key = ":", mods = "SHIFT|CTRL", action = act.ScrollByLine(-3) },
 		{ key = "?", mods = "SHIFT|CTRL", action = act.ScrollByLine(3) },
