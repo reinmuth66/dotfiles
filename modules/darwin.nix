@@ -12,6 +12,7 @@
 
     # GUI アプリ
     casks = [
+      "adobe-acrobat-reader"
       "affinity"
       "copilot-cli"
       "discord"
