@@ -48,20 +48,22 @@ in
       }
     fi
 
-    # zeno-start-server uses `nohup ... &!` (disown), so when a terminal pane is
-    # force-closed (SIGKILL to zsh), the zshexit hook never runs and the deno
-    # server becomes an orphan. Clean those up at each new shell startup.
+    # zeno-start-server uses `nohup ... &!` (disown), so servers survive when
+    # zsh is killed. The zshexit hook (zeno-stop-server) also has a failure
+    # mode: it deletes the socket file but skips the kill when ZENO_PID is
+    # unset, leaving a server running with no socket on disk.
+    # Detect orphans by reading ZENO_SOCK from each deno process's environment
+    # and checking whether the owning zsh PID is still alive.
     () {
-      local sock_dir="''${XDG_RUNTIME_DIR:-''${TMPDIR:-/tmp}}/zeno-''${UID}"
-      local sock name zsh_pid deno_pid
-      for sock in "''${sock_dir}"/zeno-*.sock(N); do
-        name="''${sock:t}"
-        name="''${name#zeno-}"
-        zsh_pid="''${name%.sock}"
-        [[ "''${zsh_pid}" == "$$" ]] && continue
+      local deno_pid sock zsh_pid
+      for deno_pid in ''${(f)"$(pgrep -f 'zeno.zsh/src/server' 2>/dev/null)"}; do
+        sock="$(ps eww -p "''${deno_pid}" 2>/dev/null | tr ' ' '\n' | grep '^ZENO_SOCK=' | head -1)"
+        sock="''${sock#ZENO_SOCK=}"
+        [[ -z "''${sock}" ]] && continue
+        zsh_pid="''${''${sock:t}#zeno-}"
+        zsh_pid="''${zsh_pid%.sock}"
         kill -0 "''${zsh_pid}" 2>/dev/null && continue
-        deno_pid="$(lsof -F p "''${sock}" 2>/dev/null | grep '^p' | cut -c2- | head -1)"
-        [[ -n "''${deno_pid}" ]] && kill "''${deno_pid}" 2>/dev/null
+        kill "''${deno_pid}" 2>/dev/null
         rm -f "''${sock}"
       done
     } 2>/dev/null
