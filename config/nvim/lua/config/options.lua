@@ -3,3 +3,4 @@
 -- Add any additional options here
 vim.opt.title = true
 vim.opt.spelllang = { "en", "cjk" }
+vim.opt.ttimeoutlen = 0
