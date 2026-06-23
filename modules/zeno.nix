@@ -48,25 +48,23 @@ in
       }
     fi
 
-    # zeno-start-server uses `nohup ... &!` (disown), so servers survive when
-    # zsh is killed. The zshexit hook (zeno-stop-server) also has a failure
-    # mode: it deletes the socket file but skips the kill when ZENO_PID is
-    # unset, leaving a server running with no socket on disk.
-    # Detect orphans by reading ZENO_SOCK from each deno process's environment
-    # and checking whether the owning zsh PID is still alive.
-    () {
-      local deno_pid sock zsh_pid
-      for deno_pid in ''${(f)"$(pgrep -f 'zeno.zsh/src/server' 2>/dev/null)"}; do
-        sock="$(ps eww -p "''${deno_pid}" 2>/dev/null | tr ' ' '\n' | grep '^ZENO_SOCK=' | head -1)"
-        sock="''${sock#ZENO_SOCK=}"
-        [[ -z "''${sock}" ]] && continue
-        zsh_pid="''${''${sock:t}#zeno-}"
-        zsh_pid="''${zsh_pid%.sock}"
-        kill -0 "''${zsh_pid}" 2>/dev/null && continue
-        kill "''${deno_pid}" 2>/dev/null
-        rm -f "''${sock}"
-      done
-    } 2>/dev/null
+    # Watchdog: start a background subshell after the first prompt (when ZENO_PID
+    # is reliably set). It polls the owner zsh PID every 5 s and sends SIGTERM
+    # to the Deno server when zsh is gone. The server's own signalHandler then
+    # removes the socket file and calls Deno.exit(0) — no external kill needed.
+    _zeno_watchdog_once() {
+      add-zsh-hook -d precmd _zeno_watchdog_once
+      local _zsh_pid=$$
+      local _deno_pid=''${ZENO_PID}
+      [[ -z ''${_deno_pid} ]] && return
+      (
+        while kill -0 ''${_zsh_pid} 2>/dev/null; do
+          sleep 5
+        done
+        kill -TERM ''${_deno_pid} 2>/dev/null
+      ) 2>/dev/null &!
+    }
+    add-zsh-hook precmd _zeno_watchdog_once
   '';
 
   xdg.configFile."zeno/config.yml".source = ../config/zeno/config.yml;
