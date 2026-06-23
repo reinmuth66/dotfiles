@@ -110,8 +110,19 @@ return {
 
 		-- Deleteキーの有効化
 		{ key = "Delete", mods = "NONE", action = act.SendString("\x1b[3~") },
-		-- Kitty keyboard protocol でKarabiner合成Escapeが届かない問題の回避
-		{ key = "Escape", mods = "NONE", action = act.SendKey({ key = "Escape" }) },
+		-- nvim は Kitty keyboard protocol で \x1b[27u を期待するため分岐
+		{
+			key = "Escape",
+			mods = "NONE",
+			action = wezterm.action_callback(function(win, pane)
+				local proc = pane:get_foreground_process_name()
+				if proc:find("nvim") then
+					win:perform_action(act.SendString("\x1b[27u"), pane)
+				else
+					win:perform_action(act.SendString("\x1b"), pane)
+				end
+			end),
+		},
 
 		-- スクロール
 		{ key = ":", mods = "SHIFT|CTRL", action = act.ScrollByLine(-3) },
