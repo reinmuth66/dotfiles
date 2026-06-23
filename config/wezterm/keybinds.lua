@@ -110,6 +110,8 @@ return {
 
 		-- Deleteキーの有効化
 		{ key = "Delete", mods = "NONE", action = act.SendString("\x1b[3~") },
+		-- Kitty keyboard protocol でKarabiner合成Escapeが届かない問題の回避
+		{ key = "Escape", mods = "NONE", action = act.SendKey({ key = "Escape" }) },
 
 		-- スクロール
 		{ key = ":", mods = "SHIFT|CTRL", action = act.ScrollByLine(-3) },
