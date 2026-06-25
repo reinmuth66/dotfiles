@@ -34,8 +34,6 @@
       syntaxHighlighting.enable = true;
 
       initContent = ''
-        [[ -f "$HOME/ssh-logs/.zshrc" ]] && source "$HOME/ssh-logs/.zshrc"
-
         WORDCHARS=""
 
         # 履歴検索
