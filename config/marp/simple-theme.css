@@ -393,6 +393,10 @@ section {
         }
     }
 
+    &.black {
+        background-color: var(--black);
+    }
+
     &.image {
         >p:has(img) {
             height: 100%;
