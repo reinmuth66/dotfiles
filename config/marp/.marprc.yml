@@ -1,2 +1,4 @@
 themeSet:
-  - ~/.config/marp/simple-theme.css
+  - /Users/reinmuth/.config/marp/simple-theme.css
+html: true
+allowLocalFiles: true

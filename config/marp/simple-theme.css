@@ -7,9 +7,11 @@
 @import 'default';
 
 :root {
-    /* アクセントカラー（インディゴ系） */
-    --blue-very-deep: #4F46E5;
-    --green-deep: #16A34A;
+    /* アクセントカラー（背景装飾のCatppuccin Latteカラーと統一） */
+    --blue-very-deep: #04A5E5;
+    --green-deep: #40A02B;
+    --lavender-deep: #7287FD;
+    --maroon-deep: #E64553;
 
     /* グレースケール */
     --gray-darkest: #000000;
@@ -18,6 +20,9 @@
     --gray-light: #4B5563;
     --gray-lighter: #6B7280;
     --gray-lightest: #9CA3AF;
+
+    /* defaultテーマが見出し内strongに使う変数を黒系で上書き */
+    --heading-strong-color: var(--gray-darkest);
 
     /* 基本カラー */
     --white: #FFFFFF;
@@ -33,13 +38,13 @@
     --font-family: "Arial", "BIZ UDPGothic", "Hiragino Sans", "ヒラギノ角ゴシック Pro W3", sans-serif;
 
     /* フォントサイズ変数 */
-    --font-size-title: 38px;
-    --font-size-large: 36px;
-    --font-size-medium: 32px;
-    --font-size-body: 26px;
-    --font-size-small: 22px;
-    --font-size-caption: 20px;
-    --font-size-note: 16px;
+    --font-size-title: 52px;
+    --font-size-large: 50px;
+    --font-size-medium: 44px;
+    --font-size-body: 36px;
+    --font-size-small: 30px;
+    --font-size-caption: 28px;
+    --font-size-note: 22px;
 
     /* 行間変数 */
     --line-height-tight: 1.15;
@@ -55,12 +60,12 @@
 }
 
 section.small-text {
-    --font-size-large: 29px;
-    --font-size-medium: 26px;
-    --font-size-body: 21px;
-    --font-size-small: 18px;
-    --font-size-caption: 16px;
-    --font-size-note: 13px;
+    --font-size-large: 36px;
+    --font-size-medium: 32px;
+    --font-size-body: 26px;
+    --font-size-small: 22px;
+    --font-size-caption: 20px;
+    --font-size-note: 16px;
     --line-height-tight: 1;
     --line-height-normal: 1.1;
     --line-height-loose: 1.3;
@@ -133,15 +138,6 @@ h6 {
     padding-bottom: 0;
 }
 
-h1>strong,
-h2>strong,
-h3>strong,
-h4>strong,
-h5>strong,
-h6>strong {
-    color: var(--blue-very-deep);
-}
-
 p {
     font-size: var(--font-size-body);
     color: var(--gray-medium);
@@ -209,7 +205,7 @@ code {
 
 strong {
     font-weight: 700;
-    color: var(--gray-medium);
+    color: var(--gray-darkest);
 }
 
 em {
@@ -233,10 +229,9 @@ em {
 blockquote {
     font-size: var(--font-size-body);
     color: var(--gray-medium);
-    border-left: 4px solid var(--blue-very-deep);
+    border-left: 4px solid var(--gray-light);
     padding-left: 1rem;
     margin: 12px 4px;
-    font-style: italic;
 
     &::after {
         display: none;
@@ -252,21 +247,37 @@ blockquote {
 }
 
 a {
-    color: var(--blue-very-deep);
-    text-decoration: none;
+    color: var(--gray-darkest);
+    text-decoration: underline;
 }
 
 a:hover {
-    text-decoration: underline;
+    text-decoration: none;
+}
+
+.blue {
+    color: var(--blue-very-deep);
+}
+
+.green {
+    color: var(--green-deep);
+}
+
+.lavender {
+    color: var(--lavender-deep);
+}
+
+.maroon {
+    color: var(--maroon-deep);
 }
 
 table {
     font-size: 18px;
     color: var(--gray-medium);
     border-collapse: collapse;
-    width: 100%;
+    width: fit-content;
     margin-bottom: 1rem;
-    background-color: var(--white);
+    background-color: transparent;
 
     thead {
         th {
@@ -306,40 +317,45 @@ section {
     background-image: none;
     font-family: var(--font-family);
     height: 100%;
-    padding: 100px 60px 0 60px;
+    padding: 140px 60px 0 60px;
     display: flex;
     flex-direction: column;
     justify-content: start;
     position: relative;
     top: 0;
     left: 0;
+    z-index: 0;
+
+    &::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 300px;
+        height: 225px;
+        z-index: -1;
+        pointer-events: none;
+        background-repeat: no-repeat;
+        background-position: top right;
+        background-size: contain;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Cpolygon points='200.0,0.0 123.4,-12.7 54.0,22.0 130.6,34.7' fill='%2304A5E5' fill-opacity='0.45' style='mix-blend-mode:multiply'/%3E%3Cpolygon points='200.0,0.0 115.6,20.8 72.0,96.0 156.4,75.2' fill='%2340A02B' fill-opacity='0.45' style='mix-blend-mode:multiply'/%3E%3Cpolygon points='200.0,0.0 152.0,5.6 118.0,40.0 166.0,34.4' fill='%2340A02B' fill-opacity='0.42' style='mix-blend-mode:multiply'/%3E%3Cpolygon points='200.0,0.0 154.2,63.7 150.0,142.0 195.8,78.3' fill='%237287FD' fill-opacity='0.42' style='mix-blend-mode:multiply'/%3E%3Cpolygon points='200.0,0.0 187.1,61.4 214.0,118.0 226.9,56.6' fill='%23E64553' fill-opacity='0.42' style='mix-blend-mode:multiply'/%3E%3C/svg%3E");
+    }
 
     &.no-header {
         padding: 30px 60px 0 60px;
     }
 
-    >h1:first-child:not(.no-header > h1) {
+    >h1:first-child:not(.no-header > h1):not(.title > h1) {
         position: absolute;
         width: 100%;
         top: 0;
         left: 0;
-        height: 80px;
+        height: 120px;
         display: flex;
         align-items: center;
         padding-left: 40px;
         color: var(--gray-dark);
         margin: 0;
-
-        &::after {
-            content: "";
-            position: absolute;
-            top: 80px;
-            left: 0;
-            width: 100%;
-            height: 1px;
-            background-color: var(--black);
-            z-index: 100;
-        }
     }
 
     &::after {
@@ -358,10 +374,11 @@ section {
 
     &.title {
         display: flex;
-        justify-content: space-between;
+        justify-content: center;
         flex-direction: column;
         align-items: center;
-        background-color: var(--bg-accent);
+        gap: 32px;
+        background-color: var(--bg-default);
         padding: 100px;
 
         h1 {
@@ -375,7 +392,7 @@ section {
     }
 
     &.section {
-        background-color: var(--bg-accent);
+        background-color: var(--bg-default);
         padding: 0 100px;
         justify-content: center;
 
@@ -395,6 +412,10 @@ section {
 
     &.black {
         background-color: var(--black);
+
+        &::before {
+            background-image: none;
+        }
     }
 
     &.image {
@@ -536,6 +557,28 @@ section {
     &.h6-text-green h6,
     &.text-green p {
         color: var(--green-deep);
+    }
+
+    &.all-text-lavender *,
+    &.h1-text-lavender h1,
+    &.h2-text-lavender h2,
+    &.h3-text-lavender h3,
+    &.h4-text-lavender h4,
+    &.h5-text-lavender h5,
+    &.h6-text-lavender h6,
+    &.text-lavender p {
+        color: var(--lavender-deep);
+    }
+
+    &.all-text-maroon *,
+    &.h1-text-maroon h1,
+    &.h2-text-maroon h2,
+    &.h3-text-maroon h3,
+    &.h4-text-maroon h4,
+    &.h5-text-maroon h5,
+    &.h6-text-maroon h6,
+    &.text-maroon p {
+        color: var(--maroon-deep);
     }
 
     &.column-layout {

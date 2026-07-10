@@ -58,6 +58,12 @@
           rm -f -- "$tmp"
         }
 
+        # marp: cosmiconfigの設定探索がホームディレクトリより下の階層で
+        # 止まり ~/.marprc.yml を自動検出できないため、常に明示指定する
+        function marp() {
+          command marp --config "$HOME/.marprc.yml" "$@"
+        }
+
       '';
     };
   };
