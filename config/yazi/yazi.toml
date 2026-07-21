@@ -7,7 +7,7 @@ show_hidden = false
 open    = [{ run = 'open "$@"',                               desc = "Open with default app", for = "macos" }]
 reveal  = [{ run = 'open -R "$1"',                            desc = "Reveal in Finder",      for = "macos" }]
 browser = [{ run = 'open "$@"',                               desc = "Open in browser",       for = "macos" }]
-acrobat = [{ run = 'open -a "Adobe Acrobat Reader" "$@"',     desc = "Open with Adobe Acrobat Reader", for = "macos" }]
+acrobat = [{ run = 'open -a "Adobe Acrobat" "$@"',            desc = "Open with Adobe Acrobat", for = "macos" }]
 
 [[open.prepend_rules]]
 url  = "*.{html,htm}"
