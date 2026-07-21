@@ -30,7 +30,7 @@ jobs:
         if: steps.check.outputs.needs_update == 'true'
         run: |
           VERSION="${{ steps.check.outputs.latest }}"
-          URL="https://github.com/kot149/zmk-battery-center/releases/download/v${VERSION}/zmk-battery-center_aarch64.app.tar.gz"
+          URL="https://github.com/kot149/zmk-battery-center/releases/download/v${VERSION}/zmk-battery-center_${VERSION}_aarch64.app.tar.gz"
           HASH=$(nix store prefetch-file --hash-type sha256 --json "$URL" | jq -r '.hash')
           sed -i "s/version = \"[^\"]*\"/version = \"${VERSION}\"/" nix/zmk-battery-center.nix
           sed -i "s|hash = \"[^\"]*\"|hash = \"${HASH}\"|" nix/zmk-battery-center.nix
