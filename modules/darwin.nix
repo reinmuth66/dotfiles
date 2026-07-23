@@ -19,7 +19,6 @@
       "google-drive"
       "google-chrome"
       "google-japanese-ime"
-      "jordanbaird-ice"
       "karabiner-elements"
       "microsoft-excel"
       "microsoft-powerpoint"
@@ -27,6 +26,7 @@
       "microsoft-word"
       "raycast"
       "tailscale-app"
+      "thaw"
       "thebrowsercompany-dia"
       { name = "wezterm@nightly"; greedy = true; }
       "zed"
