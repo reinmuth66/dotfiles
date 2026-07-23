@@ -3,7 +3,7 @@ local config = wezterm.config_builder()
 
 config.automatically_reload_config = true
 config.font = wezterm.font("Moralerspace Neon HW")
-config.font_size = 12.0
+config.font_size = 14.0
 config.use_ime = true
 config.macos_forward_to_ime_modifier_mask = "SHIFT|CTRL"
 config.enable_kitty_keyboard = true
