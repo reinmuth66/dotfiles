@@ -1,8 +1,6 @@
 { ... }:
 
 {
-  # nix-darwin が管理する Homebrew の設定
-  # brew install / brew install --cask を手動で叩く必要はなくなる
   homebrew = {
     enable = true;
     onActivation = {
@@ -10,12 +8,11 @@
       cleanup = "none";
     };
 
-    # GUI アプリ
     casks = [
       "adobe-acrobat-reader"
       "affinity"
-      "copilot-cli"
       "discord"
+      "dockdoor"
       "google-drive"
       "google-chrome"
       "google-japanese-ime"
