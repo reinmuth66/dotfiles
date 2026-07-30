@@ -417,6 +417,10 @@ section {
         }
     }
 
+    &.image:not(.no-header) {
+        padding-top: 120px;
+    }
+
     &.content-image {
         padding-bottom: 30px;
 
