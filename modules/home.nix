@@ -13,6 +13,7 @@
     ./zed.nix
     ./wezterm.nix
     ./nvim.nix
+    ./nh.nix
     ./claude.nix
     ./zmk-battery-center.nix
     ./czg.nix

@@ -75,11 +75,13 @@ brew upgrade --cask
 
 ### 古い Nix ビルドを削除する
 
-```bash
-sudo nix-collect-garbage -d
-```
+`nh clean` により、7日以上前かつ直近3世代を超える古い世代・ビルド結果が自動的に削除される(`modules/nh.nix`)。
 
-古いすべての世代を削除してガベージコレクションを実行する。
+手動で実行する場合:
+
+```bash
+nh clean all --keep-since 7d --keep 3
+```
 
 ### Google 日本語入力のアイコン復元
 
