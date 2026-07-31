@@ -44,11 +44,13 @@ git clone git@github.com:reinmuth66/dotfiles.git ~/dotfiles && ~/dotfiles/script
 
 ```bash
 git -C ~/dotfiles add .
-sudo darwin-rebuild switch --flake ~/dotfiles
+nh darwin switch ~/dotfiles
 stty sane
 git -C ~/dotfiles commit -m "メッセージ"
 git -C ~/dotfiles push
 ```
+
+`nh darwin switch` は `sudo` を付けずに実行する。activate 時に必要な権限は nh が内部で自動的に取得する。
 
 ### flake inputs を更新して適用する
 
@@ -59,7 +61,7 @@ Renovate が自動で PR を作成する。マージ後に設定を適用する�
 ```bash
 nix flake update ~/dotfiles
 git -C ~/dotfiles add .
-sudo darwin-rebuild switch --flake ~/dotfiles
+nh darwin switch ~/dotfiles
 stty sane
 git -C ~/dotfiles commit -m "update: nix flake update"
 git -C ~/dotfiles push

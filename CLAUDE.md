@@ -14,20 +14,22 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 
 ## 重要: 設定変更の反映方法
 
-`modules/` または `config/` 以下のファイルを編集しても、**`darwin-rebuild switch` を実行するまで実際の環境には反映されない。**
+`modules/` または `config/` 以下のファイルを編集しても、**`nh darwin switch` を実行するまで実際の環境には反映されない。**
 
-`~/.config/` 以下のファイルは Nix ストアへのシンボリックリンクであり、`darwin-rebuild switch` によって初めて新しいストアパスに切り替わる。
+`~/.config/` 以下のファイルは Nix ストアへのシンボリックリンクであり、`nh darwin switch` によって初めて新しいストアパスに切り替わる。
 
 ## よく使うコマンド
 
 ```bash
 # 設定を適用する
 git -C ~/dotfiles add .
-sudo darwin-rebuild switch --flake ~/dotfiles
+nh darwin switch ~/dotfiles
 stty sane
 git -C ~/dotfiles commit -m "メッセージ"
 git -C ~/dotfiles push
 ```
+
+`nh darwin switch` は `sudo` を付けずに実行する。activate 時に必要な権限は nh が内部で自動的に取得する。
 
 ## アーキテクチャのポイント
 
@@ -65,4 +67,4 @@ git -C ~/dotfiles push
 3. GUI アプリなら `modules/darwin.nix` の `homebrew.casks` に追加
 4. 設定ファイルが必要なら `config/<tool>/` に置き、モジュール内で `xdg.configFile` を宣言
 5. nixpkgs にない npm パッケージなら `/add-npm-pkg` スキルを使って追加
-6. `sudo darwin-rebuild switch --flake ~/dotfiles` で適用
+6. `nh darwin switch ~/dotfiles` で適用
