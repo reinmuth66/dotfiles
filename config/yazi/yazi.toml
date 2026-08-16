@@ -8,6 +8,7 @@ open    = [{ run = 'open "$@"',                               desc = "Open with 
 reveal  = [{ run = 'open -R "$1"',                            desc = "Reveal in Finder",      for = "macos" }]
 browser = [{ run = 'open "$@"',                               desc = "Open in browser",       for = "macos" }]
 acrobat = [{ run = 'open -a "Adobe Acrobat" "$@"',            desc = "Open with Adobe Acrobat", for = "macos" }]
+kicad   = [{ run = 'open -a "KiCad" "$@"',                    desc = "Open with KiCad",       for = "macos" }]
 
 [[open.prepend_rules]]
 url  = "*.{html,htm}"
@@ -29,6 +30,10 @@ use  = ["open", "reveal"]
 [[open.prepend_rules]]
 mime = "application/pdf"
 use  = ["acrobat", "reveal"]
+
+[[open.prepend_rules]]
+url  = "*.{kicad_pcb,kicad_pro,kicad_sch}"
+use  = ["kicad", "reveal"]
 
 [[open.prepend_rules]]
 mime = "image/*"
