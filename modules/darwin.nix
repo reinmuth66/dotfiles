@@ -13,10 +13,12 @@
       "affinity"
       "discord"
       "dockdoor"
+      "freecad"
       "google-drive"
       "google-chrome"
       "google-japanese-ime"
       "karabiner-elements"
+      "kicad"
       "microsoft-excel"
       "microsoft-powerpoint"
       "microsoft-teams"
@@ -41,10 +43,8 @@
   # Determinate Nix インストーラーを使用しているため nix-darwin の Nix 管理を無効化
   nix.enable = false;
 
-  # darwin-rebuild をパスワードなしで sudo できるようにする
-  security.sudo.extraConfig = ''
-    reinmuth ALL=(ALL:ALL) NOPASSWD: /run/current-system/sw/bin/darwin-rebuild
-  '';
+  # sudo をパスワード入力の代わりに Touch ID で認証できるようにする
+  security.pam.services.sudo_local.touchIdAuth = true;
 
   # nix-darwin の options.json 生成を無効化 (Nix 2.33+ の builtins.derivation 警告を抑制)
   documentation.enable = false;
