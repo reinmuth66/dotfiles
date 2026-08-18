@@ -8,7 +8,7 @@
 // command palette (cmd-shift-p / ctrl-shift-p)
 {
   "project_panel": {
-    "default_width": 200.0,
+    "default_width": 250.0,
   },
   "terminal": {
     "cursor_shape": "bar",
