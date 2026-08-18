@@ -46,6 +46,7 @@
     ripgrep
     rm-improved
     sd
+    texlab
     xan
   ];
 
