@@ -17,7 +17,7 @@ git clone git@github.com:reinmuth66/dotfiles.git ~/dotfiles && ~/dotfiles/script
 スクリプトが以下を順番に実行する:
 
 1. Xcode Command Line Tools
-2. Nix (Determinate Nix)
+2. Nix
 3. Homebrew
 4. nix-darwin 初回適用
 5. GitHub CLI 認証 (`gh auth login`)

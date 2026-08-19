@@ -41,8 +41,7 @@
   # プライマリユーザーの指定 (homebrew 等のオプションに必要)
   system.primaryUser = "reinmuth";
 
-  # Determinate Nix インストーラーを使用しているため nix-darwin の Nix 管理を無効化
-  nix.enable = false;
+  nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   # sudo をパスワード入力の代わりに Touch ID で認証できるようにする
   security.pam.services.sudo_local.touchIdAuth = true;

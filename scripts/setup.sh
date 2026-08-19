@@ -23,12 +23,12 @@ else
   read -r
 fi
 
-# --- 2. Nix (Determinate Nix) ---
+# --- 2. Nix ---
 step "Nix"
 if command -v nix &>/dev/null; then
   ok "インストール済み"
 else
-  curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+  sh <(curl -L https://nixos.org/nix/install)
   # シェルを再読み込みしてパスを通す
   # shellcheck disable=SC1091
   . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
