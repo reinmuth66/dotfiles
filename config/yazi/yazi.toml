@@ -13,6 +13,12 @@ acrobat = [
 kicad = [
   { run = 'open -a "KiCad" "$@"', desc = "Open with KiCad", for = "macos" },
 ]
+bambustudio = [
+  { run = 'open -a "BambuStudio" "$@"', desc = "Open with Bambu Studio", for = "macos" },
+]
+freecad = [
+  { run = 'open -a "FreeCAD" "$@"', desc = "Open with FreeCAD", for = "macos" },
+]
 
 [[open.prepend_rules]]
 url = "*.{html,htm}"
@@ -37,6 +43,14 @@ use = ["acrobat", "reveal"]
 [[open.prepend_rules]]
 url = "*.{kicad_pcb,kicad_pro,kicad_sch}"
 use = ["kicad", "reveal"]
+
+[[open.prepend_rules]]
+url = "*.{3mf,stl,step,stp}"
+use = ["bambustudio", "reveal"]
+
+[[open.prepend_rules]]
+url = "*.{FCStd,fcstd}"
+use = ["freecad", "reveal"]
 
 [[open.prepend_rules]]
 mime = "image/*"
