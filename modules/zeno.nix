@@ -48,23 +48,67 @@ in
       }
     fi
 
-    # Watchdog: start a background subshell after the first prompt (when ZENO_PID
-    # is reliably set). It polls the owner zsh PID every 5 s and sends SIGTERM
-    # to the Deno server when zsh is gone. The server's own signalHandler then
-    # removes the socket file and calls Deno.exit(0) — no external kill needed.
-    _zeno_watchdog_once() {
-      add-zsh-hook -d precmd _zeno_watchdog_once
+    # Watchdog: keep the Deno socket server tied to this shell's lifetime.
+    #
+    # zeno.zsh's own cleanup (zshexit -> zeno-stop-server) only runs when zsh
+    # exits through its normal shutdown path. If the terminal force-kills the
+    # shell (app quit, crash, `kill -9`), that path never runs and the server
+    # is orphaned.
+    #
+    # This is armed immediately (not deferred to the first precmd), because
+    # ZENO_SOCK is set synchronously by zeno-enable-sock while ZENO_PID is
+    # only set lazily once the server actually starts — a watchdog gated on
+    # ZENO_PID at the first precmd frequently found nothing to arm on (no
+    # zeno usage yet that session) and permanently disabled itself for the
+    # rest of the session. Resolving the live server PID via `lsof` on the
+    # socket at kill-time sidesteps that. Ignoring SIGHUP stops zsh's own
+    # HUP-to-jobs forwarding (e.g. on tab/pane close) from killing this
+    # watchdog before it gets a chance to act.
+    _zeno_watchdog_start() {
+      emulate -L zsh
       local _zsh_pid=$$
-      local _deno_pid=''${ZENO_PID}
-      [[ -z ''${_deno_pid} ]] && return
+      local _sock=''${ZENO_SOCK}
+      [[ -z ''${_sock} ]] && return
       (
+        trap ':' HUP
         while kill -0 ''${_zsh_pid} 2>/dev/null; do
           sleep 5
         done
-        kill -TERM ''${_deno_pid} 2>/dev/null
+        local _pid
+        for _pid in $(lsof -t "''${_sock}" 2>/dev/null); do
+          kill -TERM "''${_pid}" 2>/dev/null
+        done
+        sleep 1
+        for _pid in $(lsof -t "''${_sock}" 2>/dev/null); do
+          kill -KILL "''${_pid}" 2>/dev/null
+        done
+        rm -f "''${_sock}" 2>/dev/null
       ) 2>/dev/null &!
     }
-    add-zsh-hook precmd _zeno_watchdog_once
+    _zeno_watchdog_start
+
+    # Self-healing sweep: on every new shell, kill any zeno server left
+    # behind by a past shell that died without the watchdog above catching
+    # it (e.g. a session predating this fix). Each server's listening socket
+    # is named zeno-<owner-shell-pid>.sock, so resolve the socket back to
+    # its owner PID and check whether that shell is still alive.
+    _zeno_cleanup_orphans() {
+      emulate -L zsh
+      local pid sock_name owner
+      for pid in ''${(f)"$(pgrep -f "''${ZENO_ROOT}/src/server.ts" 2>/dev/null)"}; do
+        sock_name=$(lsof -p "''${pid}" 2>/dev/null | grep -o 'zeno-[0-9]*\.sock' | head -1)
+        [[ -z ''${sock_name} ]] && continue
+        owner=''${sock_name#zeno-}
+        owner=''${owner%.sock}
+        [[ -z ''${owner} ]] && continue
+        if ! kill -0 "''${owner}" 2>/dev/null; then
+          kill -TERM "''${pid}" 2>/dev/null
+          sleep 1
+          kill -0 "''${pid}" 2>/dev/null && kill -KILL "''${pid}" 2>/dev/null
+        fi
+      done
+    }
+    ( trap ':' HUP; _zeno_cleanup_orphans ) 2>/dev/null &!
   '';
 
   xdg.configFile."zeno/config.yml".source = ../config/zeno/config.yml;
