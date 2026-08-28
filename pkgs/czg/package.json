@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "czg": "1.13.2",
+    "czg": "1.14.0",
     "cz-git": "1.14.0"
   }
 }
