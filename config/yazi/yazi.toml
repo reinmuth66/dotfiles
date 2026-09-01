@@ -4,20 +4,20 @@ sort_by = "natural"
 show_hidden = false
 
 [opener]
-open = [{ run = 'open "$@"', desc = "Open with default app", for = "macos", orphan = true }]
-reveal = [{ run = 'open -R "$1"', desc = "Reveal in Finder", for = "macos", orphan = true }]
-browser = [{ run = 'open "$@"', desc = "Open in browser", for = "macos", orphan = true }]
+open = [{ run = "open %s", desc = "Open with default app", for = "macos", orphan = true }]
+reveal = [{ run = "open -R %s1", desc = "Reveal in Finder", for = "macos", orphan = true }]
+browser = [{ run = "open %s", desc = "Open in browser", for = "macos", orphan = true }]
 acrobat = [
-  { run = 'open -a "Adobe Acrobat" "$@"', desc = "Open with Adobe Acrobat", for = "macos", orphan = true },
+  { run = 'open -a "Adobe Acrobat" %s', desc = "Open with Adobe Acrobat", for = "macos", orphan = true },
 ]
 kicad = [
-  { run = 'open -a "KiCad" "$@"', desc = "Open with KiCad", for = "macos", orphan = true },
+  { run = 'open -a "KiCad" %s', desc = "Open with KiCad", for = "macos", orphan = true },
 ]
 bambustudio = [
-  { run = 'open -a "BambuStudio" "$@"', desc = "Open with Bambu Studio", for = "macos", orphan = true },
+  { run = 'open -a "BambuStudio" %s', desc = "Open with Bambu Studio", for = "macos", orphan = true },
 ]
 freecad = [
-  { run = 'open -a "FreeCAD" "$@"', desc = "Open with FreeCAD", for = "macos", orphan = true },
+  { run = 'open -a "FreeCAD" %s', desc = "Open with FreeCAD", for = "macos", orphan = true },
 ]
 
 [[open.prepend_rules]]
