@@ -28,12 +28,14 @@ let
   # only disowns the job — server_bin (and the deno process it execs into)
   # stays a direct child of zsh. ZENO_SERVER_BIN lets us swap in this
   # wrapper so the real `deno` process ends up reparented to launchd instead.
+  # Deno 2.x requires the script path before `--`; args after `--` are
+  # passed through to the script, not treated as the script itself.
   zenoServerWrapper = pkgs.writeScript "zeno-server-wrapper" ''
     #!/usr/bin/env zsh
     (
       exec ${pkgs.deno}/bin/deno run --node-modules-dir=auto --no-check \
         --allow-env --allow-read --allow-run --allow-write --allow-ffi --allow-net \
-        -- "${zenoDir}/src/server.ts" "$@" &
+        "${zenoDir}/src/server.ts" -- "$@" &
     )
   '';
 
