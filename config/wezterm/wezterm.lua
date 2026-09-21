@@ -7,6 +7,7 @@ config.font_size = 14.0
 config.use_ime = true
 config.macos_forward_to_ime_modifier_mask = "SHIFT|CTRL"
 config.enable_kitty_keyboard = true
+config.enable_kitty_graphics = true
 config.default_cursor_style = "SteadyBar"
 config.hide_mouse_cursor_when_typing = true
 config.window_background_opacity = 0.7
