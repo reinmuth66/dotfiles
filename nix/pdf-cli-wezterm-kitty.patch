@@ -1,0 +1,22 @@
+--- a/internal/viewer/terminal.go	2026-09-21 16:04:56
++++ b/internal/viewer/terminal.go	2026-09-21 16:05:06
+@@ -31,7 +31,9 @@
+ 	if termProgram := os.Getenv("TERM_PROGRAM"); termProgram != "" {
+ 		switch termProgram {
+ 		case "WezTerm":
+-			return "wezterm"
++			// WezTerm implements the kitty graphics protocol (config.enable_kitty_graphics);
++			// treat as kitty so it gets the native transmission + 300-DPI render path.
++			return "kitty"
+ 		case "ghostty":
+ 			// Ghostty (and agterm, which embeds libghostty) implements the kitty
+ 			// graphics protocol; treat as kitty so it gets the 300-DPI render path.
+@@ -56,7 +58,7 @@
+ 	case strings.Contains(term, "alacritty"):
+ 		return "alacritty"
+ 	case strings.Contains(term, "wezterm"):
+-		return "wezterm"
++		return "kitty" // kitty graphics protocol; check before the "xterm" case
+ 	case strings.Contains(term, "xterm"):
+ 		return "xterm"
+ 	case strings.Contains(term, "tmux"):
