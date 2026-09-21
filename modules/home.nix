@@ -18,6 +18,7 @@
     ./zmk-battery-center.nix
     ./czg.nix
     ./marp.nix
+    ./pdf-cli.nix
   ];
 
   home = {
