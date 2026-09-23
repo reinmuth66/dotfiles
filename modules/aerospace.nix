@@ -44,24 +44,24 @@
         # フォーカス移動
         alt-j = "focus left";
         alt-k = "focus down";
-        alt-u = "focus up";
+        alt-i = "focus up";
         alt-l = "focus right";
 
         # ウィンドウ移動
         alt-shift-j = "move left";
         alt-shift-k = "move down";
-        alt-shift-u = "move up";
+        alt-shift-i = "move up";
         alt-shift-l = "move right";
 
         # ウィンドウを指定方向のノードと共通コンテナにまとめる
         alt-ctrl-j = "join-with left";
         alt-ctrl-k = "join-with down";
-        alt-ctrl-u = "join-with up";
+        alt-ctrl-i = "join-with up";
         alt-ctrl-l = "join-with right";
 
         # リサイズ
-        alt-m = "resize smart -10";
-        alt-comma = "resize smart +10";
+        alt-u = "resize smart -10";
+        alt-o = "resize smart +10";
 
         # フルスクリーン切り替え
         alt-h = "fullscreen";
