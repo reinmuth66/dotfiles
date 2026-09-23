@@ -62,6 +62,7 @@
         # リサイズ
         alt-u = "resize smart -10";
         alt-o = "resize smart +10";
+        alt-y = "balance-sizes";
 
         # フルスクリーン切り替え
         alt-h = "fullscreen";
