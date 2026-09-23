@@ -20,6 +20,7 @@
     ./marp.nix
     ./pdf-cli.nix
     ./aerospace.nix
+    ./jankyborders.nix
   ];
 
   home = {
