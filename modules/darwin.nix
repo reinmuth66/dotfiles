@@ -43,9 +43,6 @@
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
-  # sudo をパスワード入力の代わりに Touch ID で認証できるようにする
-  security.pam.services.sudo_local.touchIdAuth = true;
-
   # nix-darwin の options.json 生成を無効化 (Nix 2.33+ の builtins.derivation 警告を抑制)
   documentation.enable = false;
 
