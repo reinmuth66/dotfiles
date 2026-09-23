@@ -60,8 +60,8 @@
         alt-ctrl-l = "join-with right";
 
         # リサイズ
-        alt-u = "resize smart -10";
-        alt-o = "resize smart +10";
+        alt-u = "resize smart +10";
+        alt-o = "resize smart -10";
         alt-y = "balance-sizes";
 
         # フルスクリーン切り替え
