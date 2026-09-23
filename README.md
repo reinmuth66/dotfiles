@@ -1,7 +1,5 @@
 # dotfiles
 
-nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles。
-
 ## セットアップ
 
 ### 前提条件
@@ -45,12 +43,7 @@ git clone git@github.com:reinmuth66/dotfiles.git ~/dotfiles && ~/dotfiles/script
 ```bash
 git -C ~/dotfiles add .
 nh darwin switch ~/dotfiles
-stty sane
-git -C ~/dotfiles commit -m "メッセージ"
-git -C ~/dotfiles push
 ```
-
-`nh darwin switch` は `sudo` を付けずに実行する。activate 時に必要な権限は nh が内部で自動的に取得する。
 
 ### flake inputs を更新して適用する
 
@@ -62,9 +55,6 @@ Renovate が自動で PR を作成する。マージ後に設定を適用する�
 nix flake update ~/dotfiles
 git -C ~/dotfiles add .
 nh darwin switch ~/dotfiles
-stty sane
-git -C ~/dotfiles commit -m "update: nix flake update"
-git -C ~/dotfiles push
 ```
 
 ### Homebrew cask を更新する
