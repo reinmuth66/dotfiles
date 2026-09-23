@@ -6,9 +6,9 @@
 
     settings = {
       style = "round";
-      width = 6.0;
-      hidpi = "off";
-      active_color = "0xffe2e2e3";
+      width = 4.0;
+      hidpi = "on";
+      active_color = "0xff9a9a9c";
       inactive_color = "0xff414550";
     };
   };
