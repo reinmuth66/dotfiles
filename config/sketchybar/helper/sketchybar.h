@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 typedef char *env;
@@ -230,8 +231,7 @@ static inline char *sketchybar(char *message) {
   }
 
   formatted_message[caret] = '\0';
-  if (!g_mach_port)
-    g_mach_port = mach_get_bs_port();
+  g_mach_port = mach_get_bs_port();
   char *response = mach_send_message(g_mach_port, formatted_message, caret + 1);
 
   if (response)
