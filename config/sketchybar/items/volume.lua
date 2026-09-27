@@ -1,20 +1,16 @@
 local volume = sbar.add("item", "volume", {
 	position = "right",
+	drawing = false,
 })
 
 volume:subscribe("volume_change", function(env)
 	local vol = tonumber(env.INFO)
-	local icon = "󰖁"
 
 	if vol == nil then
 		return
-	elseif vol >= 60 then
-		icon = "󰕾"
-	elseif vol >= 30 then
-		icon = "󰖀"
-	elseif vol >= 1 then
-		icon = "󰕿"
+	elseif vol == 0 then
+		volume:set({ drawing = true, icon = "󰖁", label = "" })
+	else
+		volume:set({ drawing = false })
 	end
-
-	volume:set({ icon = icon, label = vol .. "%" })
 end)
