@@ -19,7 +19,6 @@ sbar.add("event", "zmk_battery_update")
 
 local central = sbar.add("item", "zmk_battery.central", {
 	position = "right",
-	update_freq = 60,
 	drawing = false,
 })
 
@@ -74,7 +73,7 @@ local function update()
 	end)
 end
 
-central:subscribe({ "routine", "forced", "system_woke", "zmk_battery_update" }, update)
+central:subscribe({ "forced", "system_woke", "zmk_battery_update" }, update)
 
 local function toggle_main_window()
 	local script = [[
