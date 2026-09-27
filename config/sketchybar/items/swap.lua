@@ -5,11 +5,11 @@ local swap = sbar.add("item", "swap", {
 	update_freq = 20,
 	icon = {
 		string = "",
-		font = { style = "Italic", size = 13.0 },
+		font = { style = "Italic" },
 		color = colors.swap.default,
 	},
 	label = {
-		font = { style = "Italic", size = 13.0 },
+		font = { style = "Italic" },
 		color = colors.swap.default,
 	},
 })
