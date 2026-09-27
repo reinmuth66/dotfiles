@@ -6,8 +6,6 @@ sbar.add("event", "aerospace_monitor_change")
 
 local spaces = {}
 
--- `aerospace list-windows` prints "<window-id> | <app-name> | <window-title>".
--- We need the app name (2nd field), not the title (last field).
 local function app_name_from_line(line)
 	local fields = {}
 	for field in line:gmatch("([^|]+)") do
@@ -20,12 +18,6 @@ local function app_name_from_line(line)
 	return app:match("^%s*(.-)%s*$")
 end
 
--- Builds the "icon strip" (one glyph per open window) for a workspace, then
--- shows/hides + relabels the corresponding space item.
--- The focused workspace is always shown, even when empty (matches the
--- original bash plugins/space_windows.sh, which unconditionally does
--- `sketchybar --set space.$FOCUSED_WORKSPACE drawing=on`); any other
--- workspace is only shown while it has open windows.
 local function refresh_space(sid, is_focused)
 	local space = spaces[sid]
 	if space == nil then
@@ -113,9 +105,6 @@ local function add_space(sid)
 	return space
 end
 
--- aerospace.toml notifies us of workspace/monitor changes via
--- `sketchybar --trigger aerospace_workspace_change ...` /
--- `... aerospace_monitor_change ...` (see modules/aerospace.nix).
 local function on_workspace_change(env)
 	if env.FOCUSED_WORKSPACE then
 		highlight(env.FOCUSED_WORKSPACE, env.FOCUSED_WORKSPACE)
@@ -133,18 +122,23 @@ local function on_monitor_change(env)
 	end
 end
 
--- Workspaces are created synchronously (matching persistent-workspaces in
--- modules/aerospace.nix) instead of waiting on an async
--- `aerospace list-workspaces --all` call: sbar.add() calls made later
--- (asynchronously, inside a sbar.exec callback) would land to the right of
--- items added synchronously by later items/*.lua files (e.g. front_app),
--- since bar position is ordered by add() call time, not require() order.
 for i = 1, 9 do
 	local sid = tostring(i)
 	local space = add_space(sid)
 	space:subscribe("aerospace_workspace_change", on_workspace_change)
 	space:subscribe("aerospace_monitor_change", on_monitor_change)
 end
+
+local app_watcher = sbar.add("item", "aerospace.app_watcher", { drawing = false })
+app_watcher:subscribe("front_app_switched", function()
+	sbar.exec("aerospace list-workspaces --focused", function(focused)
+		focused = focused and focused:match("%S+")
+		if focused == nil then
+			return
+		end
+		refresh_space(focused, true)
+	end)
+end)
 
 sbar.exec("aerospace list-workspaces --focused", function(focused)
 	focused = focused and focused:match("%S+")
