@@ -23,6 +23,14 @@
 
       focus-follows-mouse.enabled = false;
 
+      # タイル管理の対象から外すアプリ
+      on-window-detected = [
+        {
+          "if" = { app-id = "com.zmk-battery-center.app"; };
+          run = "layout floating";
+        }
+      ];
+
       exec-on-workspace-change = [
         "/bin/bash"
         "-c"
