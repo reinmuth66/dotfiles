@@ -24,12 +24,9 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 # 設定を適用する
 git -C ~/dotfiles add .
 nh darwin switch ~/dotfiles
-stty sane
-git -C ~/dotfiles commit -m "メッセージ"
-git -C ~/dotfiles push
 ```
 
-`nh darwin switch` は `sudo` を付けずに実行する。activate 時に必要な権限は nh が内部で自動的に取得する。
+`nh darwin switch` は `sudo` を付けずに実行する。
 
 ## アーキテクチャのポイント
 
