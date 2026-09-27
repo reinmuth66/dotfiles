@@ -76,19 +76,17 @@ end
 
 central:subscribe({ "routine", "forced", "system_woke", "zmk_battery_update" }, update)
 
--- クリックするとzmk-battery-center本体が終了してしまう既知の不具合があるため無効化中 (issue #30)
--- local function show_main_window()
--- 	local script = [[
--- tell application "System Events"
--- 	tell process "zmk-battery-center"
--- 		click menu bar item 1 of menu bar 2
--- 		click menu item "Show" of menu 1 of menu bar item 1 of menu bar 2
--- 	end tell
--- end tell
--- ]]
---
--- 	sbar.exec("osascript -e '" .. script .. "' 2>/dev/null")
--- end
---
--- central:subscribe("mouse.clicked", show_main_window)
--- peripheral:subscribe("mouse.clicked", show_main_window)
+local function show_main_window()
+	local script = [[
+tell application "System Events"
+	tell process "zmk-battery-center"
+		perform action "AXPress" of menu item "Show" of menu 1 of menu bar item 1 of menu bar 2
+	end tell
+end tell
+]]
+
+	sbar.exec("osascript -e '" .. script .. "' 2>/dev/null")
+end
+
+central:subscribe("mouse.clicked", show_main_window)
+peripheral:subscribe("mouse.clicked", show_main_window)
