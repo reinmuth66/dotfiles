@@ -1,4 +1,4 @@
-{ ... }:
+{ pkgs, ... }:
 
 {
   programs.aerospace = {
@@ -22,6 +22,12 @@
       persistent-workspaces = [ "1" "2" "3" "4" "5" "6" "7" "8" "9" ];
 
       focus-follows-mouse.enabled = false;
+
+      exec-on-workspace-change = [
+        "/bin/bash"
+        "-c"
+        "${pkgs.sketchybar}/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE PREV_WORKSPACE=$AEROSPACE_PREV_WORKSPACE"
+      ];
 
       key-mapping.preset = "qwerty";
 

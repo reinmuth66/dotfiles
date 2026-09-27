@@ -21,6 +21,7 @@
     ./pdf-cli.nix
     ./aerospace.nix
     ./jankyborders.nix
+    ./sketchybar.nix
   ];
 
   home = {
@@ -43,12 +44,14 @@
     marp-cli
     mcat
     moralerspace-hw
+    nerd-fonts.hack
     poppler
     p7zip
     resvg
     ripgrep
     rm-improved
     sd
+    sketchybar-app-font
     texlab
     xan
   ];
