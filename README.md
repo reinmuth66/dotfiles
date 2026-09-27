@@ -75,10 +75,3 @@ brew upgrade --cask
 nh clean all --keep-since 7d --keep 3
 ```
 
-### Google 日本語入力のアイコン復元
-
-`topgrade` 実行後にアイコンが上書きされた場合:
-
-```bash
-sudo cp ~/dotfiles/assets/hiragana_mono.tiff "/Library/Input Methods/GoogleJapaneseInput.app/Contents/Resources/hiragana.tiff"
-```
