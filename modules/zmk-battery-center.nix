@@ -1,7 +1,8 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 
 let
   zmk-battery-center = pkgs.callPackage ../nix/zmk-battery-center.nix { };
+  batteryStatePath = "${config.home.homeDirectory}/Library/Application Support/com.zmk-battery-center.app/external/battery-state-v1.json";
 in
 {
   home.packages = [ zmk-battery-center ];
@@ -14,6 +15,19 @@ in
       ];
       RunAtLoad = true;
       KeepAlive = true;
+    };
+  };
+
+  launchd.agents.zmk-battery-center-watch = {
+    enable = true;
+    config = {
+      ProgramArguments = [
+        "${pkgs.sketchybar}/bin/sketchybar"
+        "--trigger"
+        "zmk_battery_update"
+      ];
+      WatchPaths = [ batteryStatePath ];
+      ThrottleInterval = 0;
     };
   };
 }

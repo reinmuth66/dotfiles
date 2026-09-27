@@ -15,6 +15,8 @@ local function icon_for(level)
 	end
 end
 
+sbar.add("event", "zmk_battery_update")
+
 local central = sbar.add("item", "zmk_battery.central", {
 	position = "right",
 	update_freq = 60,
@@ -72,7 +74,7 @@ local function update()
 	end)
 end
 
-central:subscribe({ "routine", "forced", "system_woke" }, update)
+central:subscribe({ "routine", "forced", "system_woke", "zmk_battery_update" }, update)
 
 -- クリックするとzmk-battery-center本体が終了してしまう既知の不具合があるため無効化中 (issue #30)
 -- local function show_main_window()
