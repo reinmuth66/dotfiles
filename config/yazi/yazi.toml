@@ -2,6 +2,7 @@
 sort_dir_first = true
 sort_by = "natural"
 show_hidden = false
+linemode = "size"
 
 [opener]
 open = [{ run = "open %s", desc = "Open with default app", for = "macos", orphan = true }]
