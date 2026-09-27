@@ -72,7 +72,7 @@ local function update()
 	end)
 end
 
-central:subscribe({ "routine", "forced" }, update)
+central:subscribe({ "routine", "forced", "system_woke" }, update)
 
 -- クリックするとzmk-battery-center本体が終了してしまう既知の不具合があるため無効化中 (issue #30)
 -- local function show_main_window()

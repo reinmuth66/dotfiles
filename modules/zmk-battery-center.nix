@@ -13,6 +13,7 @@ in
         "${zmk-battery-center}/Applications/zmk-battery-center.app/Contents/MacOS/zmk-battery-center"
       ];
       RunAtLoad = true;
+      KeepAlive = true;
     };
   };
 }
