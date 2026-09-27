@@ -13,7 +13,6 @@
       "affinity"
       "bambu-studio"
       "discord"
-      "dockdoor"
       "freecad"
       "google-drive"
       "google-chrome"
@@ -26,7 +25,6 @@
       "microsoft-word"
       "raycast"
       "tailscale-app"
-      "thaw"
       "thebrowsercompany-dia"
       { name = "wezterm@nightly"; greedy = true; }
       "zed"
