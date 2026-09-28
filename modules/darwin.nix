@@ -39,6 +39,12 @@
   # プライマリユーザーの指定 (homebrew 等のオプションに必要)
   system.primaryUser = "reinmuth";
 
+  system.defaults.NSGlobalDomain._HIHideMenuBar = true;
+
+  system.defaults.CustomUserPreferences."com.apple.controlcenter" = {
+    AutoHideMenuBarOption = 0;
+  };
+
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   # nix-darwin の options.json 生成を無効化 (Nix 2.33+ の builtins.derivation 警告を抑制)
