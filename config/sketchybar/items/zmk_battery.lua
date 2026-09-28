@@ -17,7 +17,7 @@ local BAR = {
 	height = 8,
 	border_width = 1,
 	corner_radius = 2,
-	inset = 0,
+	inset = 1,
 }
 
 -- outlineとnubは、互いのpadding_rightが同じ値のときに隙間なく隣接する
@@ -113,7 +113,7 @@ local function add_fill(name, padding_right, row_offset)
 		background = {
 			color = colors.white,
 			corner_radius = math.max(BAR.corner_radius - BAR.inset, 0),
-			height = BAR.height - BAR.inset * 2,
+			height = BAR.height - BAR.border_width * 2 - BAR.inset * 2,
 			y_offset = row_offset,
 			drawing = true,
 		},
