@@ -7,7 +7,7 @@ local NUB = {
 	width = 1,
 	height = 4,
 	corner_radius = 1,
-	gap = -4,
+	gap = 6,
 }
 
 local BAR = {
@@ -19,141 +19,122 @@ local BAR = {
 	outline_gap = NUB.gap,
 }
 
+local LABEL = {
+	width = 40,
+	font_size = 9,
+	central_padding_right = 5,
+	peripheral_base_padding_right = -55.8,
+}
+
+local ROW_OFFSET = 9
+
 sbar.add("event", "zmk_battery_update")
 
-local central = sbar.add("item", "zmk_battery.central", {
-	position = "right",
-	drawing = false,
-	icon = { drawing = false },
-})
+local function create_bar_group(prefix, row_offset)
+	local label = sbar.add("item", "zmk_battery." .. prefix, {
+		position = "right",
+		drawing = false,
+		width = LABEL.width,
+		icon = { drawing = false },
+		label = {
+			font = { size = LABEL.font_size },
+			y_offset = row_offset,
+		},
+	})
 
-local central_nub = sbar.add("item", "zmk_battery.central_nub", {
-	position = "right",
-	drawing = false,
-	width = NUB.width,
-	padding_right = NUB.gap,
-	icon = { drawing = false },
-	label = { drawing = false },
-	background = {
-		color = colors.white,
-		corner_radius = NUB.corner_radius,
-		height = NUB.height,
-		drawing = true,
-	},
-})
+	local nub = sbar.add("item", "zmk_battery." .. prefix .. "_nub", {
+		position = "right",
+		drawing = false,
+		width = NUB.width,
+		padding_right = NUB.gap,
+		icon = { drawing = false },
+		label = { drawing = false },
+		background = {
+			color = colors.white,
+			corner_radius = NUB.corner_radius,
+			height = NUB.height,
+			y_offset = row_offset,
+			drawing = true,
+		},
+	})
 
-local central_outline = sbar.add("item", "zmk_battery.central_outline", {
-	position = "right",
-	drawing = false,
-	width = BAR.width,
-	padding_right = BAR.outline_gap,
-	icon = { drawing = false },
-	label = { drawing = false },
-	background = {
-		color = 0x00000000,
-		border_color = colors.white,
-		border_width = BAR.border_width,
-		corner_radius = BAR.corner_radius,
-		height = BAR.height,
-		drawing = true,
-	},
-})
+	local outline = sbar.add("item", "zmk_battery." .. prefix .. "_outline", {
+		position = "right",
+		drawing = false,
+		width = BAR.width,
+		padding_right = BAR.outline_gap,
+		icon = { drawing = false },
+		label = { drawing = false },
+		background = {
+			color = 0x00000000,
+			border_color = colors.white,
+			border_width = BAR.border_width,
+			corner_radius = BAR.corner_radius,
+			height = BAR.height,
+			y_offset = row_offset,
+			drawing = true,
+		},
+	})
 
-local central_fill = sbar.add("item", "zmk_battery.central_fill", {
-	position = "right",
-	drawing = false,
-	width = 0,
-	padding_right = BAR.outline_gap - BAR.border_width - BAR.inset,
-	icon = { drawing = false },
-	label = { drawing = false },
-	background = {
-		color = colors.white,
-		corner_radius = math.max(BAR.corner_radius - BAR.inset, 0),
-		height = BAR.height - BAR.inset * 2,
-		drawing = true,
-	},
-})
+	local fill = sbar.add("item", "zmk_battery." .. prefix .. "_fill", {
+		position = "right",
+		drawing = false,
+		width = 0,
+		padding_right = BAR.outline_gap - BAR.border_width - BAR.inset,
+		icon = { drawing = false },
+		label = { drawing = false },
+		background = {
+			color = colors.white,
+			corner_radius = math.max(BAR.corner_radius - BAR.inset, 0),
+			height = BAR.height - BAR.inset * 2,
+			y_offset = row_offset,
+			drawing = true,
+		},
+	})
 
-local peripheral = sbar.add("item", "zmk_battery.peripheral", {
-	position = "right",
-	drawing = false,
-	icon = { drawing = false },
-})
+	return { label = label, nub = nub, outline = outline, fill = fill }
+end
 
-local peripheral_nub = sbar.add("item", "zmk_battery.peripheral_nub", {
-	position = "right",
-	drawing = false,
-	width = NUB.width,
-	padding_right = NUB.gap,
-	icon = { drawing = false },
-	label = { drawing = false },
-	background = {
-		color = colors.white,
-		corner_radius = NUB.corner_radius,
-		height = NUB.height,
-		drawing = true,
-	},
-})
+local central = create_bar_group("central", ROW_OFFSET)
+local peripheral = create_bar_group("peripheral", -ROW_OFFSET)
 
-local peripheral_outline = sbar.add("item", "zmk_battery.peripheral_outline", {
-	position = "right",
-	drawing = false,
-	width = BAR.width,
-	padding_right = BAR.outline_gap,
-	icon = { drawing = false },
-	label = { drawing = false },
-	background = {
-		color = 0x00000000,
-		border_color = colors.white,
-		border_width = BAR.border_width,
-		corner_radius = BAR.corner_radius,
-		height = BAR.height,
-		drawing = true,
-	},
-})
+local function hide_group(group)
+	group.nub:set({ drawing = false })
+	group.outline:set({ drawing = false })
+	group.fill:set({ drawing = false })
+	group.label:set({ drawing = false })
+end
 
-local peripheral_fill = sbar.add("item", "zmk_battery.peripheral_fill", {
-	position = "right",
-	drawing = false,
-	width = 0,
-	padding_right = BAR.outline_gap - BAR.border_width - BAR.inset,
-	icon = { drawing = false },
-	label = { drawing = false },
-	background = {
-		color = colors.white,
-		corner_radius = math.max(BAR.corner_radius - BAR.inset, 0),
-		height = BAR.height - BAR.inset * 2,
-		drawing = true,
-	},
-})
-
-local function apply_bar(nub, outline, fill, label_item, connection_status, level_str)
+local function apply_group(group, connection_status, level_str, delta)
+	delta = delta or 0
 	local level = tonumber(level_str)
 	if connection_status ~= "connected" or level == nil then
-		nub:set({ drawing = false })
-		outline:set({ drawing = false })
-		fill:set({ drawing = false })
-		label_item:set({ drawing = false })
-		return
+		hide_group(group)
+		return nil
 	end
 
 	local inner_width = BAR.width - BAR.border_width * 2 - BAR.inset * 2
 	local clamped_level = math.max(0, math.min(100, level))
 	local fill_width = inner_width * clamped_level / 100
-	local fill_padding_right = BAR.outline_gap - BAR.border_width - BAR.inset - fill_width
+	local outline_padding_right = BAR.outline_gap + delta
+	local fill_padding_right = outline_padding_right - BAR.border_width - BAR.inset - fill_width
 
-	nub:set({ drawing = true })
-	outline:set({ drawing = true })
-	fill:set({ drawing = true, width = fill_width, padding_right = fill_padding_right })
-	label_item:set({ drawing = true, label = level .. "%" })
+	group.nub:set({ drawing = true, padding_right = NUB.gap + delta })
+	group.outline:set({ drawing = true, padding_right = outline_padding_right })
+	group.fill:set({ drawing = true, width = fill_width, padding_right = fill_padding_right })
+	group.label:set({ drawing = true, label = level .. "%", padding_right = LABEL.central_padding_right + delta })
+
+	return fill_width
 end
 
 local function apply_central(connection_status, level_str)
-	apply_bar(central_nub, central_outline, central_fill, central, connection_status, level_str)
+	return apply_group(central, connection_status, level_str, 0)
 end
 
-local function apply_peripheral(connection_status, level_str)
-	apply_bar(peripheral_nub, peripheral_outline, peripheral_fill, peripheral, connection_status, level_str)
+local function apply_peripheral(connection_status, level_str, central_fill_width)
+	central_fill_width = central_fill_width or 0
+	local delta = LABEL.peripheral_base_padding_right - LABEL.central_padding_right - central_fill_width
+	apply_group(peripheral, connection_status, level_str, delta)
 end
 
 local function update()
@@ -165,43 +146,41 @@ local function update()
 
 	sbar.exec(cmd, function(result)
 		if result == nil or result == "" then
-			central_nub:set({ drawing = false })
-			central_outline:set({ drawing = false })
-			central_fill:set({ drawing = false })
-			central:set({ drawing = false })
-			peripheral_nub:set({ drawing = false })
-			peripheral_outline:set({ drawing = false })
-			peripheral_fill:set({ drawing = false })
-			peripheral:set({ drawing = false })
+			hide_group(central)
+			hide_group(peripheral)
 			return
 		end
 
-		local seen_peripheral = false
+		local central_fields, peripheral_fields
 		for line in result:gmatch("[^\r\n]+") do
 			local fields = {}
 			for field in line:gmatch("([^\t]+)") do
 				table.insert(fields, field)
 			end
 
-			local connection_status, id, level_str = fields[1], fields[2], fields[3]
-			if id == "central" then
-				apply_central(connection_status, level_str)
-			elseif not seen_peripheral then
-				seen_peripheral = true
-				apply_peripheral(connection_status, level_str)
+			if fields[2] == "central" then
+				central_fields = fields
+			elseif not peripheral_fields then
+				peripheral_fields = fields
 			end
 		end
 
-		if not seen_peripheral then
-			peripheral_nub:set({ drawing = false })
-			peripheral_outline:set({ drawing = false })
-			peripheral_fill:set({ drawing = false })
-			peripheral:set({ drawing = false })
+		local central_fill_width = 0
+		if central_fields then
+			central_fill_width = apply_central(central_fields[1], central_fields[3]) or 0
+		else
+			hide_group(central)
+		end
+
+		if peripheral_fields then
+			apply_peripheral(peripheral_fields[1], peripheral_fields[3], central_fill_width)
+		else
+			hide_group(peripheral)
 		end
 	end)
 end
 
-central:subscribe({ "forced", "system_woke", "zmk_battery_update" }, update)
+central.label:subscribe({ "forced", "system_woke", "zmk_battery_update" }, update)
 
 local function toggle_main_window()
 	local script = [[
@@ -219,11 +198,9 @@ end tell
 	sbar.exec("osascript -e '" .. script .. "' 2>/dev/null")
 end
 
-central_nub:subscribe("mouse.clicked", toggle_main_window)
-central_outline:subscribe("mouse.clicked", toggle_main_window)
-central_fill:subscribe("mouse.clicked", toggle_main_window)
-central:subscribe("mouse.clicked", toggle_main_window)
-peripheral_nub:subscribe("mouse.clicked", toggle_main_window)
-peripheral_outline:subscribe("mouse.clicked", toggle_main_window)
-peripheral_fill:subscribe("mouse.clicked", toggle_main_window)
-peripheral:subscribe("mouse.clicked", toggle_main_window)
+for _, group in pairs({ central, peripheral }) do
+	group.nub:subscribe("mouse.clicked", toggle_main_window)
+	group.outline:subscribe("mouse.clicked", toggle_main_window)
+	group.fill:subscribe("mouse.clicked", toggle_main_window)
+	group.label:subscribe("mouse.clicked", toggle_main_window)
+end
