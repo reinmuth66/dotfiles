@@ -14,7 +14,7 @@ local NUB = {
 
 local BAR = {
 	width = 16,
-	height = 8,
+	height = 10,
 	border_width = 1,
 	corner_radius = 2,
 	inset = 1,
@@ -44,7 +44,7 @@ local MAX_LABEL_WIDTH = LABEL_WIDTH_BY_DIGITS[3]
 
 -- LABEL.font_size(9→11pt)に比例させた見積もり値。フォント実寸の目視確認が
 -- できていないため、上下2段が重ならないか実機で要確認。
-local ROW_OFFSET = 6
+local ROW_OFFSET = 7
 
 sbar.add("event", "zmk_battery_update")
 
