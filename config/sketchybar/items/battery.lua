@@ -1,6 +1,8 @@
 local battery = sbar.add("item", "battery", {
 	position = "right",
 	update_freq = 120,
+	icon = { font = { size = 18.0 }, y_offset = 1, padding_right = 3 },
+	label = { font = { style = "Bold" }, padding_left = 3 },
 })
 
 local icons = {
