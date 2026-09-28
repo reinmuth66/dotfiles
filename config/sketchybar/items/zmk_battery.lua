@@ -3,20 +3,6 @@ local colors = require("colors")
 local snapshot_path = os.getenv("HOME")
 	.. "/Library/Application Support/com.zmk-battery-center.app/external/battery-state-v1.json"
 
-local function icon_for(level)
-	if level >= 90 then
-		return ""
-	elseif level >= 60 then
-		return ""
-	elseif level >= 30 then
-		return ""
-	elseif level >= 10 then
-		return ""
-	else
-		return ""
-	end
-end
-
 local BAR = {
 	width = 20,
 	height = 8,
@@ -66,17 +52,50 @@ local central = sbar.add("item", "zmk_battery.central", {
 	icon = { drawing = false },
 })
 
+local peripheral_outline = sbar.add("item", "zmk_battery.peripheral_outline", {
+	position = "right",
+	drawing = false,
+	width = BAR.width,
+	padding_right = BAR.gap,
+	icon = { drawing = false },
+	label = { drawing = false },
+	background = {
+		color = 0x00000000,
+		border_color = colors.white,
+		border_width = BAR.border_width,
+		corner_radius = BAR.corner_radius,
+		height = BAR.height,
+		drawing = true,
+	},
+})
+
+local peripheral_fill = sbar.add("item", "zmk_battery.peripheral_fill", {
+	position = "right",
+	drawing = false,
+	width = 0,
+	padding_right = BAR.gap - BAR.border_width - BAR.inset,
+	icon = { drawing = false },
+	label = { drawing = false },
+	background = {
+		color = colors.white,
+		corner_radius = math.max(BAR.corner_radius - BAR.inset, 0),
+		height = BAR.height - BAR.inset * 2,
+		drawing = true,
+	},
+})
+
 local peripheral = sbar.add("item", "zmk_battery.peripheral", {
 	position = "right",
 	drawing = false,
+	icon = { drawing = false },
 })
 
-local function apply_central(connection_status, level_str)
+local function apply_bar(outline, fill, label_item, connection_status, level_str)
 	local level = tonumber(level_str)
 	if connection_status ~= "connected" or level == nil then
-		central_outline:set({ drawing = false })
-		central_fill:set({ drawing = false })
-		central:set({ drawing = false })
+		outline:set({ drawing = false })
+		fill:set({ drawing = false })
+		label_item:set({ drawing = false })
 		return
 	end
 
@@ -85,19 +104,17 @@ local function apply_central(connection_status, level_str)
 	local fill_width = inner_width * clamped_level / 100
 	local fill_padding_right = BAR.gap - BAR.border_width - BAR.inset - fill_width
 
-	central_outline:set({ drawing = true })
-	central_fill:set({ drawing = true, width = fill_width, padding_right = fill_padding_right })
-	central:set({ drawing = true, label = level .. "%" })
+	outline:set({ drawing = true })
+	fill:set({ drawing = true, width = fill_width, padding_right = fill_padding_right })
+	label_item:set({ drawing = true, label = level .. "%" })
 end
 
-local function apply(item, connection_status, level_str)
-	local level = tonumber(level_str)
-	if connection_status ~= "connected" or level == nil then
-		item:set({ drawing = false })
-		return
-	end
+local function apply_central(connection_status, level_str)
+	apply_bar(central_outline, central_fill, central, connection_status, level_str)
+end
 
-	item:set({ drawing = true, icon = icon_for(level), label = level .. "%" })
+local function apply_peripheral(connection_status, level_str)
+	apply_bar(peripheral_outline, peripheral_fill, peripheral, connection_status, level_str)
 end
 
 local function update()
@@ -112,6 +129,8 @@ local function update()
 			central_outline:set({ drawing = false })
 			central_fill:set({ drawing = false })
 			central:set({ drawing = false })
+			peripheral_outline:set({ drawing = false })
+			peripheral_fill:set({ drawing = false })
 			peripheral:set({ drawing = false })
 			return
 		end
@@ -128,11 +147,13 @@ local function update()
 				apply_central(connection_status, level_str)
 			elseif not seen_peripheral then
 				seen_peripheral = true
-				apply(peripheral, connection_status, level_str)
+				apply_peripheral(connection_status, level_str)
 			end
 		end
 
 		if not seen_peripheral then
+			peripheral_outline:set({ drawing = false })
+			peripheral_fill:set({ drawing = false })
 			peripheral:set({ drawing = false })
 		end
 	end)
@@ -159,4 +180,6 @@ end
 central_outline:subscribe("mouse.clicked", toggle_main_window)
 central_fill:subscribe("mouse.clicked", toggle_main_window)
 central:subscribe("mouse.clicked", toggle_main_window)
+peripheral_outline:subscribe("mouse.clicked", toggle_main_window)
+peripheral_fill:subscribe("mouse.clicked", toggle_main_window)
 peripheral:subscribe("mouse.clicked", toggle_main_window)
