@@ -7,7 +7,7 @@ local NUB = {
 	width = 1,
 	height = 4,
 	corner_radius = 1,
-	gap = 4,
+	gap = -4,
 }
 
 local BAR = {
