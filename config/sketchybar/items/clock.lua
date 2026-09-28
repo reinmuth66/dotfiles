@@ -1,4 +1,7 @@
 sbar.add("item", "clock", {
 	position = "right",
-	label = os.date("%m/%d %a %H:%M"),
+	label = {
+		string = os.date("%m/%d %a %H:%M"),
+		font = { style = "Bold" },
+	},
 })
