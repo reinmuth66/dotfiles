@@ -21,6 +21,12 @@ local BAR = {
 
 sbar.add("event", "zmk_battery_update")
 
+local central = sbar.add("item", "zmk_battery.central", {
+	position = "right",
+	drawing = false,
+	icon = { drawing = false },
+})
+
 local central_nub = sbar.add("item", "zmk_battery.central_nub", {
 	position = "right",
 	drawing = false,
@@ -68,7 +74,7 @@ local central_fill = sbar.add("item", "zmk_battery.central_fill", {
 	},
 })
 
-local central = sbar.add("item", "zmk_battery.central", {
+local peripheral = sbar.add("item", "zmk_battery.peripheral", {
 	position = "right",
 	drawing = false,
 	icon = { drawing = false },
@@ -119,12 +125,6 @@ local peripheral_fill = sbar.add("item", "zmk_battery.peripheral_fill", {
 		height = BAR.height - BAR.inset * 2,
 		drawing = true,
 	},
-})
-
-local peripheral = sbar.add("item", "zmk_battery.peripheral", {
-	position = "right",
-	drawing = false,
-	icon = { drawing = false },
 })
 
 local function apply_bar(nub, outline, fill, label_item, connection_status, level_str)
