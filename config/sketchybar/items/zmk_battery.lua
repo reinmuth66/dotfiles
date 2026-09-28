@@ -13,7 +13,7 @@ local NUB = {
 }
 
 local BAR = {
-	width = 20,
+	width = 16,
 	height = 8,
 	border_width = 1,
 	corner_radius = 2,
@@ -124,7 +124,13 @@ end
 -- central(label→nub→outline) → peripheral(label→nub→outline) → central_fill → peripheral_fill
 local PERIPHERAL_OUTLINE_PADDING_RIGHT = NUB.gap - GROUP_OFFSET
 -- central_fillはperipheral_outlineの直後に追加されるので、その値を基準に計算する
-local CENTRAL_FILL_BASE_PADDING_RIGHT = PERIPHERAL_OUTLINE_PADDING_RIGHT - BAR.border_width - BAR.inset
+-- この値自体はinsetに依存しない絶対基準(0%位置)として保持し、insetによる
+-- 見た目の縮小は実際に描画する値を求める側(CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT
+-- やfill_width_for)でだけ加味する。
+local CENTRAL_FILL_BASE_PADDING_RIGHT = PERIPHERAL_OUTLINE_PADDING_RIGHT - BAR.border_width
+-- 実際に描画するcentral_fillの0%位置。左右均等にinset分内側へ後退させる
+-- (上下のheight計算と同じ考え方)。
+local CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT = CENTRAL_FILL_BASE_PADDING_RIGHT - BAR.inset
 
 local central_label = add_label("central", LABEL.central_padding_right, ROW_OFFSET)
 local central_nub = add_nub("central_nub", NUB.gap, ROW_OFFSET)
@@ -134,7 +140,7 @@ local peripheral_label = add_label("peripheral", LABEL.central_padding_right - G
 local peripheral_nub = add_nub("peripheral_nub", NUB.gap - GROUP_OFFSET, -ROW_OFFSET)
 local peripheral_outline = add_outline("peripheral_outline", PERIPHERAL_OUTLINE_PADDING_RIGHT, -ROW_OFFSET)
 
-local central_fill = add_fill("central_fill", CENTRAL_FILL_BASE_PADDING_RIGHT, ROW_OFFSET)
+local central_fill = add_fill("central_fill", CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT, ROW_OFFSET)
 local peripheral_fill = add_fill("peripheral_fill", -BAR.border_width - BAR.inset, -ROW_OFFSET)
 
 local central = { label = central_label, nub = central_nub, outline = central_outline, fill = central_fill }
@@ -186,11 +192,11 @@ end
 
 -- central_fillの直近のpadding_right。peripheral_fillの位置合わせに使う。
 -- central未接続時は最後に計算した値を使い続ける。
-local last_central_fill_padding_right = CENTRAL_FILL_BASE_PADDING_RIGHT
+local last_central_fill_padding_right = CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT
 
 local function apply_central(connection_status, level_str)
 	local fill_padding_right = apply_group(central, connection_status, level_str, function(fill_width)
-		return CENTRAL_FILL_BASE_PADDING_RIGHT - fill_width
+		return CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT - fill_width
 	end)
 	if fill_padding_right then
 		last_central_fill_padding_right = fill_padding_right
