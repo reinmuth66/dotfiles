@@ -28,7 +28,7 @@ local BAR = {
 -- widthは実際の最大幅("100%"をfont_sizeで描画した幅、実機計測)以上にする。
 -- これより小さいとcontentがwidthを上書きして位置ズレが復活するので注意。
 local LABEL = {
-	width = 30,
+	width = 31, -- Bold体の"100%"実測30px + 1pxの余裕
 	font_size = 9,
 	central_padding_right = 5, -- ラベル自身の右隣アイテムとの間隔
 }
@@ -57,7 +57,7 @@ local function add_label(name, padding_right, row_offset)
 		padding_right = padding_right,
 		icon = { drawing = false },
 		label = {
-			font = { size = LABEL.font_size },
+			font = { style = "Bold", size = LABEL.font_size },
 			y_offset = row_offset,
 			align = "right",
 		},
@@ -148,10 +148,19 @@ local function hide_group(group)
 	group.label:set({ drawing = false })
 end
 
+-- sketchybarはwidth/padding_rightをそれぞれ独立に0方向へ切り捨てて保持する
+-- (実機検証で確認)。端数を残したまま渡すと「width+padding_right」の合計が
+-- 想定とズレることがあるため、fill_widthは先にこちらで切り捨てておく。
+-- こうすればCENTRAL_FILL_BASE_PADDING_RIGHT(整数)からの引き算も整数のまま
+-- 保たれ、sketchybar側の丸めによる誤差が生じない。
+local function trunc(x)
+	return x >= 0 and math.floor(x) or math.ceil(x)
+end
+
 local function fill_width_for(level)
 	local inner_width = BAR.width - BAR.border_width * 2 - BAR.inset * 2
 	local clamped_level = math.max(0, math.min(100, level))
-	return inner_width * clamped_level / 100
+	return trunc(inner_width * clamped_level / 100)
 end
 
 -- グループを表示状態にし、塗りバーの幅/padding_rightを反映する共通処理。
