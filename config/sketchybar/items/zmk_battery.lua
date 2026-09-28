@@ -13,7 +13,7 @@ local NUB = {
 }
 
 local BAR = {
-	width = 16,
+	width = 18,
 	height = 10,
 	border_width = 1,
 	corner_radius = 2,
