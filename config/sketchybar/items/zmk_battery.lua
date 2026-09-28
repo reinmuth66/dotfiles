@@ -8,8 +8,8 @@ local NUB = {
 	height = 4,
 	corner_radius = 1,
 	-- ラベルのpadding_right(LABEL.central_padding_right)を基準に、
-	-- nubがラベルの左1pxに来るよう実機で校正した値。
-	gap = 6,
+	-- nubがラベルの左に隙間なく来るよう実機で校正した値。
+	gap = 2,
 }
 
 local BAR = {
@@ -18,15 +18,17 @@ local BAR = {
 	border_width = 1,
 	corner_radius = 2,
 	inset = 0,
-	-- outlineとnubは、互いのpadding_rightが同じ値のときに隙間なく隣接する
-	-- (sketchybarの実機検証で確認した挙動)。NUB.gapと揃える。
-	outline_gap = NUB.gap,
 }
 
+-- outlineとnubは、互いのpadding_rightが同じ値のときに隙間なく隣接する
+-- (sketchybarの実機検証で確認した挙動)。outline側はNUB.gapをそのまま使う。
+
 -- central/peripheralのラベルは残量の桁数で幅が変わらないよう固定幅にする
--- (そうしないと "9%" と "100%" でperipheralとの重ね位置がズレる)
+-- (そうしないと "9%" と "100%" でperipheralとの重ね位置がズレる)。
+-- widthは実際の最大幅("100%"をfont_sizeで描画した幅、実機計測)以上にする。
+-- これより小さいとcontentがwidthを上書きして位置ズレが復活するので注意。
 local LABEL = {
-	width = 40,
+	width = 30,
 	font_size = 9,
 	central_padding_right = 5, -- ラベル自身の右隣アイテムとの間隔
 }
@@ -57,6 +59,7 @@ local function add_label(name, padding_right, row_offset)
 		label = {
 			font = { size = LABEL.font_size },
 			y_offset = row_offset,
+			align = "right",
 		},
 	})
 end
@@ -119,16 +122,19 @@ end
 
 -- 追加順がそのまま位置を決める:
 -- central(label→nub→outline) → peripheral(label→nub→outline) → central_fill → peripheral_fill
+local PERIPHERAL_OUTLINE_PADDING_RIGHT = NUB.gap - GROUP_OFFSET
+-- central_fillはperipheral_outlineの直後に追加されるので、その値を基準に計算する
+local CENTRAL_FILL_BASE_PADDING_RIGHT = PERIPHERAL_OUTLINE_PADDING_RIGHT - BAR.border_width - BAR.inset
+
 local central_label = add_label("central", LABEL.central_padding_right, ROW_OFFSET)
 local central_nub = add_nub("central_nub", NUB.gap, ROW_OFFSET)
-local central_outline = add_outline("central_outline", BAR.outline_gap, ROW_OFFSET)
+local central_outline = add_outline("central_outline", NUB.gap, ROW_OFFSET)
 
 local peripheral_label = add_label("peripheral", LABEL.central_padding_right - GROUP_OFFSET, -ROW_OFFSET)
 local peripheral_nub = add_nub("peripheral_nub", NUB.gap - GROUP_OFFSET, -ROW_OFFSET)
-local peripheral_outline = add_outline("peripheral_outline", BAR.outline_gap - GROUP_OFFSET, -ROW_OFFSET)
+local peripheral_outline = add_outline("peripheral_outline", PERIPHERAL_OUTLINE_PADDING_RIGHT, -ROW_OFFSET)
 
-local INITIAL_CENTRAL_FILL_PADDING_RIGHT = BAR.outline_gap - GROUP_OFFSET - BAR.border_width - BAR.inset
-local central_fill = add_fill("central_fill", INITIAL_CENTRAL_FILL_PADDING_RIGHT, ROW_OFFSET)
+local central_fill = add_fill("central_fill", CENTRAL_FILL_BASE_PADDING_RIGHT, ROW_OFFSET)
 local peripheral_fill = add_fill("peripheral_fill", -BAR.border_width - BAR.inset, -ROW_OFFSET)
 
 local central = { label = central_label, nub = central_nub, outline = central_outline, fill = central_fill }
@@ -148,41 +154,44 @@ local function fill_width_for(level)
 	return inner_width * clamped_level / 100
 end
 
--- central_fillの直近のpadding_right。peripheral_fillの位置合わせに使う。
--- central未接続時は最後に計算した値を使い続ける。
-local last_central_fill_padding_right = INITIAL_CENTRAL_FILL_PADDING_RIGHT
-
-local function apply_central(connection_status, level_str)
+-- グループを表示状態にし、塗りバーの幅/padding_rightを反映する共通処理。
+-- fill_padding_right_forには「fill_widthを受け取ってpadding_rightを返す関数」を渡す
+-- (central/peripheralで塗りバーの位置計算だけが異なるため)。
+local function apply_group(group, connection_status, level_str, fill_padding_right_for)
 	local level = tonumber(level_str)
 	if connection_status ~= "connected" or level == nil then
-		hide_group(central)
-		return
+		hide_group(group)
+		return nil
 	end
 
 	local fill_width = fill_width_for(level)
-	local fill_padding_right = (BAR.outline_gap - GROUP_OFFSET) - BAR.border_width - BAR.inset - fill_width
-	last_central_fill_padding_right = fill_padding_right
+	local fill_padding_right = fill_padding_right_for(fill_width)
 
-	central.nub:set({ drawing = true })
-	central.outline:set({ drawing = true })
-	central.fill:set({ drawing = true, width = fill_width, padding_right = fill_padding_right })
-	central.label:set({ drawing = true, label = level .. "%" })
+	group.nub:set({ drawing = true })
+	group.outline:set({ drawing = true })
+	group.fill:set({ drawing = true, width = fill_width, padding_right = fill_padding_right })
+	group.label:set({ drawing = true, label = level .. "%" })
+
+	return fill_padding_right
+end
+
+-- central_fillの直近のpadding_right。peripheral_fillの位置合わせに使う。
+-- central未接続時は最後に計算した値を使い続ける。
+local last_central_fill_padding_right = CENTRAL_FILL_BASE_PADDING_RIGHT
+
+local function apply_central(connection_status, level_str)
+	local fill_padding_right = apply_group(central, connection_status, level_str, function(fill_width)
+		return CENTRAL_FILL_BASE_PADDING_RIGHT - fill_width
+	end)
+	if fill_padding_right then
+		last_central_fill_padding_right = fill_padding_right
+	end
 end
 
 local function apply_peripheral(connection_status, level_str)
-	local level = tonumber(level_str)
-	if connection_status ~= "connected" or level == nil then
-		hide_group(peripheral)
-		return
-	end
-
-	local fill_width = fill_width_for(level)
-	local fill_padding_right = last_central_fill_padding_right - fill_width
-
-	peripheral.nub:set({ drawing = true })
-	peripheral.outline:set({ drawing = true })
-	peripheral.fill:set({ drawing = true, width = fill_width, padding_right = fill_padding_right })
-	peripheral.label:set({ drawing = true, label = level .. "%" })
+	apply_group(peripheral, connection_status, level_str, function(fill_width)
+		return last_central_fill_padding_right - fill_width
+	end)
 end
 
 local function update()
