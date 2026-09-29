@@ -39,12 +39,11 @@
   # プライマリユーザーの指定 (homebrew 等のオプションに必要)
   system.primaryUser = "reinmuth";
 
-  # 切り分けのため一時的に無効化
-  # system.defaults.NSGlobalDomain._HIHideMenuBar = true;
+  system.defaults.NSGlobalDomain._HIHideMenuBar = true;
 
-  # system.defaults.CustomUserPreferences."com.apple.controlcenter" = {
-  #   AutoHideMenuBarOption = 0;
-  # };
+  system.defaults.CustomUserPreferences."com.apple.controlcenter" = {
+    AutoHideMenuBarOption = 0;
+  };
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
