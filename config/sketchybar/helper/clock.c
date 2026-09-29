@@ -7,7 +7,7 @@ static void callback(CFRunLoopTimerRef timer, void *info) {
   time(&current_time);
 
   char buffer[64];
-  strftime(buffer, sizeof(buffer), "%m/%d %a %H:%M", localtime(&current_time));
+  strftime(buffer, sizeof(buffer), "%m/%d %a %H:%M:%S", localtime(&current_time));
 
   char message[128];
   snprintf(message, sizeof(message), "--set clock label=\"%s\"", buffer);
