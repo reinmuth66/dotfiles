@@ -1,6 +1,7 @@
 local ime = sbar.add("item", "ime", {
 	position = "right",
 	icon = { drawing = false },
+	label = { font = { family = "Hack Nerd Font", style = "Bold" } },
 })
 
 sbar.add("event", "input_source_change", "AppleSelectedInputSourcesChangedNotification")
@@ -14,9 +15,9 @@ local function update()
 		source = source:match("^%s*(.-)%s*$")
 
 		if source:find("Japanese") then
-			ime:set({ label = "あ" })
+			ime:set({ label = "JP" })
 		else
-			ime:set({ label = "A" })
+			ime:set({ label = "EN" })
 		end
 	end)
 end
