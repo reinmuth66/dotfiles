@@ -35,10 +35,12 @@ local LABEL = {
 -- 各値は実機で"5%"/"45%"/"100%"をwidth=1(意図的に不足させる)に設定し、
 -- bounding_rectsのsize(sketchybarが自動的に上書きして広げた実際の幅)を
 -- 確認して実測した値。LABEL.font_sizeを変更した場合は再測定が必要。
+-- ラベルはalign="right"なので、幅を増やした分はバーとテキストの間隔になる。
+local LABEL_GAP_EXTRA = 1
 local LABEL_WIDTH_BY_DIGITS = {
-	[1] = 22, -- "5%"実測21px + 余裕1px
-	[2] = 29, -- "45%"実測28px + 余裕1px
-	[3] = 36, -- "100%"実測35px + 余裕1px
+	[1] = 22 + LABEL_GAP_EXTRA, -- "5%"実測21px + 余裕1px
+	[2] = 29 + LABEL_GAP_EXTRA, -- "45%"実測28px + 余裕1px
+	[3] = 36 + LABEL_GAP_EXTRA, -- "100%"実測35px + 余裕1px
 }
 local MAX_LABEL_WIDTH = LABEL_WIDTH_BY_DIGITS[3]
 
