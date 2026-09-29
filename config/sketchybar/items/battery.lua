@@ -21,6 +21,11 @@ local icons = {
 
 local CHARGING_ICON = "󰂄"
 
+-- 先頭が "1" "5" のときだけ文字列幅が 1px 狭くなり、左隣のアイテムがずれるため、桁数ごとに幅を固定する。
+-- 実測値 (Hack Nerd Font Bold 13pt): アイテム幅 40/48/55px から余白 17px を引いた値。
+-- フォントやサイズ、label の padding を変えたら再測定が必要。
+local LABEL_WIDTH_BY_DIGITS = { [1] = 23, [2] = 31, [3] = 38 }
+
 local function icon_for(charge, charging)
 	if charging then
 		return CHARGING_ICON
@@ -43,7 +48,11 @@ local function update()
 
 		local charging = batt_info:find("AC Power") ~= nil
 
-		battery:set({ icon = icon_for(charge, charging), label = charge .. "%" })
+		local text = charge .. "%"
+		battery:set({
+			icon = icon_for(charge, charging),
+			label = { string = text, width = LABEL_WIDTH_BY_DIGITS[#text - 1] },
+		})
 	end)
 end
 
