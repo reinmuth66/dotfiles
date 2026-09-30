@@ -43,18 +43,15 @@
     imagemagick
     jq
     marp-cli
-    mcat
     moralerspace-hw
     nerd-fonts.hack
     poppler
     p7zip
     resvg
     ripgrep
-    rm-improved
     sd
     sketchybar-app-font
     texlab
-    xan
   ];
 
   home.file.".markdownlint-cli2.yaml".source = ../config/markdownlint-cli2.yaml;
