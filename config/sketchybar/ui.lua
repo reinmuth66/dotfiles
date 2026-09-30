@@ -9,6 +9,10 @@ local M = {}
 -- 何も挟まないと隣の bracket と背景が接してしまう。
 M.bracket_gap = 6
 
+-- bracket の背景の端から中身までの既定の余白。add_bracket の padding に渡す。
+-- 端の item は、アイコンとラベルの内側の padding を 0 にしておくこと。
+M.bracket_padding = 8
+
 local function merge(base, extra)
 	local out = {}
 	for k, v in pairs(base) do
