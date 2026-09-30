@@ -7,6 +7,15 @@ return {
     border = 0xaaffffff,
   },
 
+  -- ui.add_bracket の既定の背景
+  bracket = {
+    color = 0x22ffffff,
+    border_color = 0x44ffffff,
+    border_width = 1,
+    corner_radius = 5,
+    height = 25,
+  },
+
   swap = {
     default = 0x44ffffff,
     alert = 0xaaff0000,
