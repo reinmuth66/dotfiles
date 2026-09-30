@@ -27,6 +27,10 @@ in
   programs.sketchybar = {
     enable = true;
 
+    package = pkgs.sketchybar.overrideAttrs (old: {
+      patches = (old.patches or [ ]) ++ [ ../pkgs/sketchybar/image-rotation.patch ];
+    });
+
     configType = "lua";
     config = {
       source = ../config/sketchybar;
