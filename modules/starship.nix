@@ -6,7 +6,7 @@
     enableZshIntegration = true;
     settings = {
       format = "$os$username$directory$git_branch$git_status$c$cpp$elixir$elm$golang$gradle$haskell$java$julia$kotlin$nim$nodejs$php$python$rust$scala$conda$docker_context$nix_shell$time$cmd_duration$line_break$character";
-      palette = "catppuccin_mocha";
+      palette = "catppuccin_macchiato";
       command_timeout = 5000;
 
       os = {
