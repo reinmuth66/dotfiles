@@ -30,6 +30,8 @@ local spotify = ui.add_item("spotify", "right", {
 	},
 })
 
+ui.add_bracket("spotify.bracket", { "spotify" })
+
 -- 回転ループ。stop -> start が短時間で続いても古いループが残らないよう世代で管理する
 local angle = 0
 local spinning = false

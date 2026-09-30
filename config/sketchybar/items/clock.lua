@@ -9,3 +9,6 @@ ui.add_item("clock", "right", {
 		width = 149,
 	},
 })
+
+ui.add_bracket("clock.bracket", { "clock" })
+ui.add_spacer("right", ui.bracket_gap)

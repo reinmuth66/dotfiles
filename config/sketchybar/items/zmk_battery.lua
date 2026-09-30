@@ -164,15 +164,13 @@ local peripheral =
 	{ label = peripheral_label, nub = peripheral_nub, outline = peripheral_outline, fill = peripheral_fill }
 
 -- 上下2段を重ねるための負のpadding_rightを使う都合で、左隣のアイテムとの間に
--- 見た目より広い隙間ができる。実測した隙間がGAP_TO_NEIGHBORになるよう、
--- 左隣(ime)のpadding_rightを調整する(ui.close_gap)。
--- zmk_batteryのbracketは範囲の測定専用で、背景は描かない。
--- bracketの範囲はメンバーのpaddingを含むため、GAP_TO_NEIGHBORは左隣のpadding_right(5)相当。
--- 実機で見た目を確認して調整すること。
-local GAP_TO_NEIGHBOR = 5
+-- 見た目より広い隙間ができる。bracketの左に置いたspacerのpadding_rightを調整し、
+-- 左隣のbracket(ime)との実測の隙間がui.bracket_gapになるよう詰める(ui.close_gap)。
+-- spacerはbracketより後に作ること(実機検証。幅は自動にしないと効かない: ui.add_spacer)。
 local GAP_SETTLE_DELAY = 0.3 -- レイアウト反映を待つ秒数
 
-ui.add_bracket("zmk_battery", { "/zmk_battery\\..*/" }, { background = { drawing = false } })
+ui.add_bracket("zmk_battery.bracket", { "/zmk_battery\\..*/" })
+local gap_spacer = ui.add_spacer("right", ui.bracket_gap, "zmk_battery_gap")
 
 -- 連続して呼ばれたときは最後の1回だけ測る
 local gap_generation = 0
@@ -185,9 +183,10 @@ local function settle_gap()
 			return
 		end
 		ui.close_gap({
-			left = "ime",
-			right = "zmk_battery",
-			spacing = GAP_TO_NEIGHBOR,
+			left = "ime.bracket",
+			right = "zmk_battery.bracket",
+			spacer = gap_spacer,
+			spacing = ui.bracket_gap,
 		})
 	end)
 end
