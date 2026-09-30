@@ -26,15 +26,45 @@ function M.add_item(name, position, props)
 	return sbar.add("item", name, merge(props or {}, { position = position }))
 end
 
--- members には item 名、または "/正規表現/" を渡す。
+-- members には item (add_item の戻り値)、item 名、"/正規表現/" のいずれかを並べる。
 -- 背景は colors.bracket を既定にし、props.background で上書きできる。
 -- 背景を描かず範囲の測定だけに使うときは { background = { drawing = false } } を渡す。
-function M.add_bracket(name, members, props)
+--
+-- padding は bracket の背景の端から中身までの余白 (px)。数値なら左右同じ、
+-- { left = n, right = n } なら片側だけ指定でき、省略した側は変更しない。
+-- bracket の範囲は item の padding を含む (実機検証) ので、実際には端の item の
+-- padding を設定している:
+--   right: 最も右の item (members の先頭) の padding_right
+--   left : 最も左の item (members の末尾) の padding_left
+-- members は右から左の並び順で、item オブジェクトで渡すこと
+-- (名前や正規表現では item を特定できないため、padding を指定するとエラーにする)。
+-- 上下2段を重ねる zmk_battery のように、描画位置と並びの順序が一致しない item には使えない。
+function M.add_bracket(name, members, props, padding)
 	props = props or {}
+
+	local names = {}
+	for i, member in ipairs(members) do
+		names[i] = type(member) == "table" and member.name or member
+	end
+
+	if padding ~= nil then
+		if type(padding) == "number" then
+			padding = { left = padding, right = padding }
+		end
+		local first, last = members[1], members[#members]
+		assert(type(first) == "table" and type(last) == "table", "add_bracket: padding requires item objects as members")
+		if padding.right ~= nil then
+			first:set({ padding_right = padding.right })
+		end
+		if padding.left ~= nil then
+			last:set({ padding_left = padding.left })
+		end
+	end
+
 	return sbar.add(
 		"bracket",
 		name,
-		members,
+		names,
 		merge(props, { background = merge(colors.bracket, props.background) })
 	)
 end
