@@ -5,6 +5,10 @@ local colors = require("colors")
 
 local M = {}
 
+-- bracket 同士の間隔。bracket の範囲は中の item の padding を含むため、
+-- 何も挟まないと隣の bracket と背景が接してしまう。
+M.bracket_gap = 6
+
 local function merge(base, extra)
 	local out = {}
 	for k, v in pairs(base) do
@@ -37,19 +41,20 @@ end
 
 local spacer_count = 0
 
--- 幅だけを持つ空の item。padding は 0 に固定し、width と後から設定する padding_right
--- だけで間隔を決められるようにする。name を省くと連番で命名する。
+-- 幅 width の空白を作る item。name を省くと連番で命名する。
+-- 幅を固定した(width を指定した) item は、負の padding_right が隣へ伝わらない
+-- (実機検証)。後から padding_right を負にして隙間を詰められるよう、
+-- 幅は自動のまま、空のラベルを持たせ padding_right で width を表す。
 function M.add_spacer(position, width, name)
 	if name == nil then
 		spacer_count = spacer_count + 1
 		name = "spacer." .. spacer_count
 	end
 	return M.add_item(name, position, {
-		width = width,
 		padding_left = 0,
-		padding_right = 0,
+		padding_right = width,
 		icon = { drawing = false },
-		label = { drawing = false },
+		label = { string = "", padding_left = 0, padding_right = 0 },
 	})
 end
 
@@ -65,34 +70,26 @@ local function visible_rect(name)
 	return nil
 end
 
-local base_padding = {}
-
-local function set_padding_right(name, value)
-	sbar.exec(string.format("sketchybar --set %s padding_right=%.0f", name, value))
-end
-
 -- 隣り合う left (左) と right (右) の見た目上の隙間が spacing になるよう、
--- left の padding_right を調整する。left とその左のアイテムがまとめて動く。
--- (実機検証: 幅0のspacerのpadding_rightはspacer自身しか動かさず、隙間は変わらなかった。
---  アイテム自身のpadding_rightだけが、そのアイテムと左側のアイテムを動かす。)
--- right には、複数 item の範囲を測れる bracket を渡せる。
+-- 2 つの間に置いた spacer (add_spacer で作ったもの) の padding_right を調整する。
+-- left / right には bracket 名も渡せる。
 -- 実測値に対する差分で更新するので、何度呼んでも収束する。
--- どちらかが非表示なら、最初に読み取った padding_right に戻す。
+-- どちらかが非表示なら spacer を spacing (通常の間隔) に戻す。
 -- レイアウトの反映は非同期なので、呼び出し側は変更の少し後に呼ぶこと。
 function M.close_gap(opts)
-	local name = opts.left
-	local current = sbar.query(name).geometry.padding_right
-	base_padding[name] = base_padding[name] or current
-
-	local left = visible_rect(name)
+	local spacer = opts.spacer
+	local spacing = opts.spacing
+	local left = visible_rect(opts.left)
 	local right = visible_rect(opts.right)
+
 	if left == nil or right == nil then
-		set_padding_right(name, base_padding[name])
+		spacer:set({ padding_right = spacing })
 		return
 	end
 
 	local gap = right.origin[1] - (left.origin[1] + left.size[1])
-	set_padding_right(name, current - (gap - (opts.spacing or 0)))
+	local current = sbar.query(spacer.name).geometry.padding_right
+	spacer:set({ padding_right = current - (gap - spacing) })
 end
 
 return M
