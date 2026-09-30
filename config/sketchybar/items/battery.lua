@@ -2,11 +2,12 @@ local ui = require("ui")
 
 local battery = ui.add_item("battery", "right", {
 	update_freq = 120,
-	icon = { font = { size = 18.0 }, y_offset = 1, padding_right = 3 },
-	label = { font = { style = "Bold" }, padding_left = 3 },
+	-- 余白は bracket の padding で決めるため、左端(icon)と右端(label)の内側の padding は 0 にする
+	icon = { font = { size = 18.0 }, y_offset = 1, padding_left = 0, padding_right = 3 },
+	label = { font = { style = "Bold" }, padding_left = 3, padding_right = 0 },
 })
 
-ui.add_bracket("battery.bracket", { battery })
+ui.add_bracket("battery.bracket", { battery }, nil, ui.bracket_padding)
 ui.add_spacer("right", ui.bracket_gap)
 
 local icons = {
@@ -26,9 +27,11 @@ local icons = {
 local CHARGING_ICON = "󰂄"
 
 -- 先頭が "1" "5" のときだけ文字列幅が 1px 狭くなり、左隣のアイテムがずれるため、桁数ごとに幅を固定する。
--- 実測値 (Hack Nerd Font Bold 13pt): アイテム幅 40/48/55px から余白 17px を引いた値。
+-- 実測値 (Hack Nerd Font Bold 13pt): label の固定幅は内側の padding を含む。
+-- 文字幅 + padding_left(3) で、"45%"/"100%" の順に 27/34px。
+-- 1桁は "05%" のように 0 埋めして2桁として扱うので、1桁用の幅は持たない。
 -- フォントやサイズ、label の padding を変えたら再測定が必要。
-local LABEL_WIDTH_BY_DIGITS = { [1] = 23, [2] = 31, [3] = 38 }
+local LABEL_WIDTH_BY_DIGITS = { [2] = 27, [3] = 34 }
 
 local function icon_for(charge, charging)
 	if charging then
@@ -52,7 +55,8 @@ local function update()
 
 		local charging = batt_info:find("AC Power") ~= nil
 
-		local text = charge .. "%"
+		-- 1桁のときだけ 0 埋めして、9% と 10% で幅が変わらないようにする
+		local text = string.format("%02d%%", charge)
 		battery:set({
 			icon = icon_for(charge, charging),
 			label = { string = text, width = LABEL_WIDTH_BY_DIGITS[#text - 1] },
