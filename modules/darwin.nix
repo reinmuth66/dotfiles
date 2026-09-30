@@ -1,4 +1,4 @@
-{ ... }:
+{ pkgs, ... }:
 
 {
   homebrew = {
@@ -44,6 +44,8 @@
   system.defaults.CustomUserPreferences."com.apple.controlcenter" = {
     AutoHideMenuBarOption = 0;
   };
+
+  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "spotify" ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 

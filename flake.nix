@@ -11,6 +11,10 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    spicetify-nix = {
+      url = "github:Gerg-L/spicetify-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     yazi-flavors = {
       url = "github:yazi-rs/flavors";
       flake = false;
@@ -41,7 +45,7 @@
           home-manager.useUserPackages = true;
           home-manager.backupFileExtension = "bak";
           home-manager.extraSpecialArgs = {
-            inherit (inputs) yazi-flavors yazi-plugins compress-yazi eza-preview-yazi;
+            inherit (inputs) spicetify-nix yazi-flavors yazi-plugins compress-yazi eza-preview-yazi;
           };
           home-manager.users.reinmuth = import ./modules/home.nix;
         }
