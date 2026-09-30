@@ -6,9 +6,6 @@
     darwinFlake = "/Users/reinmuth/dotfiles";
   };
 
-  # programs.nh.clean.extraArgs は launchd 上で複数フラグをまとめて
-  # 1つの引数として渡してしまい nh 側でパースエラーになるため、
-  # launchd.agents で ProgramArguments を直接組み立てる
   launchd.agents.nh-clean = {
     enable = true;
     config = {
