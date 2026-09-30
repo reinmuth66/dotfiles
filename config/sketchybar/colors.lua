@@ -13,7 +13,7 @@ return {
     border_color = 0x44ffffff,
     border_width = 1,
     corner_radius = 5,
-    height = 25,
+    height = 30,
   },
 
   swap = {
