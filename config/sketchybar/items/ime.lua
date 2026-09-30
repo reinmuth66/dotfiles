@@ -5,7 +5,7 @@ local ime = ui.add_item("ime", "right", {
 	label = { font = { family = "Hack Nerd Font", style = "Bold" } },
 })
 
-ui.add_bracket("ime.bracket", { "ime" })
+ui.add_bracket("ime.bracket", { ime })
 ui.add_spacer("right", ui.bracket_gap)
 
 sbar.add("event", "input_source_change", "AppleSelectedInputSourcesChangedNotification")

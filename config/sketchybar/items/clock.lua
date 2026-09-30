@@ -1,6 +1,6 @@
 local ui = require("ui")
 
-ui.add_item("clock", "right", {
+local clock = ui.add_item("clock", "right", {
 	label = {
 		string = os.date("%m/%d %a %H:%M:%S"),
 		font = { style = "Bold" },
@@ -10,5 +10,5 @@ ui.add_item("clock", "right", {
 	},
 })
 
-ui.add_bracket("clock.bracket", { "clock" })
+ui.add_bracket("clock.bracket", { clock })
 ui.add_spacer("right", ui.bracket_gap)

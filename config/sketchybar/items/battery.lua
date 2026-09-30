@@ -6,7 +6,7 @@ local battery = ui.add_item("battery", "right", {
 	label = { font = { style = "Bold" }, padding_left = 3 },
 })
 
-ui.add_bracket("battery.bracket", { "battery" })
+ui.add_bracket("battery.bracket", { battery })
 ui.add_spacer("right", ui.bracket_gap)
 
 local icons = {
