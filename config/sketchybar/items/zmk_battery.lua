@@ -1,4 +1,5 @@
 local colors = require("colors")
+local ui = require("ui")
 
 local snapshot_path = os.getenv("HOME")
 	.. "/Library/Application Support/com.zmk-battery-center.app/external/battery-state-v1.json"
@@ -51,8 +52,7 @@ local ROW_OFFSET = 7
 sbar.add("event", "zmk_battery_update")
 
 local function add_label(name, width, padding_right, row_offset)
-	return sbar.add("item", "zmk_battery." .. name, {
-		position = "right",
+	return ui.add_item("zmk_battery." .. name, "right", {
 		drawing = false,
 		width = width,
 		padding_right = padding_right,
@@ -66,8 +66,7 @@ local function add_label(name, width, padding_right, row_offset)
 end
 
 local function add_nub(name, padding_right, row_offset)
-	return sbar.add("item", "zmk_battery." .. name, {
-		position = "right",
+	return ui.add_item("zmk_battery." .. name, "right", {
 		drawing = false,
 		width = NUB.width,
 		padding_right = padding_right,
@@ -84,8 +83,7 @@ local function add_nub(name, padding_right, row_offset)
 end
 
 local function add_outline(name, padding_right, row_offset)
-	return sbar.add("item", "zmk_battery." .. name, {
-		position = "right",
+	return ui.add_item("zmk_battery." .. name, "right", {
 		drawing = false,
 		width = BAR.width,
 		padding_right = padding_right,
@@ -104,8 +102,7 @@ local function add_outline(name, padding_right, row_offset)
 end
 
 local function add_fill(name, padding_right, row_offset)
-	return sbar.add("item", "zmk_battery." .. name, {
-		position = "right",
+	return ui.add_item("zmk_battery." .. name, "right", {
 		drawing = false,
 		width = 0,
 		padding_right = padding_right,
@@ -165,6 +162,35 @@ local peripheral_fill = add_fill("peripheral_fill", -BAR.border_width - BAR.inse
 local central = { label = central_label, nub = central_nub, outline = central_outline, fill = central_fill }
 local peripheral =
 	{ label = peripheral_label, nub = peripheral_nub, outline = peripheral_outline, fill = peripheral_fill }
+
+-- 上下2段を重ねるための負のpadding_rightを使う都合で、左隣のアイテムとの間に
+-- 見た目より広い隙間ができる。実測した隙間がGAP_TO_NEIGHBORになるよう、
+-- 左隣(ime)のpadding_rightを調整する(ui.close_gap)。
+-- zmk_batteryのbracketは範囲の測定専用で、背景は描かない。
+-- bracketの範囲はメンバーのpaddingを含むため、GAP_TO_NEIGHBORは左隣のpadding_right(5)相当。
+-- 実機で見た目を確認して調整すること。
+local GAP_TO_NEIGHBOR = 5
+local GAP_SETTLE_DELAY = 0.3 -- レイアウト反映を待つ秒数
+
+ui.add_bracket("zmk_battery", { "/zmk_battery\\..*/" }, { background = { drawing = false } })
+
+-- 連続して呼ばれたときは最後の1回だけ測る
+local gap_generation = 0
+
+local function settle_gap()
+	gap_generation = gap_generation + 1
+	local id = gap_generation
+	sbar.delay(GAP_SETTLE_DELAY, function()
+		if id ~= gap_generation then
+			return
+		end
+		ui.close_gap({
+			left = "ime",
+			right = "zmk_battery",
+			spacing = GAP_TO_NEIGHBOR,
+		})
+	end)
+end
 
 local function hide_group(group)
 	group.nub:set({ drawing = false })
@@ -276,6 +302,7 @@ local function update()
 		if result == nil or result == "" then
 			hide_group(central)
 			hide_group(peripheral)
+			settle_gap()
 			return
 		end
 
@@ -311,6 +338,8 @@ local function update()
 		else
 			hide_group(peripheral)
 		end
+
+		settle_gap()
 	end)
 end
 

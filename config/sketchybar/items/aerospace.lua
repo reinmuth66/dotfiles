@@ -1,5 +1,6 @@
 local colors = require("colors")
 local icons = require("icons")
+local ui = require("ui")
 
 sbar.add("event", "aerospace_workspace_change")
 sbar.add("event", "aerospace_monitor_change")
@@ -71,8 +72,7 @@ local function highlight(sid, focused_sid)
 end
 
 local function add_space(sid)
-	local space = sbar.add("item", "space." .. sid, {
-		position = "left",
+	local space = ui.add_item("space." .. sid, "left", {
 		drawing = false,
 		icon = {
 			string = sid,
@@ -129,7 +129,7 @@ for i = 1, 9 do
 	space:subscribe("aerospace_monitor_change", on_monitor_change)
 end
 
-local app_watcher = sbar.add("item", "aerospace.app_watcher", { drawing = false })
+local app_watcher = ui.add_item("aerospace.app_watcher", "left", { drawing = false })
 app_watcher:subscribe("front_app_switched", function()
 	sbar.exec("aerospace list-workspaces --focused", function(focused)
 		focused = focused and focused:match("%S+")

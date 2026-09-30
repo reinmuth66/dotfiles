@@ -1,5 +1,6 @@
-local ime = sbar.add("item", "ime", {
-	position = "right",
+local ui = require("ui")
+
+local ime = ui.add_item("ime", "right", {
 	icon = { drawing = false },
 	label = { font = { family = "Hack Nerd Font", style = "Bold" } },
 })

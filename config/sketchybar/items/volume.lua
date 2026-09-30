@@ -1,5 +1,6 @@
-local volume = sbar.add("item", "volume", {
-	position = "right",
+local ui = require("ui")
+
+local volume = ui.add_item("volume", "right", {
 	drawing = false,
 })
 

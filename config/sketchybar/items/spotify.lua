@@ -3,6 +3,8 @@
 -- 画像は osascript の artwork url を取得して使う。
 -- 回転は background.image.rotation を使う (SketchyBar#815 のパッチが前提、pkgs/sketchybar/)。
 
+local ui = require("ui")
+
 local SIZE = 28 -- 表示サイズ (pt)
 local PERIOD = 10 -- 1周にかかる秒数
 local FPS = 15
@@ -13,8 +15,7 @@ local STEP = DIRECTION * 360 / (PERIOD * FPS)
 local DELAY = 1 / FPS
 local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/spotify"
 
-local spotify = sbar.add("item", "spotify", {
-	position = "right",
+local spotify = ui.add_item("spotify", "right", {
 	drawing = false,
 	width = SIZE,
 	icon = { drawing = false },

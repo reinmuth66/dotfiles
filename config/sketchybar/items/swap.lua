@@ -1,7 +1,7 @@
 local colors = require("colors")
+local ui = require("ui")
 
-local swap = sbar.add("item", "swap", {
-	position = "right",
+local swap = ui.add_item("swap", "right", {
 	update_freq = 20,
 	icon = {
 		string = "",

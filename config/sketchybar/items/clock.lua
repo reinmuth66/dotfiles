@@ -1,5 +1,6 @@
-sbar.add("item", "clock", {
-	position = "right",
+local ui = require("ui")
+
+ui.add_item("clock", "right", {
 	label = {
 		string = os.date("%m/%d %a %H:%M:%S"),
 		font = { style = "Bold" },
