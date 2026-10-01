@@ -167,6 +167,40 @@ spotify:subscribe("spotify_change", function(env)
 	apply(info["Player State"], info["Track ID"])
 end)
 
+-- 操作: 左クリックで再生/一時停止、上スクロールで前の曲、下スクロールで次の曲。
+-- 表示は上の分散通知で追従するので、ここでは Spotify に命令を送るだけにする。
+-- 未起動の Spotify を起動してしまわないよう、pgrep で確認してから送る。
+local function spotify_command(command)
+	sbar.exec(
+		string.format([[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to %s']], command)
+	)
+end
+
+spotify:subscribe("mouse.clicked", function(env)
+	if env.BUTTON == "left" then
+		spotify_command("playpause")
+	end
+end)
+
+-- トラックパッドは 1 回のスワイプで多数のイベントが出る (慣性スクロール含む) ので、
+-- 一度反応したら SCROLL_COOLDOWN 秒は無視して、1 スワイプで 1 曲だけ動かす。
+-- SCROLL_DELTA の符号は上スクロールが正の想定。逆なら SCROLL_UP_SIGN を -1 にする。
+local SCROLL_COOLDOWN = 1.0
+local SCROLL_UP_SIGN = 1
+local scroll_locked = false
+
+spotify:subscribe("mouse.scrolled", function(env)
+	local delta = tonumber(env.SCROLL_DELTA)
+	if not delta or delta == 0 or scroll_locked then
+		return
+	end
+	scroll_locked = true
+	sbar.delay(SCROLL_COOLDOWN, function()
+		scroll_locked = false
+	end)
+	spotify_command(delta * SCROLL_UP_SIGN > 0 and "previous track" or "next track")
+end)
+
 -- 起動時 (再読み込み含む) に既に再生中でも拾えるよう、現在の状態を一度だけ取得する
 local INITIAL_STATES = { playing = "Playing", paused = "Paused" }
 
