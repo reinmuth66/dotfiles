@@ -5,8 +5,11 @@
 -- 状態は Spotify の分散通知 (media_change は macOS 26 で発火しない) から受け取り、
 -- 画像は osascript の artwork url を取得して使う。
 -- 回転は background.image.rotation を使う (SketchyBar#815 のパッチが前提、pkgs/sketchybar/)。
+-- 操作: 左クリックで再生/一時停止、上スクロールで前の曲、下スクロールで次の曲。
+-- マウスを乗せると、曲名・アーティスト・アルバムをポップアップで表示する。
 
 local ui = require("ui")
+local colors = require("colors")
 
 local SIZE = 28 -- 表示サイズ (pt)
 local ART_PX = SIZE * 4 -- キャッシュする画像の一辺 (px)
@@ -49,9 +52,56 @@ local spotify = ui.add_item("spotify", "right", {
 			corner_radius = SIZE / 2,
 		},
 	},
+	popup = {
+		align = "center",
+		background = colors.popup,
+	},
 })
 
 ui.add_bracket("spotify.bracket", { spotify }, nil, ui.bracket_padding)
+
+-- ポップアップの中身。縦に追加順 (上から曲名、アーティスト、アルバム) で並ぶ。
+-- 空の項目 (ポッドキャストのアーティストなど) は非表示にする。
+local POPUP_MAX_CHARS = 24
+
+local function add_popup_row(name, font_style, size, color)
+	return sbar.add("item", name, {
+		position = "popup.spotify",
+		drawing = false,
+		icon = { drawing = false },
+		label = {
+			font = { family = "Hack Nerd Font", style = font_style, size = size },
+			color = color,
+			padding_left = 8,
+			padding_right = 8,
+		},
+	})
+end
+
+local rows = {
+	title = add_popup_row("spotify.title", "Bold", 14.0, colors.white),
+	artist = add_popup_row("spotify.artist", "Regular", 12.0, colors.white),
+	album = add_popup_row("spotify.album", "Regular", 11.0, 0xaaffffff),
+}
+
+-- 長い文字列は POPUP_MAX_CHARS 文字で切る (utf8.len が nil なら不正なバイト列なのでそのまま使う)
+local function truncate(text)
+	local len = utf8.len(text)
+	if len == nil or len <= POPUP_MAX_CHARS then
+		return text
+	end
+	return text:sub(1, utf8.offset(text, POPUP_MAX_CHARS + 1) - 1) .. "..."
+end
+
+local function set_popup_info(meta)
+	for key, row in pairs(rows) do
+		local text = meta[key]
+		if type(text) ~= "string" then
+			text = ""
+		end
+		row:set({ drawing = text ~= "", label = { string = truncate(text) } })
+	end
+end
 
 -- 回転ループ。停止 -> 再生が短時間で続いても古いループが残らないよう世代で管理する。
 -- 停止しても角度は戻さず、次の再生は止まった角度から続ける。
@@ -140,11 +190,15 @@ local function load_artwork(track_id)
 	end)
 end
 
-local function apply(state, track_id)
+-- meta は { title, artist, album }。曲情報が取れなかったときは nil で、ポップアップはそのまま。
+local function apply(state, track_id, meta)
 	local playing = state == "Playing"
 	if playing or state == "Paused" then
 		if track_id ~= current_track then
 			load_artwork(track_id)
+		end
+		if meta then
+			set_popup_info(meta)
 		end
 		set_spinning(playing)
 		set_lit(playing)
@@ -153,7 +207,7 @@ local function apply(state, track_id)
 		set_spinning(false)
 		set_lit(false)
 		current_track = nil
-		spotify:set({ drawing = false, label = { drawing = false } })
+		spotify:set({ drawing = false, label = { drawing = false }, popup = { drawing = false } })
 	end
 end
 
@@ -164,7 +218,20 @@ spotify:subscribe("spotify_change", function(env)
 	if type(info) ~= "table" then
 		return
 	end
-	apply(info["Player State"], info["Track ID"])
+	apply(info["Player State"], info["Track ID"], {
+		title = info["Name"],
+		artist = info["Artist"],
+		album = info["Album"],
+	})
+end)
+
+-- ホバーでポップアップを開閉する。バーの外へ出たときは mouse.exited.global でも閉じる。
+spotify:subscribe("mouse.entered", function()
+	spotify:set({ popup = { drawing = true } })
+end)
+
+spotify:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
+	spotify:set({ popup = { drawing = false } })
 end)
 
 -- 操作: 左クリックで再生/一時停止、上スクロールで前の曲、下スクロールで次の曲。
@@ -204,15 +271,16 @@ end)
 -- 起動時 (再読み込み含む) に既に再生中でも拾えるよう、現在の状態を一度だけ取得する
 local INITIAL_STATES = { playing = "Playing", paused = "Paused" }
 
+-- 曲名などに "|" が含まれうるので、区切りにはタブを使う
 sbar.exec(
-	[[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to (player state as text) & "|" & (id of current track)' 2>/dev/null]],
+	[[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to (player state as text) & tab & (id of current track) & tab & (name of current track) & tab & (artist of current track) & tab & (album of current track)' 2>/dev/null]],
 	function(out)
 		if type(out) ~= "string" then
 			return
 		end
-		local state, track_id = out:match("^(%a+)|(%S+)")
+		local state, track_id, title, artist, album = out:match("^(%a+)\t(%S+)\t([^\t]*)\t([^\t]*)\t([^\t\n]*)")
 		if INITIAL_STATES[state] then
-			apply(INITIAL_STATES[state], track_id)
+			apply(INITIAL_STATES[state], track_id, { title = title, artist = artist, album = album })
 		end
 	end
 )
