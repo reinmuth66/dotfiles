@@ -234,7 +234,8 @@ spotify:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	spotify:set({ popup = { drawing = false } })
 end)
 
--- 操作: 左クリックで再生/一時停止、上スクロールで前の曲、下スクロールで次の曲。
+-- 操作: 左クリックで再生/一時停止、右クリックで Spotify のウィンドウを表示、
+-- 上スクロールで前の曲、下スクロールで次の曲。
 -- 表示は上の分散通知で追従するので、ここでは Spotify に命令を送るだけにする。
 -- 未起動の Spotify を起動してしまわないよう、pgrep で確認してから送る。
 local function spotify_command(command)
@@ -243,9 +244,16 @@ local function spotify_command(command)
 	)
 end
 
+-- ウィンドウの表示は open で行う。-g -j の自動起動で隠れているときも前面に出て、
+-- ウィンドウを閉じただけのときも開き直す。名前 (open -a Spotify) ではなく
+-- Home Manager Apps のパスで指定する (名前だと更新用の一時コピーに解決されることがある)。
+local SPOTIFY_APP = os.getenv("HOME") .. "/Applications/Home Manager Apps/Spotify.app"
+
 spotify:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
 		spotify_command("playpause")
+	elseif env.BUTTON == "right" then
+		sbar.exec(string.format("open %q", SPOTIFY_APP))
 	end
 end)
 
