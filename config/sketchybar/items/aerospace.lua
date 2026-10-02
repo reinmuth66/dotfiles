@@ -11,7 +11,6 @@ local spaces = {}
 local LABEL_GAP = 5
 
 -- フォーカス中の workspace に出す背景 (pill) の、文字から端までの余白と高さ (px)。
--- pill は item の範囲 (icon と label の padding を含む) に描かれるので、余白は内側の padding で作る。
 local PILL_PADDING = 6
 local PILL_HEIGHT = 22
 -- bracket の端から pill までの余白と、pill 同士の間隔 (px)。上下の余白 (bracket の高さ - PILL_HEIGHT) / 2 に揃える。
@@ -59,13 +58,9 @@ local function refresh_space(sid, is_focused)
 			table.insert(strip, icons.app(app))
 		end
 
-		-- 文字列の前後の空白は label の幅に数えられないのに描画はされるため、
-		-- 先頭に空白を置くと末尾のアイコンが幅からはみ出して隣と重なる。
-		-- 番号との間隔は空白ではなく label の padding_left で取る。
-		-- pill の右側の余白は、末尾にある label の padding_right で作る
 		space:set({
 			icon = { padding_right = 0 },
-			label = { string = table.concat(strip, " "), padding_left = LABEL_GAP, padding_right = PILL_PADDING },
+			label = { string = table.concat(strip), padding_left = LABEL_GAP, padding_right = PILL_PADDING },
 		})
 	end)
 end
@@ -93,11 +88,8 @@ end
 
 local function add_space(sid)
 	local space = ui.add_item("space." .. sid, "left", {
-		-- pill 同士の間隔は item の padding で決める (両端は bracket の padding で上書きされる)
 		padding_left = PILL_INSET / 2,
 		padding_right = PILL_INSET / 2,
-		-- 文字と pill の端の余白は icon / label の内側の padding で作る。
-		-- 右側は、label が空のときは icon、アプリがあるときは label が受け持つ (refresh_space)。
 		icon = {
 			string = sid,
 			padding_left = PILL_PADDING,
@@ -143,7 +135,6 @@ local function on_monitor_change(env)
 	end
 end
 
--- members は右から左の並び順なので、左側に並ぶ workspace は 9 から 1 の順に渡す
 local members = {}
 for i = 1, 9 do
 	local sid = tostring(i)
