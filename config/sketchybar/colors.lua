@@ -1,10 +1,10 @@
 return {
   white = 0xffffffff,
 
+  -- workspace は背景を持たず、フォーカス中だけ文字色を変えて示す
   space = {
-    bg = 0x44ffffff,
-    bg_focused = 0x88ff00ff,
-    border = 0xaaffffff,
+    fg = 0xffffffff,
+    fg_focused = 0xffff66ff,
   },
 
   -- ui.add_bracket の既定の背景

@@ -7,6 +7,9 @@ sbar.add("event", "aerospace_monitor_change")
 
 local spaces = {}
 
+-- 番号とアプリアイコンの間隔 (px)
+local LABEL_GAP = 5
+
 local function app_name_from_line(line)
 	local fields = {}
 	for field in line:gmatch("([^|]+)") do
@@ -37,7 +40,7 @@ local function refresh_space(sid, is_focused)
 		end
 
 		if #apps == 0 then
-			space:set({ drawing = is_focused == true, label = "" })
+			space:set({ label = { string = "", padding_left = 0 } })
 			return
 		end
 
@@ -46,7 +49,10 @@ local function refresh_space(sid, is_focused)
 			table.insert(strip, icons.app(app))
 		end
 
-		space:set({ drawing = true, label = " " .. table.concat(strip, " ") })
+		-- 文字列の前後の空白は label の幅に数えられないのに描画はされるため、
+		-- 先頭に空白を置くと末尾のアイコンが幅からはみ出して隣と重なる。
+		-- 番号との間隔は空白ではなく label の padding_left で取る。
+		space:set({ label = { string = table.concat(strip, " "), padding_left = LABEL_GAP } })
 	end)
 end
 
@@ -58,41 +64,32 @@ local function highlight(sid, focused_sid)
 
 	if sid == focused_sid then
 		space:set({
-			background = { color = colors.space.bg_focused, border_width = 2 },
-			icon = { shadow = { drawing = true } },
-			label = { shadow = { drawing = true } },
+			icon = { color = colors.space.fg_focused, shadow = { drawing = true } },
+			label = { color = colors.space.fg_focused, shadow = { drawing = true } },
 		})
 	else
 		space:set({
-			background = { color = colors.space.bg, border_width = 0 },
-			icon = { shadow = { drawing = false } },
-			label = { shadow = { drawing = false } },
+			icon = { color = colors.space.fg, shadow = { drawing = false } },
+			label = { color = colors.space.fg, shadow = { drawing = false } },
 		})
 	end
 end
 
 local function add_space(sid)
 	local space = ui.add_item("space." .. sid, "left", {
-		drawing = false,
+		-- 余白は bracket の padding で決めるため、左端(icon)と右端(label)の内側の padding は 0 にする
 		icon = {
 			string = sid,
-			padding_left = 10,
+			padding_left = 0,
+			padding_right = 0,
 			shadow = { distance = 4, color = 0xa0000000 },
 		},
 		label = {
 			font = "sketchybar-app-font:Regular:16.0",
 			padding_left = 0,
-			padding_right = 20,
+			padding_right = 0,
 			y_offset = -1,
 			shadow = { distance = 4, color = 0xa0000000 },
-		},
-		background = {
-			drawing = true,
-			color = colors.space.bg,
-			border_color = colors.space.border,
-			border_width = 0,
-			corner_radius = 5,
-			height = 25,
 		},
 	})
 
@@ -122,12 +119,17 @@ local function on_monitor_change(env)
 	end
 end
 
+-- members は右から左の並び順なので、左側に並ぶ workspace は 9 から 1 の順に渡す
+local members = {}
 for i = 1, 9 do
 	local sid = tostring(i)
 	local space = add_space(sid)
 	space:subscribe("aerospace_workspace_change", on_workspace_change)
 	space:subscribe("aerospace_monitor_change", on_monitor_change)
+	table.insert(members, 1, space)
 end
+
+ui.add_bracket("space.bracket", members, nil, ui.bracket_padding)
 
 local app_watcher = ui.add_item("aerospace.app_watcher", "left", { drawing = false })
 app_watcher:subscribe("front_app_switched", function()
