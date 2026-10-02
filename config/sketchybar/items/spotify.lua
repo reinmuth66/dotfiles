@@ -1,6 +1,7 @@
 -- Spotify のアルバム画像を表示し、再生状態を明るさと回転で示す。
 --   再生中  : 覆いを外して明るくし、画像をゆっくり回す
 --   一時停止: 画像を暗くし、回転はその角度で止める
+--   未起動・停止中: 画像の代わりに Spotify のアイコンを出す (アイテム自体は常に表示)
 --   切り替え時は覆いの濃さを滑らかに変える
 -- 状態は Spotify の分散通知 (media_change は macOS 26 で発火しない) から受け取り、
 -- 画像は osascript の artwork url を取得して使う。
@@ -26,10 +27,20 @@ local PAUSED_COLOR = 0x99000000
 local PLAYING_COLOR = 0x00000000
 local FADE_FRAMES = 12 -- 再生/一時停止の切り替えにかけるフレーム数 (60 フレームで 1 秒)
 
+-- 常に表示する。曲がない間 (未起動・停止中) は Spotify のアイコン、再生中・一時停止中は
+-- アルバム画像を出す。初期状態はアイコン側 (画像と覆いは非表示)。
 local spotify = ui.add_item("spotify", "right", {
-	drawing = false,
 	width = SIZE,
-	icon = { drawing = false },
+	update_freq = 5, -- 画像を出している間の、Spotify 終了の確認 (routine) に使う
+	icon = {
+		string = ":spotify:",
+		font = "sketchybar-app-font:Regular:16.0",
+		color = 0x99ffffff, -- 起動していないことが分かるよう、少し薄くする
+		width = SIZE,
+		align = "center",
+		padding_left = 0,
+		padding_right = 0,
+	},
 	-- 画像を暗くするための覆い。画像の背景より後に描かれるラベルの背景を、画像と同じ大きさで重ねる
 	label = {
 		drawing = false,
@@ -48,6 +59,7 @@ local spotify = ui.add_item("spotify", "right", {
 		drawing = true,
 		color = 0x00000000,
 		image = {
+			drawing = false,
 			scale = SIZE / ART_PX,
 			corner_radius = SIZE / 2,
 		},
@@ -150,6 +162,29 @@ local function set_lit(on)
 	end)
 end
 
+-- 表示の切り替え。アルバム画像 (と覆い) を出すか、Spotify のアイコンを出すか。
+-- 画像は取得できてから出す (取得前に切り替えると、画像のない覆いだけが見えてしまう)。
+local showing_art = false
+
+local function show_art()
+	showing_art = true
+	spotify:set({
+		icon = { drawing = false },
+		label = { drawing = true },
+		background = { image = { drawing = true } },
+	})
+end
+
+local function show_icon()
+	showing_art = false
+	spotify:set({
+		icon = { drawing = true },
+		label = { drawing = false },
+		background = { image = { drawing = false } },
+		popup = { drawing = false },
+	})
+end
+
 -- アルバム画像を取得してキャッシュし、そのパスを標準出力に返す。
 -- 未起動の Spotify を osascript が起動してしまわないよう、先に pgrep で確認する。
 local FETCH_ARTWORK = string.format(
@@ -186,7 +221,8 @@ local function load_artwork(track_id)
 			current_track = nil -- 次のイベントで再試行する
 			return
 		end
-		spotify:set({ drawing = true, background = { image = { string = path } } })
+		spotify:set({ background = { image = { string = path } } })
+		show_art()
 	end)
 end
 
@@ -202,12 +238,11 @@ local function apply(state, track_id, meta)
 		end
 		set_spinning(playing)
 		set_lit(playing)
-		spotify:set({ label = { drawing = true } })
 	else
 		set_spinning(false)
 		set_lit(false)
 		current_track = nil
-		spotify:set({ drawing = false, label = { drawing = false }, popup = { drawing = false } })
+		show_icon()
 	end
 end
 
@@ -225,9 +260,26 @@ spotify:subscribe("spotify_change", function(env)
 	})
 end)
 
--- ホバーでポップアップを開閉する。バーの外へ出たときは mouse.exited.global でも閉じる。
+-- Spotify の終了は通知が来るとは限らないので、画像を出している間だけ、起動中かを定期的に確認する。
+-- 終了していたら、曲がないときと同じくアイコンに戻す。
+spotify:subscribe("routine", function()
+	if not showing_art then
+		return
+	end
+	sbar.exec("pgrep -x Spotify >/dev/null && echo running", function(out)
+		if type(out) == "string" and out:find("running", 1, true) then
+			return
+		end
+		apply(nil)
+	end)
+end)
+
+-- ホバーでポップアップを開閉する (曲情報があるとき、つまり画像を出している間だけ)。
+-- バーの外へ出たときは mouse.exited.global でも閉じる。
 spotify:subscribe("mouse.entered", function()
-	spotify:set({ popup = { drawing = true } })
+	if showing_art then
+		spotify:set({ popup = { drawing = true } })
+	end
 end)
 
 spotify:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
