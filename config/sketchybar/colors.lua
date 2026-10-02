@@ -1,14 +1,12 @@
 return {
 	white = 0xffffffff,
 
-	-- フォーカス中の workspace は白い背景 (pill) に暗い文字、それ以外は背景なしで文字を暗くして示す
 	space = {
 		fg = 0x66ffffff,
 		fg_focused = 0xff000000,
 		bg_focused = 0xffdddddd,
 	},
 
-	-- ui.add_bracket の既定の背景
 	bracket = {
 		color = 0x66000000,
 		border_color = 0x44ffffff,
@@ -17,7 +15,6 @@ return {
 		height = 30,
 	},
 
-	-- ポップアップの背景。壁紙に文字が埋もれないよう bracket より濃くする
 	popup = {
 		color = 0xcc000000,
 		border_color = 0x44ffffff,

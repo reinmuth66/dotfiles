@@ -3,12 +3,10 @@
 #include <sys/time.h>
 #include <time.h>
 
-// 次の秒境界からこの分だけ遅らせて発火し、ジッターで前の秒を表示するのを防ぐ
 #define FIRE_OFFSET 0.05
 
 static void callback(CFRunLoopTimerRef timer, void *info);
 
-// 周期タイマーは壁時計とずれるため、毎回壁時計から次の発火時刻を計算し直す
 static void arm(void) {
   struct timeval tv;
   gettimeofday(&tv, NULL);
@@ -28,7 +26,8 @@ static void callback(CFRunLoopTimerRef timer, void *info) {
   time(&current_time);
 
   char buffer[64];
-  strftime(buffer, sizeof(buffer), "%m/%d %a %H:%M:%S", localtime(&current_time));
+  strftime(buffer, sizeof(buffer), "%m/%d %a %H:%M:%S",
+           localtime(&current_time));
 
   char message[128];
   snprintf(message, sizeof(message), "--set clock label=\"%s\"", buffer);
