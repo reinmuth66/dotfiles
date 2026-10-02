@@ -8,15 +8,17 @@ sbar.add("event", "aerospace_monitor_change")
 local spaces = {}
 
 -- 番号とアプリアイコンの間隔 (px)
-local LABEL_GAP = 5
+local LABEL_GAP = 10
 
 -- フォーカス中の workspace に出す背景 (pill) の、文字から端までの余白と高さ (px)。
 local PILL_PADDING = 6
 local PILL_HEIGHT = 22
--- bracket の端から pill までの余白と、pill 同士の間隔 (px)。上下の余白 (bracket の高さ - PILL_HEIGHT) / 2 に揃える。
+-- bracket の端から pill までの余白 (px)。上下の余白 (bracket の高さ - PILL_HEIGHT) / 2 に揃える。
 local PILL_INSET = (colors.bracket.height - PILL_HEIGHT) / 2
--- 各 workspace の外側の padding。隣り合う 2 つで足して PILL_INSET になる。
-local ITEM_PADDING = PILL_INSET / 2
+-- pill 同士の間隔 (px)
+local PILL_GAP = 10
+-- 各 workspace の外側の padding。隣り合う 2 つで足して PILL_GAP になる。
+local ITEM_PADDING = PILL_GAP / 2
 
 local function app_name_from_line(line)
 	local fields = {}
@@ -92,8 +94,11 @@ end
 
 local function add_space(sid)
 	local space = ui.add_item("space." .. sid, "left", {
-		padding_left = PILL_INSET / 2,
-		padding_right = PILL_INSET / 2,
+		-- 表示中の workspace は増減するので、最初は隠しておく (refresh_space で出し入れする)
+		drawing = false,
+		-- pill 同士の間隔は item の padding で決める
+		padding_left = ITEM_PADDING,
+		padding_right = ITEM_PADDING,
 		icon = {
 			string = sid,
 			padding_left = PILL_PADDING,
