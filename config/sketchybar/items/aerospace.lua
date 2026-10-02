@@ -107,7 +107,7 @@ local function add_space(sid)
 			font = "sketchybar-app-font:Regular:16.0",
 			padding_left = 0,
 			padding_right = 0,
-			y_offset = -1,
+			y_offset = 0,
 		},
 		background = {
 			drawing = false,
