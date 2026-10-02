@@ -64,13 +64,13 @@ local function highlight(sid, focused_sid)
 
 	if sid == focused_sid then
 		space:set({
-			icon = { color = colors.space.fg_focused, shadow = { drawing = true } },
-			label = { color = colors.space.fg_focused, shadow = { drawing = true } },
+			icon = { color = colors.space.fg_focused },
+			label = { color = colors.space.fg_focused },
 		})
 	else
 		space:set({
-			icon = { color = colors.space.fg, shadow = { drawing = false } },
-			label = { color = colors.space.fg, shadow = { drawing = false } },
+			icon = { color = colors.space.fg },
+			label = { color = colors.space.fg },
 		})
 	end
 end
@@ -82,14 +82,12 @@ local function add_space(sid)
 			string = sid,
 			padding_left = 0,
 			padding_right = 0,
-			shadow = { distance = 4, color = 0xa0000000 },
 		},
 		label = {
 			font = "sketchybar-app-font:Regular:16.0",
 			padding_left = 0,
 			padding_right = 0,
 			y_offset = -1,
-			shadow = { distance = 4, color = 0xa0000000 },
 		},
 	})
 
