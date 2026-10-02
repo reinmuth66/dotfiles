@@ -2,7 +2,6 @@ local ui = require("ui")
 
 local ime = ui.add_item("ime", "right", {
 	icon = { drawing = false },
-	-- 余白は bracket の padding で決めるため、ラベル内側の padding は 0 にする
 	label = { font = { family = "Hack Nerd Font", style = "Bold" }, padding_left = 0, padding_right = 0 },
 })
 
