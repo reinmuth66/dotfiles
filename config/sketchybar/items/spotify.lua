@@ -14,6 +14,7 @@ local colors = require("colors")
 
 local SIZE = 28 -- 表示サイズ (pt)
 local ART_PX = SIZE * 4 -- キャッシュする画像の一辺 (px)
+local ICON_PX = 16 -- アイコンのフォントサイズ。このフォントでは字面が一辺 ICON_PX の正方形になる
 local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/spotify"
 
 -- 回転: 1 周が ROTATION_PERIOD 秒になるよう、TICK 秒ごとに角度を進める。
@@ -32,13 +33,18 @@ local FADE_FRAMES = 12 -- 再生/一時停止の切り替えにかけるフレ�
 local spotify = ui.add_item("spotify", "right", {
 	width = SIZE,
 	update_freq = 5, -- 画像を出している間の、Spotify 終了の確認 (routine) に使う
+	-- icon.width は padding を含む箱の全幅 (SketchyBar v2.24.0 の text.c で確認)。
+	-- 字面は箱の左端 + padding_left から描かれ、箱の外にはみ出した部分は描画されず見切れる。
+	-- 中央揃え (align = center) だと、字面の幅 (17pt に切り上げ) との差を整数で割るため、
+	-- 左右 padding が 0 では 1pt 左に寄る。左揃えにして padding_left で位置を直接指定し、
+	-- 箱は SIZE のままにして、字面が箱の中の中央に収まるようにする。
 	icon = {
 		string = ":spotify:",
-		font = "sketchybar-app-font:Regular:16.0",
+		font = "sketchybar-app-font:Regular:" .. ICON_PX .. ".0",
 		color = 0x99ffffff, -- 起動していないことが分かるよう、少し薄くする
 		width = SIZE,
-		align = "center",
-		padding_left = 0,
+		align = "left",
+		padding_left = (SIZE - ICON_PX) / 2,
 		padding_right = 0,
 	},
 	-- 画像を暗くするための覆い。画像の背景より後に描かれるラベルの背景を、画像と同じ大きさで重ねる
