@@ -8,9 +8,6 @@ linemode = "size"
 open = [{ run = "open %s", desc = "Open with default app", for = "macos", orphan = true }]
 reveal = [{ run = "open -R %s1", desc = "Reveal in Finder", for = "macos", orphan = true }]
 browser = [{ run = "open %s", desc = "Open in browser", for = "macos", orphan = true }]
-acrobat = [
-  { run = 'open -a "Adobe Acrobat" %s', desc = "Open with Adobe Acrobat", for = "macos", orphan = true },
-]
 kicad = [
   { run = 'open -a "KiCad" %s', desc = "Open with KiCad", for = "macos", orphan = true },
 ]
@@ -36,10 +33,6 @@ use = ["open", "reveal"]
 [[open.prepend_rules]]
 url = "*.{pptx,ppt,pptm,potx,key}"
 use = ["open", "reveal"]
-
-[[open.prepend_rules]]
-mime = "application/pdf"
-use = ["acrobat", "reveal"]
 
 [[open.prepend_rules]]
 url = "*.{kicad_pcb,kicad_pro,kicad_sch}"

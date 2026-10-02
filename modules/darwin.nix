@@ -9,7 +9,6 @@
     };
 
     casks = [
-      "adobe-acrobat-reader"
       "affinity"
       "bambu-studio"
       "discord"
