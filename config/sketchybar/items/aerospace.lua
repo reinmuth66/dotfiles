@@ -15,6 +15,8 @@ local PILL_PADDING = 6
 local PILL_HEIGHT = 22
 -- bracket の端から pill までの余白と、pill 同士の間隔 (px)。上下の余白 (bracket の高さ - PILL_HEIGHT) / 2 に揃える。
 local PILL_INSET = (colors.bracket.height - PILL_HEIGHT) / 2
+-- 各 workspace の外側の padding。隣り合う 2 つで足して PILL_INSET になる。
+local ITEM_PADDING = PILL_INSET / 2
 
 local function app_name_from_line(line)
 	local fields = {}
@@ -47,6 +49,7 @@ local function refresh_space(sid, is_focused)
 
 		if #apps == 0 then
 			space:set({
+				drawing = is_focused == true,
 				icon = { padding_right = PILL_PADDING },
 				label = { string = "", padding_left = 0, padding_right = 0 },
 			})
@@ -59,6 +62,7 @@ local function refresh_space(sid, is_focused)
 		end
 
 		space:set({
+			drawing = true,
 			icon = { padding_right = 0 },
 			label = { string = table.concat(strip), padding_left = LABEL_GAP, padding_right = PILL_PADDING },
 		})
@@ -135,6 +139,8 @@ local function on_monitor_change(env)
 	end
 end
 
+local edge_left = ui.add_spacer("left", PILL_INSET - ITEM_PADDING, "space.edge_left")
+
 local members = {}
 for i = 1, 9 do
 	local sid = tostring(i)
@@ -144,7 +150,11 @@ for i = 1, 9 do
 	table.insert(members, 1, space)
 end
 
-ui.add_bracket("space.bracket", members, nil, PILL_INSET)
+local edge_right = ui.add_spacer("left", PILL_INSET - ITEM_PADDING, "space.edge_right")
+table.insert(members, 1, edge_right)
+table.insert(members, edge_left)
+
+ui.add_bracket("space.bracket", members)
 
 local app_watcher = ui.add_item("aerospace.app_watcher", "left", { drawing = false })
 app_watcher:subscribe("front_app_switched", function()
