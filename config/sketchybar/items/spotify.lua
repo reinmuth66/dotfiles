@@ -167,20 +167,18 @@ local cover = sbar.add("item", "spotify.cover", {
 
 add_popup_spacer("spotify.pad.cover", POPUP_PADDING)
 
--- max_cells は文字数の上限 (半角 1、全角 2 と数える)。TEXT_WIDTH に収まるよう、size から決めた値
--- 全角 (1em) だけの文字列が TEXT_WIDTH にほぼ収まる数 (曲名 14 文字 = 196pt、アーティスト 16 = 192pt、
--- アルバム 18 = 198pt)。SF の欧文は平均で 0.5em 強なので、半角だけだと曲名は領域より少し広くなりうる。
--- 実機で見て調整する。
+-- 文字は幅 (TEXT_WIDTH) に収まる所で切る。幅は文字ごとの em 換算の見積もりで測る (truncate を参照)。
+-- 行ごとの文字数は固定せず、size から決まる。
 local ROWS = {
-	{ key = "title", size = 14.0, y_offset = 30, max_cells = 28 },
-	{ key = "artist", size = 12.0, y_offset = 10, max_cells = 32 },
-	{ key = "album", size = 11.0, y_offset = -7, max_cells = 36, color = 0xffaaaaaa },
+	{ key = "title", size = 14.0, y_offset = 30 },
+	{ key = "artist", size = 12.0, y_offset = 10 },
+	{ key = "album", size = 11.0, y_offset = -7, color = 0xffaaaaaa },
 }
 
 local rows = {}
 for _, row in ipairs(ROWS) do
 	rows[row.key] = {
-		max_cells = row.max_cells,
+		size = row.size,
 		item = sbar.add("item", "spotify." .. row.key, {
 			position = "popup.spotify",
 			drawing = false,
@@ -235,20 +233,54 @@ local time = sbar.add("slider", "spotify.time", SLIDER_WIDTH, {
 add_popup_spacer("spotify.pad.body", TEXT_WIDTH)
 add_popup_spacer("spotify.pad.right", POPUP_PADDING)
 
--- 長い文字列は max_cells 幅で切る (全角は半角 2 つ分と数える。
--- utf8.len が nil なら不正なバイト列なのでそのまま使う)
-local function truncate(text, max_cells)
+-- 文字の幅 (em 換算)。メニューバーと同じシステムフォント Bold を CoreText で測った値から決めた
+-- (全角 0.92、小文字の平均 0.56、大文字の平均 0.70、"..." は 1.01)。
+-- 細い文字と太い文字だけ別扱いにして、あとは平均で見積もる。
+local EM_WIDE = 0.93 -- 全角 (かな・漢字・ハングル・全角記号など)
+local EM_NARROW = 0.28 -- 空白と、細い記号 (i j l . , : ; ! | ')
+local EM_SLIM = 0.4 -- f r t ( ) [ ] - I
+local EM_HEAVY = 0.95 -- m w M W @
+local EM_UPPER = 0.7 -- 大文字と数字
+local EM_OTHER = 0.57 -- 小文字、その他
+local EM_ELLIPSIS = 1.02
+local TEXT_MARGIN = 6 -- 見積もりの誤差の分、TEXT_WIDTH から引く (pt)
+
+local function char_em(code)
+	if code >= 0x2E80 then
+		return EM_WIDE
+	end
+	local ch = string.char(code < 128 and code or 97)
+	if ch:find("[ ijl.,:;!|']") then
+		return EM_NARROW
+	elseif ch:find("[frt%(%)%[%]%-I]") then
+		return EM_SLIM
+	elseif ch:find("[mwMW@]") then
+		return EM_HEAVY
+	elseif ch:find("[%u%d]") then
+		return EM_UPPER
+	end
+	return EM_OTHER
+end
+
+-- 長い文字列は、size (pt) の文字が TEXT_WIDTH に収まる所で切って "..." を付ける
+-- (utf8.len が nil なら不正なバイト列なのでそのまま使う)
+local function truncate(text, size)
 	if utf8.len(text) == nil then
 		return text
 	end
-	local cells = 0
+	local limit = (TEXT_WIDTH - TEXT_MARGIN) / size
+	local total = 0
+	local cut = 1 -- "..." を付けても収まる、最後の切れ目 (バイト位置)
 	for pos, code in utf8.codes(text) do
-		cells = cells + (code >= 0x2E80 and 2 or 1)
-		if cells > max_cells then
-			return text:sub(1, pos - 1) .. "..."
+		if total + EM_ELLIPSIS <= limit then
+			cut = pos
 		end
+		total = total + char_em(code)
 	end
-	return text
+	if total <= limit then
+		return text
+	end
+	return (text:sub(1, cut - 1):gsub("%s+$", "")) .. "..."
 end
 
 local function set_popup_info(meta)
@@ -257,7 +289,7 @@ local function set_popup_info(meta)
 		if type(text) ~= "string" then
 			text = ""
 		end
-		row.item:set({ drawing = text ~= "", label = { string = truncate(text, row.max_cells) } })
+		row.item:set({ drawing = text ~= "", label = { string = truncate(text, row.size) } })
 	end
 end
 
