@@ -1,5 +1,10 @@
 local ui = require("ui")
 
+-- 中身で最も高いアイコンの字面の高さ (px)。Hack Nerd Font Bold 18pt を CoreText で実測 (15.0)。
+-- label (13pt、9.7) はこれより低い。bracket の上下の余白と、左右の余白をそろえるのに使う。
+-- フォントやサイズを変えたら再測定が必要。
+local GLYPH_HEIGHT = 15
+
 local battery = ui.add_item("battery", "right", {
 	update_freq = 120,
 	-- 余白は bracket の padding で決めるため、左端(icon)と右端(label)の内側の padding は 0 にする
@@ -7,7 +12,7 @@ local battery = ui.add_item("battery", "right", {
 	label = { padding_left = 3, padding_right = 0 },
 })
 
-ui.add_bracket("battery.bracket", { battery }, nil, ui.bracket_padding)
+ui.add_bracket("battery.bracket", { battery }, nil, ui.vertical_margin(GLYPH_HEIGHT))
 ui.add_spacer("right", ui.bracket_gap)
 
 local icons = {

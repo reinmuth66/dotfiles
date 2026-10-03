@@ -13,6 +13,13 @@ M.bracket_gap = 6
 -- 端の item は、アイコンとラベルの内側の padding を 0 にしておくこと。
 M.bracket_padding = 8
 
+-- bracket の上下の端から、高さ content_height の中身までの余白 (px)。中身は縦中央に置かれる。
+-- これを add_bracket の padding に渡すと、上下と左右の余白がそろう。
+-- content_height には、見える字面の高さを使う (行の高さではない)。
+function M.vertical_margin(content_height)
+	return math.floor((colors.bracket.height - content_height) / 2 + 0.5)
+end
+
 local function merge(base, extra)
 	local out = {}
 	for k, v in pairs(base) do

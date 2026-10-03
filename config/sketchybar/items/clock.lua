@@ -1,5 +1,9 @@
 local ui = require("ui")
 
+-- 数字と英字の字面の高さ (px)。Hack Nerd Font Bold 13pt を CoreText で実測 (9.9)。
+-- bracket の上下の余白と、左右の余白をそろえるのに使う。フォントやサイズを変えたら再測定が必要。
+local GLYPH_HEIGHT = 10
+
 -- 余白は bracket の padding で決めるため、空のアイコンは非表示にし、
 -- ラベル内側の padding は 0 にする
 local clock = ui.add_item("clock", "right", {
@@ -16,5 +20,5 @@ local clock = ui.add_item("clock", "right", {
 	},
 })
 
-ui.add_bracket("clock.bracket", { clock }, nil, ui.bracket_padding)
+ui.add_bracket("clock.bracket", { clock }, nil, ui.vertical_margin(GLYPH_HEIGHT))
 ui.add_spacer("right", ui.bracket_gap)
