@@ -22,6 +22,7 @@
     ./aerospace.nix
     ./jankyborders.nix
     ./sketchybar.nix
+    ./cavaviz.nix
     ./spicetify.nix
   ];
 

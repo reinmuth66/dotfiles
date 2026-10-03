@@ -1,0 +1,228 @@
+--- a/input/coreaudio_tap.m
++++ b/input/coreaudio_tap.m
+@@ -102,7 +102,11 @@
+ 
+     CFStringRef kTCCServiceAudioCapture = cfstring_from_cstr("kTCCServiceAudioCapture");
+ 
+-    if (TCCAccessPreflight != NULL && TCCAccessPreflight(kTCCServiceAudioCapture, NULL) != 0) {
++    // Do not stop here when the permission is missing. Without this check, AudioHardwareCreateProcessTap
++    // below makes macOS ask for the permission with its own dialog (the check only prints an error, opens
++    // System Settings and exits, so the dialog never appears). The first start fails while the dialog is
++    // open; after "Allow", the next start works.
++    if (0 && TCCAccessPreflight != NULL && TCCAccessPreflight(kTCCServiceAudioCapture, NULL) != 0) {
+         fprintf(stderr, "ERROR: AudioTap permissions missing! requesting...\n");
+         char* term = getenv("TERM_PROGRAM");
+         if (term == NULL) {
+--- a/output/sdl_glsl.c
++++ b/output/sdl_glsl.c
+@@ -6,6 +6,15 @@
+ #endif
+ #include "sdl_glsl.h"
+ #include <SDL2/SDL.h>
++#ifdef __APPLE__
++#include <SDL2/SDL_syswm.h>
++#include <objc/message.h>
++#include <objc/runtime.h>
++// Call an Objective-C method from C without writing Objective-C.
++#define MSG0(o, s) ((id (*)(id, SEL))objc_msgSend)((o), sel_registerName(s))
++#define MSGL(o, s, v) ((void (*)(id, SEL, long))objc_msgSend)((o), sel_registerName(s), (v))
++#define MSGI(o, s, v) ((id (*)(id, SEL, long))objc_msgSend)((o), sel_registerName(s), (v))
++#endif
+ 
+ #include <math.h>
+ #include <stdbool.h>
+@@ -14,6 +23,17 @@
+ 
+ #include "../util.h"
+ 
++#ifdef __APPLE__
++#include <fcntl.h>
++#include <spawn.h>
++#include <sys/wait.h>
++#include <stdio.h>
++#include <string.h>
++#include <sys/event.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#endif
++
+ SDL_Window *glWindow = NULL;
+ GLuint shading_program;
+ GLint uniform_bars;
+@@ -57,6 +77,10 @@
+     if (y == -1)
+         y = SDL_WINDOWPOS_UNDEFINED;
+ 
++#ifdef __APPLE__
++    // The app that has the keyboard focus now; it is given the focus back after the window is created.
++    id prev_front = MSG0(MSG0((id)objc_getClass("NSWorkspace"), "sharedWorkspace"), "frontmostApplication");
++#endif
+     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+         fprintf(stderr, "SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
+         exit(1);
+@@ -68,7 +92,7 @@
+     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+ #endif
+ 
+-    Uint32 sdl_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE;
++    Uint32 sdl_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALWAYS_ON_TOP;
+ 
+     if (full_screen == 1)
+         sdl_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+@@ -78,6 +102,28 @@
+         fprintf(stderr, "Window could not be created! SDL_Error: %s\n", SDL_GetError());
+         exit(1);
+     }
++#ifdef __APPLE__
++    // Embed the window above sketchybar's popups (window level 101): click-through, no shadow,
++    // visible on every space, and without taking the keyboard focus.
++    {
++        SDL_SysWMinfo wminfo;
++        SDL_VERSION(&wminfo.version);
++        if (SDL_GetWindowWMInfo(glWindow, &wminfo)) {
++            id win = (id)wminfo.info.cocoa.window;
++            MSGL(win, "setLevel:", 102);
++            MSGL(win, "setIgnoresMouseEvents:", 1);
++            MSGL(win, "setHasShadow:", 0);
++            // NSWindowCollectionBehaviorCanJoinAllSpaces | Stationary | IgnoresCycle
++            MSGL(win, "setCollectionBehavior:", 1 | 16 | 64);
++        }
++        for (int i = 0; i < 5; i++) {
++            SDL_PumpEvents();
++            SDL_Delay(20);
++        }
++        if (prev_front)
++            MSGI(prev_front, "activateWithOptions:", 2); // NSApplicationActivateIgnoringOtherApps
++    }
++#endif
+     glContext = SDL_GL_CreateContext(glWindow);
+     if (glContext == NULL) {
+         fprintf(stderr, "GLContext could not be created! SDL Error: %s\n", SDL_GetError());
+@@ -232,12 +278,115 @@
+     SDL_GL_SwapWindow(glWindow);
+ }
+ 
++#ifdef __APPLE__
++// Move the window with a control file instead of restarting cava (starting the audio tap takes ~0.7 s).
++// The path is in $CAVAVIZ_CONTROL and the file is checked once per frame (when its mtime changed):
++//   "show X Y"  move the window to (X, Y) and draw again
++//   "hide"      move the window off the screen and stop drawing (the audio tap and the FFT keep running)
++static int viz_hidden = 0;
++static struct timespec viz_control_mtime;
++
++// Tell the launcher that cava is initialised (the FFT plan and the window exist) by running
++//   $CAVAVIZ_READY_BIN --trigger $CAVAVIZ_READY_EVENT ID=$CAVAVIZ_READY_ID
++// (sketchybar's own CLI, so the launcher gets an event). This is the first thing the draw loop does, so a
++// "show" sent after this appears at once. The child is not waited for (it takes ~10-20 ms); it is reaped
++// on a later poll.
++extern char **environ;
++static pid_t viz_ready_pid = 0;
++
++static void viz_signal_ready(void) {
++    static int done = 0;
++    if (!done) {
++        done = 1;
++        const char *bin = getenv("CAVAVIZ_READY_BIN");
++        const char *event = getenv("CAVAVIZ_READY_EVENT");
++        const char *id = getenv("CAVAVIZ_READY_ID");
++        if (bin != NULL && bin[0] != '\0' && event != NULL) {
++            char arg[64];
++            snprintf(arg, sizeof arg, "ID=%s", id != NULL ? id : "");
++            char *argv[] = {(char *)bin, "--trigger", (char *)event, arg, NULL};
++            if (posix_spawn(&viz_ready_pid, bin, NULL, NULL, argv, environ) != 0)
++                viz_ready_pid = 0;
++        }
++    } else if (viz_ready_pid > 0 && waitpid(viz_ready_pid, NULL, WNOHANG) == viz_ready_pid) {
++        viz_ready_pid = 0;
++    }
++}
++
++static void viz_poll_control(void) {
++    viz_signal_ready();
++    const char *path = getenv("CAVAVIZ_CONTROL");
++    struct stat st;
++    if (path == NULL || stat(path, &st) != 0)
++        return;
++    if (st.st_mtimespec.tv_sec == viz_control_mtime.tv_sec &&
++        st.st_mtimespec.tv_nsec == viz_control_mtime.tv_nsec)
++        return;
++    viz_control_mtime = st.st_mtimespec;
++
++    FILE *f = fopen(path, "r");
++    if (f == NULL)
++        return;
++    char cmd[16] = "";
++    int x = 0, y = 0;
++    int n = fscanf(f, "%15s %d %d", cmd, &x, &y);
++    fclose(f);
++
++    // Hide by making the window transparent, and do NOT move it: a move right after the opacity change makes
++    // both reach the screen together, ~23 ms later (a plain transparent hide: ~14 ms; the popup under the
++    // window closes in ~15 ms, so they vanish together). The transparent window stays where it is, ignoring the
++    // mouse, until the process is stopped. Show: move to the slot, then make it opaque (~16 ms).
++    if (n >= 1 && strcmp(cmd, "hide") == 0) {
++        SDL_SetWindowOpacity(glWindow, 0.0f);
++        viz_hidden = 1;
++    } else if (n == 3 && strcmp(cmd, "show") == 0) {
++        SDL_SetWindowPosition(glWindow, x, y);
++        SDL_SetWindowOpacity(glWindow, 1.0f);
++        viz_hidden = 0;
++    }
++}
++
++static int viz_kq = -1;
++
++// Frame wait: sleep for up to `total` ms, but wake at once when the control file is written, and apply the
++// command. Used instead of SDL_Delay so that a "show" and a "hide" take effect at once instead of at the
++// next frame (a "hide" matters when the popup under the window disappears). Waiting is done with kqueue on
++// the control file, without polling.
++static void viz_sleep(int total) {
++    const char *path = getenv("CAVAVIZ_CONTROL");
++    if (viz_kq < 0 && path != NULL) {
++        int fd = open(path, O_EVTONLY);
++        if (fd >= 0) {
++            viz_kq = kqueue();
++            struct kevent ev;
++            EV_SET(&ev, fd, EVFILT_VNODE, EV_ADD | EV_CLEAR,
++                   NOTE_WRITE | NOTE_EXTEND | NOTE_ATTRIB | NOTE_DELETE | NOTE_RENAME, 0, NULL);
++            kevent(viz_kq, &ev, 1, NULL, 0, NULL);
++        }
++    }
++    if (viz_kq < 0) {
++        SDL_Delay(total); // no control file to watch: a plain slow frame
++        return;
++    }
++    struct kevent out;
++    struct timespec timeout = {total / 1000, (total % 1000) * 1000000L};
++    kevent(viz_kq, NULL, 0, &out, 1, &timeout); // returns at once when the control file is written
++    viz_poll_control();
++}
++#endif
++
+ int draw_sdl_glsl(int bars_count, const float bars[], const float previous_bars[], int frame_time,
+                   int re_paint, int continuous_rendering) {
+ 
+     int rc = 0;
+     SDL_Event event;
+ 
++#ifdef __APPLE__
++    viz_poll_control();
++    if (viz_hidden)
++        re_paint = continuous_rendering = 0;
++#endif
++
+     if (re_paint || continuous_rendering) {
+         if (uniform_input_texture != -1) {
+             glActiveTexture(GL_TEXTURE0);
+@@ -267,7 +416,11 @@
+             glBindFramebuffer(GL_FRAMEBUFFER, 0);
+         }
+     }
++#ifdef __APPLE__
++    viz_sleep(frame_time);
++#else
+     SDL_Delay(frame_time);
++#endif
+ 
+     while (SDL_PollEvent(&event)) {
+         if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {

@@ -1,0 +1,11 @@
+--- a/cavacore.c
++++ b/cavacore.c
+@@ -94,7 +94,7 @@
+     p->frame_skip = 1;
+     p->noise_reduction = noise_reduction;
+ 
+-    int fftw_flag = FFTW_MEASURE;
++    int fftw_flag = FFTW_ESTIMATE;
+ #ifdef __ANDROID__
+     fftw_flag = FFTW_ESTIMATE;
+ #endif
