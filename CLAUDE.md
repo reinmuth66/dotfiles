@@ -64,6 +64,10 @@ nh darwin switch ~/dotfiles
 - 音声の取得 (Core Audio tap) には「システムオーディオ録音」の許可が要る。初回だけ、ポップアップを開いて再生すると macOS 標準のダイアログが出るので「許可」を押す (そのときの最初の起動は失敗するが、次から動く)。システム設定の「システムオーディオ録音のみ」に `~/Applications/Home Manager Apps/CavaViz.app` を手で追加しても付けられる (一覧に出なくても、`TCC.db` には記録される)。署名の指定要件を識別子 (`local.dotfiles.cavaviz`) だけにしてあるので、cava を更新しても許可は外れない。識別子を変えると、許可を付け直す必要がある (古い項目は `tccutil reset AudioCapture <識別子>` で消せる)。
 - 起動と停止は `config/sketchybar/items/spotify.lua` が行う。再生中にホバーすると、cava を画面外に隠して起動し、準備ができてからポップアップと窓を同時に出す (ホバーから約 0.42 秒)。ホバーが外れる、または再生が止まると止める。
 
+**Spotify ポップアップの配色:**
+- `config/sketchybar/palette.lua` が、アルバム画像の色の頻度表 (ImageMagick で抽出。`sketchybar.nix` の `extraPackages` に `imagemagick`) から、アクセント・背景・文字の色を決める。無彩色の画像は従来の固定色に戻す。
+- 棒グラフの色は、`modules/cavaviz.nix` の設定ひな形の `@FG@` (グラデーションの 2 色に同じ色を入れて単色に見せる)。起動時に `spotify.lua` が置き換え、動いている cava には設定を書き直して `SIGUSR2` を送る。cava が `SIGUSR2` で読み直すのはグラデーションの色だけで、`foreground` は読み直されないため、グラデーションで指定している (窓は作り直さない)。cava が準備完了 (`cavaviz_ready`) になる前に送ると、シグナルの受け口がなく終了するので、準備完了のあとに送る。
+
 **新しいツールを追加する手順:**
 1. `programs.*` サポートがあるなら `modules/<tool>.nix` を新規作成し `home.nix` の `imports` に追加
 2. 設定不要な CLI ツールなら `modules/home.nix` の `home.packages` に追加

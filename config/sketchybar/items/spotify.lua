@@ -15,11 +15,14 @@
 -- 動く棒グラフ (cava の bar_spectrum) を出す。棒グラフは cava の SDL の窓を、ポップアップの空き (spotify.viz)
 -- に重ねる。再生中にホバーすると、cava を隠して起動し、準備ができてから
 -- ポップアップと窓を同時に出す (modules/cavaviz.nix、pkgs/cavaviz/ を参照)。
+-- ポップアップの色 (背景、枠、文字、再生位置のバー、棒グラフ) は、アルバム画像の代表色から決める (palette.lua)。
+-- 色の頻度表は画像と同じ所にキャッシュし (.colors)、棒グラフの色は動いている cava に SIGUSR2 で伝える。
 -- マウス操作は、bracket 全体を覆う透明な item (hit) が受ける。画像の item は再描画が多く、
 -- マウスを購読させると mouse.exited が届かずポップアップが閉じなくなることがあるため (ui.add_hit_layer)。
 
 local ui = require("ui")
 local colors = require("colors")
+local palette = require("palette")
 
 local SIZE = 24 -- 表示サイズ (pt)。アイコンのフォントサイズも同じ値にする (このフォントでは字面が一辺 SIZE の正方形になる)
 local ART_PX = SIZE * 4 -- キャッシュする画像の一辺 (px)
@@ -539,7 +542,8 @@ end
 -- viz.on_ready: 準備完了を待っている処理 (ポップアップを開く)。
 -- viz.id: 起動の番号。位置の待ちや止め直しを取り消すのと、準備完了のイベントがどの起動のものかを見分けるのに使う。
 -- viz.cache: 前回の窓の位置 (ポップアップより先に窓を出すのに使う)。
-local viz = { running = false, id = 0, cache = nil, ready = false, on_ready = nil }
+-- viz.fg: 棒の色 ("#rrggbb"。アルバム画像から決める)。viz.applied: cava の設定ファイルに入っている棒の色。
+local viz = { running = false, id = 0, cache = nil, ready = false, on_ready = nil, fg = palette.default.viz, applied = nil }
 
 -- 空きの画面上の位置。ポップアップが描かれる前は、origin が (-9999, -9999) になる。
 local function viz_slot()
@@ -579,12 +583,13 @@ end
 -- 設定のひな形に位置 (画面外) を入れて書き出し、制御ファイルの初期値 (hide) を書いて、cava を起動する。
 -- 制御ファイル ("show X Y" か "hide") は、起動後も窓の表示、移動、非表示の指示に使う。
 local VIZ_START = [[
-mkdir -p %q && sed -e 's/@X@/%d/' -e 's/@Y@/%d/' -e 's/@W@/%d/' -e 's/@H@/%d/' %q > %q \
+mkdir -p %q && sed -e 's/@X@/%d/' -e 's/@Y@/%d/' -e 's/@W@/%d/' -e 's/@H@/%d/' -e 's/@FG@/%s/' %q > %q \
 	&& printf %%s %q > %q \
 	&& open -n -a %q --env XDG_CONFIG_HOME=%q --env CAVAVIZ_CONTROL=%q --env CAVAVIZ_READY_BIN="$(command -v sketchybar)" --env CAVAVIZ_READY_EVENT=%s --env CAVAVIZ_READY_ID=%d --stderr %q --args -p %q
 ]]
 
 local function viz_launch(id)
+	viz.applied = viz.fg
 	sbar.exec(
 		string.format(
 			VIZ_START,
@@ -593,6 +598,7 @@ local function viz_launch(id)
 			VIZ_HIDDEN_POS,
 			VIZ_WIDTH,
 			VIZ_HEIGHT,
+			viz.fg,
 			VIZ_TEMPLATE,
 			VIZ_CONFIG,
 			"hide",
@@ -603,6 +609,37 @@ local function viz_launch(id)
 			VIZ_READY_EVENT,
 			id,
 			VIZ_LOG,
+			VIZ_CONFIG
+		)
+	)
+end
+
+-- 起動済みの cava の棒の色を、viz.fg に変える。設定ファイルを書き直して (一時ファイルに書いてから置き換え、
+-- cava が書きかけを読まないようにする)、SIGUSR2 を送る。cava は SIGUSR2 でグラデーションの色だけを読み直す
+-- (foreground は読み直さないので、棒の色はグラデーションで指定している。窓も音声の取得も作り直さない)。cava が準備中 (ready の前) だと、シグナルの受け口がなく、終了させてしまうので、
+-- 準備完了のイベントのあとに行う (そのとき viz.applied とのずれを直す)。
+local VIZ_RECOLOR = [[
+sed -e 's/@X@/%d/' -e 's/@Y@/%d/' -e 's/@W@/%d/' -e 's/@H@/%d/' -e 's/@FG@/%s/' %q > %q \
+	&& mv %q %q && pkill -USR2 -f '[C]avaViz.app/Contents/MacOS/cava'
+]]
+
+local function viz_apply_color()
+	if not viz.running or not viz.ready or viz.applied == viz.fg then
+		return
+	end
+	viz.applied = viz.fg
+	local tmp = VIZ_CONFIG .. ".tmp"
+	sbar.exec(
+		string.format(
+			VIZ_RECOLOR,
+			VIZ_HIDDEN_POS,
+			VIZ_HIDDEN_POS,
+			VIZ_WIDTH,
+			VIZ_HEIGHT,
+			viz.fg,
+			VIZ_TEMPLATE,
+			tmp,
+			tmp,
 			VIZ_CONFIG
 		)
 	)
@@ -704,6 +741,7 @@ spotify:subscribe(VIZ_READY_EVENT, function(env)
 		return
 	end
 	viz.ready = true
+	viz_apply_color() -- 起動してから準備完了までの間に、色が変わっていたとき
 	local on_ready = viz.on_ready
 	viz.on_ready = nil
 	if on_ready then
@@ -713,6 +751,20 @@ end)
 
 -- 再読み込み前の窓が残っていたら止める
 viz_stop()
+
+-- アルバム画像から決めた配色 (palette.lua) を、ポップアップの各部分と棒グラフに反映する。
+-- 棒の色は、cava が動いていれば SIGUSR2 で即座に変わる (止まっていれば、次の起動で入る)。
+local function apply_palette(p)
+	spotify:set({ popup = { background = { color = p.bg, border_color = p.border } } })
+	cover:set({ background = { border_color = p.border } })
+	time_text:set({ label = { color = p.text } })
+	time:set({ slider = { highlight_color = p.accent, background = { color = p.track } } })
+	rows.title.item:set({ label = { color = p.text } })
+	rows.artist.item:set({ label = { color = p.text } })
+	rows.album.item:set({ label = { color = p.subtext } })
+	viz.fg = p.viz
+	viz_apply_color()
+end
 
 -- 表示の切り替え。アルバム画像 (と覆い) を出すか、Spotify のアイコンを出すか。
 -- 画像は取得できてから出す (取得前に切り替えると、画像のない覆いだけが見えてしまう)。
@@ -739,7 +791,8 @@ local function show_icon()
 	})
 end
 
--- アルバム画像を取得してキャッシュし、アイコン用 (ART_PX) とポップアップ用 (COVER_PX) のパスを
+-- アルバム画像を取得してキャッシュし、アイコン用 (ART_PX) とポップアップ用 (COVER_PX) のパスと、
+-- 画像の色の頻度表 ("個数,R,G,B;..."。palette.lua が配色を決める。ImageMagick がなければ空) を
 -- タブ区切りで標準出力に返す。
 -- キャッシュのファイル名には画像の一辺 (px) を含める。サイズを変えたとき、古い解像度の画像が残ると、
 -- 表示サイズが設定からずれる (表示サイズ = 画像の実ピクセル * scale)。
@@ -762,7 +815,13 @@ if [ ! -s "$small" ] || [ ! -s "$large" ]; then
     || { rm -f "$src" "$small" "$large"; exit 1; }
   rm -f "$src"
 fi
-printf '%%s\t%%s' "$small" "$large"
+colors="$dir/${url##*/}.colors"
+if [ ! -s "$colors" ]; then
+  magick "$small" -resize 48x48 -colors 8 -depth 8 -format %%c histogram:info:- 2>/dev/null \
+    | sed -nE 's/^ *([0-9]+): *\( *([0-9]+), *([0-9]+), *([0-9]+).*/\1,\2,\3,\4/p' | paste -sd';' - > "$colors.tmp"
+  if [ -s "$colors.tmp" ]; then mv "$colors.tmp" "$colors"; else rm -f "$colors.tmp"; fi
+fi
+printf '%%s\t%%s\t%%s' "$small" "$large" "$(cat "$colors" 2>/dev/null)"
 ]],
 	CACHE_DIR,
 	ART_PX,
@@ -780,9 +839,9 @@ local function load_artwork(track_id)
 		if current_track ~= track_id then
 			return
 		end
-		local small, large
+		local small, large, histogram
 		if type(path) == "string" then
-			small, large = path:match("^([^\t]+)\t([^\t\n]+)")
+			small, large, histogram = path:match("^([^\t]+)\t([^\t]+)\t?(.*)$")
 		end
 		if not small then
 			current_track = nil -- 次のイベントで再試行する
@@ -790,6 +849,7 @@ local function load_artwork(track_id)
 		end
 		spotify:set({ background = { image = { string = small } } })
 		cover:set({ background = { image = { string = large, drawing = true } } })
+		apply_palette(palette.from_histogram(histogram) or palette.default)
 		show_art()
 	end)
 end

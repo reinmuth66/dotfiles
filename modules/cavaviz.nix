@@ -11,6 +11,7 @@ let
   # - 背景 (棒の外と、棒の間の隙間) を、bg_color ではなくアルファ 0 (透明) で描く (窓の透明化は sdl-transparent.patch)。
   # - 無音のときに底に引く 1px の線をやめる (棒の高さが 1px 未満なら 0 にする)。
   # - 棒を半透明 (アルファ 0.5) にして、重なる文字を透けて見せる。窓は premultiplied alpha で合成されるので、色にもアルファを掛ける。
+  #   元の main を bar_main に改名して、新しい main で結果に 0.5 を掛ける (背景は 0 のまま。棒の色が fg_color でもグラデーションでも効く)。
   # 上流で該当の行が変わったら、--replace-fail でビルドが失敗する。
   # 必要なシェーダーが揃っていれば、cava は設定ディレクトリに何も書き込まない
   # (読み取り専用のストアでも動く。実機で確認済み)。
@@ -21,7 +22,14 @@ let
     substitute ${shaders}/bar_spectrum.frag $out/cava/shaders/bar_clear.frag \
       --replace-fail 'fragColor = vec4(bg_color, 1.0);' 'fragColor = vec4(0.0);' \
       --replace-fail 'y = 1.0 / u_resolution.y;' 'y = 0.0;' \
-      --replace-fail 'fragColor = vec4(fg_color, 1.0);' 'fragColor = vec4(fg_color * 0.5, 0.5);'
+      --replace-fail 'void main() {' 'void bar_main() {'
+    cat >> $out/cava/shaders/bar_clear.frag <<'EOF'
+
+    void main() {
+        bar_main();
+        fragColor *= 0.5;
+    }
+    EOF
   '';
 
   # sdl_x / sdl_y はポップアップを開くたびに変わるので、@X@ などのまま置いておき (幅と高さも @W@ @H@ にして、
@@ -59,7 +67,14 @@ let
     };
     color = {
       background = "'#111111'"; # bar_clear.frag では使わない (窓は透明)
-      foreground = "'#33ffff'";
+      # 棒の色。@FG@ は spotify.lua が、アルバム画像から決めた色 (なければ #ffffff) に置き換える。
+      # foreground ではなくグラデーションで指定する (同じ色を 2 つ並べて、単色に見せる)。
+      # SIGUSR2 で読み直されるのは、グラデーションの色 (有無と色数も) だけで、foreground は読み直されないため。
+      # 動いている間の変更は、設定を書き直して cava に SIGUSR2 を送る (窓も音声の取得も作り直さない)。
+      foreground = "'#ffffff'"; # グラデーションを使うので、シェーダーでは使われない
+      gradient = 1;
+      gradient_color_1 = "'@FG@'";
+      gradient_color_2 = "'@FG@'";
     };
     smoothing = {
       # 10 以下は、音が切れたときの落下の緩和が無効になり、棒が瞬時に落ちる

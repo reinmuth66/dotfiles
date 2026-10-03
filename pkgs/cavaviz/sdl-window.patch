@@ -103,7 +103,7 @@
  }
  
 +#ifdef __APPLE__
-+// Move the window with a control file instead of restarting cava (starting the audio tap takes ~0.7 s).
++// Move the window with a control file instead of restarting cava (a restart takes ~0.35 s and the bars vanish meanwhile).
 +// The path is in $CAVAVIZ_CONTROL and the file is checked once per frame (when its mtime changed):
 +//   "show X Y"  move the window to (X, Y) and draw again
 +//   "hide"      move the window off the screen and stop drawing (the audio tap and the FFT keep running)

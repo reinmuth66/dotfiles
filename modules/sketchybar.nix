@@ -38,7 +38,7 @@ in
     };
 
     sbarLuaPackage = pkgs.sbarlua;
-    extraPackages = [ pkgs.aerospace pkgs.macism ];
+    extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick ]; # imagemagick: spotify の色の抽出
   };
 
   launchd.agents.sketchybar-clock-helper = {
