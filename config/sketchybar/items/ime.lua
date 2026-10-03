@@ -2,7 +2,7 @@ local ui = require("ui")
 
 local ime = ui.add_item("ime", "right", {
 	icon = { drawing = false },
-	label = { font = { family = "Hack Nerd Font", style = "Bold" }, padding_left = 0, padding_right = 0 },
+	label = { padding_left = 0, padding_right = 0 },
 })
 
 ui.add_bracket("ime.bracket", { ime }, nil, ui.bracket_padding)

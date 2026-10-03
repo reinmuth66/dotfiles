@@ -85,15 +85,16 @@ local hit = ui.add_hit_layer("spotify.hit", SIZE, ui.bracket_padding)
 
 -- ポップアップの中身。縦に追加順 (上から曲名、アーティスト、アルバム) で並ぶ。
 -- 空の項目 (ポッドキャストのアーティストなど) は非表示にする。
+-- フォントの種類と太さ、色は既定 (default.lua) を使い、違うものだけ size と color で上書きする。
 local POPUP_MAX_CHARS = 24
 
-local function add_popup_row(name, font_style, size, color)
+local function add_popup_row(name, size, color)
 	return sbar.add("item", name, {
 		position = "popup.spotify",
 		drawing = false,
 		icon = { drawing = false },
 		label = {
-			font = { family = "Hack Nerd Font", style = font_style, size = size },
+			font = { size = size },
 			color = color,
 			padding_left = 8,
 			padding_right = 8,
@@ -102,9 +103,9 @@ local function add_popup_row(name, font_style, size, color)
 end
 
 local rows = {
-	title = add_popup_row("spotify.title", "Bold", 14.0, colors.white),
-	artist = add_popup_row("spotify.artist", "Regular", 12.0, colors.white),
-	album = add_popup_row("spotify.album", "Regular", 11.0, 0xaaffffff),
+	title = add_popup_row("spotify.title", 14.0),
+	artist = add_popup_row("spotify.artist", 12.0),
+	album = add_popup_row("spotify.album", 11.0, 0xaaffffff),
 }
 
 -- 長い文字列は POPUP_MAX_CHARS 文字で切る (utf8.len が nil なら不正なバイト列なのでそのまま使う)

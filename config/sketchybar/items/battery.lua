@@ -4,7 +4,7 @@ local battery = ui.add_item("battery", "right", {
 	update_freq = 120,
 	-- 余白は bracket の padding で決めるため、左端(icon)と右端(label)の内側の padding は 0 にする
 	icon = { font = { size = 18.0 }, y_offset = 1, padding_left = 0, padding_right = 3 },
-	label = { font = { style = "Bold" }, padding_left = 3, padding_right = 0 },
+	label = { padding_left = 3, padding_right = 0 },
 })
 
 ui.add_bracket("battery.bracket", { battery }, nil, ui.bracket_padding)

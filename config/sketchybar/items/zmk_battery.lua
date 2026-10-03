@@ -64,7 +64,7 @@ local function add_label(name, width, padding_right, row_offset)
 		padding_right = padding_right,
 		icon = { drawing = false },
 		label = {
-			font = { style = "Bold", size = LABEL.font_size },
+			font = { size = LABEL.font_size },
 			y_offset = row_offset,
 			align = "right",
 			padding_right = 0,
