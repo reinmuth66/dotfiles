@@ -1,7 +1,7 @@
 require("items.aerospace")
 require("items.clock")
-require("items.volume")
 require("items.battery")
 require("items.zmk_battery")
 require("items.ime")
 require("items.spotify")
+require("items.volume")
