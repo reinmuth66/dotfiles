@@ -922,9 +922,9 @@ if [ ! -s "$small" ] || [ ! -s "$large" ]; then
     || { rm -f "$src" "$small" "$large"; exit 1; }
   rm -f "$src"
 fi
-colors="$dir/${url##*/}.colors"
+colors="$dir/${url##*/}.colors32"
 if [ ! -s "$colors" ]; then
-  magick "$small" -resize 48x48 -colors 8 -depth 8 -format %%c histogram:info:- 2>/dev/null \
+  magick "$small" -resize 48x48 -colors 32 -depth 8 -format %%c histogram:info:- 2>/dev/null \
     | sed -nE 's/^ *([0-9]+): *\( *([0-9]+), *([0-9]+), *([0-9]+).*/\1,\2,\3,\4/p' | paste -sd';' - > "$colors.tmp"
   if [ -s "$colors.tmp" ]; then mv "$colors.tmp" "$colors"; else rm -f "$colors.tmp"; fi
 fi
