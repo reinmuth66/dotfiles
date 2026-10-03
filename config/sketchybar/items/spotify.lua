@@ -41,10 +41,11 @@ local SLIDER_WIDTH = TEXT_WIDTH - 2 * TIME_WIDTH
 -- (背景の描画側で短辺の半分に丸められる)。左右の padding は、円の中に画像が同心で収まる値。
 local BRACKET_PADDING = (colors.bracket.height - SIZE) / 2
 
--- 回転: 1 周が ROTATION_PERIOD 秒になるよう、TICK 秒ごとに角度を進める。
+-- 回転: TICK 秒ごとに、角度を ROTATION_STEP だけ進める。1 周が ROTATION_PERIOD 秒になる。
+-- 再生位置の表示 (秒) も同じ周で 1 つ進める (秒の切り替わりと回転が同じタイミングで変わる)。
 -- 負の値は rotation を減らす向き (見た目の向きはこの符号で決まる)。
 local ROTATION_PERIOD = 60
-local TICK = 1
+local TICK = 1 -- 表示の秒を 1 周で 1 つ進めるので、1 秒にする
 local ROTATION_STEP = -360 * TICK / ROTATION_PERIOD
 
 -- 画像に重ねる覆いの色 (ARGB)。alpha が 0x00 で透明、0xff で真っ黒
@@ -199,15 +200,13 @@ for _, row in ipairs(ROWS) do
 end
 
 -- 再生位置: 左に経過時間、右に総時間、間にバー。バーは表示だけ (操作は受けない)。
--- ポップアップを開いている間だけ、1 秒ごとに routine が来る (更新の仕組みは advance_time の付近)。
+-- 秒の更新は、アルバム画像の回転と同じ周 (回転ループ) で進める (step_time の付近)。
 local time = sbar.add("slider", "spotify.time", SLIDER_WIDTH, {
 	position = "popup.spotify",
 	width = 0,
 	y_offset = -32,
 	padding_left = 0,
 	padding_right = 0,
-	update_freq = 1,
-	updates = "when_shown",
 	-- 時刻は等幅数字 (tnum) にして、秒が変わっても幅を変えない。
 	-- 経過時間は左端、総時間は右端に寄せ、文字の領域の両端 (曲名の左端、バーの右端) にそろえる
 	icon = {
@@ -262,17 +261,20 @@ local function set_popup_info(meta)
 	end
 end
 
--- 再生位置の表示は、基準の位置とその時刻 (os.time、整数秒) をもとに、ローカルの時計で 1 秒ずつ進める。
--- 基準は、分散通知の Playback Position と、ホバーで開いたときの osascript の取得で取り直す。
+-- 再生位置の表示は、回転ループの 1 周ごとに 1 秒進める (ローカルの時計)。回転も同じ周で進むので、
+-- 秒の切り替わりと回転は同じタイミングになる。
+-- 実際の位置は、分散通知の Playback Position と、ホバーで開いたときの osascript の取得で合わせる。
 -- 通知は一時停止・再開・曲の切り替えで来るが、シークでは来ない (実機で確認)。
 -- そのため、ポップアップを閉じている間のシークは、開いた瞬間の取得で直る。
 -- 開いている間のシークは、次の通知か開き直しまで直らない。毎秒の osascript の取得は行わない。
--- 整数秒の時計なので、表示は実際の位置から最大 1 秒ほどずれることがある (ずれは、基準を取った時刻の
--- 秒の中での位置と、毎秒の更新の位置の差で決まり、同じ基準の間は一定)。
-local playback = { position = 0, at = os.time(), playing = false, duration = 0 }
-local shown = nil -- 表示している秒 (整数)。ポップアップを開くたびに、見積もりに合わせ直す
+-- 秒の進みは、位置の見積もりとは切り離す。見積もりが表示に追いつくのを待つ作りだと、補正が続くとき
+-- (素早いホバーの繰り返しなど) に、秒も回転も止まってしまう。
+local shown = nil -- 表示している秒 (整数)。nil なら、まだ位置が分かっていない
+local duration = 0 -- 曲の長さ (秒)
 local popup_open = false
-local SNAP_BACK = 1.5 -- 再生中に、実際の位置が表示より後ろへこの秒数以上ずれていたら、表示も戻して合わせる
+local open_id = 0 -- ポップアップを開くたびに増やす番号。古い取得の結果で、別の開き直しのポップアップを開かないための印
+local OPEN_TIMEOUT = 0.5 -- 位置の取得が返らなくても、ポップアップはこの秒数で開く
+local SNAP_BACK = 1.5 -- 実際の位置が表示より後ろへこの秒数以上ずれていたら、表示も戻して合わせる
 
 -- 分も 0 埋めの 2 桁 (mm:ss) にして、桁数が増えて幅が変わらないようにする。
 -- 100 分以上は 3 桁になり、TIME_WIDTH を超えて見切れる。
@@ -280,45 +282,32 @@ local function format_time(seconds)
 	return string.format("%02d:%02d", math.floor(seconds / 60), math.floor(seconds % 60))
 end
 
--- 基準から進めた現在の位置 (秒)。曲の長さを超えない。
-local function estimate()
-	local position = playback.position
-	if playback.playing then
-		position = position + (os.time() - playback.at)
-	end
-	if playback.duration > 0 then
-		position = math.min(position, playback.duration)
-	end
-	return position
-end
-
-local function render()
-	if shown == nil or playback.duration <= 0 then
+-- animated が false なら、バーを滑らかに動かさず、すぐ合わせる (開く瞬間に、古い位置から伸びないように)
+local function render(animated)
+	if shown == nil or duration <= 0 then
 		return
 	end
-	sbar.animate("linear", 10, function()
+	local function set_values()
 		time:set({
 			icon = { string = format_time(shown) },
-			label = { string = format_time(playback.duration) },
-			slider = { percentage = math.min(100, shown / playback.duration * 100) },
+			label = { string = format_time(duration) },
+			slider = { percentage = math.min(100, shown / duration * 100) },
 		})
-	end)
+	end
+	if animated == false then
+		set_values()
+	else
+		sbar.animate("linear", 10, set_values)
+	end
 end
 
--- 基準を取り直す。duration は秒 (nil なら前の値のまま)。
+-- 実際の位置 (秒、小数) に合わせる。duration は秒 (nil なら前の値のまま)。
 -- 再生中の小さな補正では、表示を戻さない: 実際の位置が表示より前なら進めて合わせ、
--- 後ろへ SNAP_BACK 秒未満のずれなら、表示はそのまま進める (数字が戻らないようにする)。
+-- 後ろへ SNAP_BACK 秒未満のずれなら、そのまま進める (数字が戻らないようにする)。
 -- 一時停止中、曲の切り替え (force)、ポップアップを閉じている間は、そのまま合わせる。
-local function rebase(position, duration, playing, force)
-	local before = estimate()
-	playback = {
-		position = position,
-		at = os.time(),
-		playing = playing,
-		duration = duration or playback.duration,
-	}
-	local diff = position - before
-	if shown == nil or force or not playing or not popup_open or diff >= 0 or diff <= -SNAP_BACK then
+local function rebase(position, new_duration, playing, force)
+	duration = new_duration or duration
+	if shown == nil or force or not playing or not popup_open or position >= shown or position < shown - SNAP_BACK then
 		shown = math.floor(position)
 	end
 	if popup_open then
@@ -326,18 +315,16 @@ local function rebase(position, duration, playing, force)
 	end
 end
 
--- 毎秒の更新 (ポップアップを開いている間だけ)。ローカルの時計で、表示を 1 秒ずつ進める。
-local function advance_time()
-	if shown == nil or not playback.playing then
+-- 回転ループの 1 周ごとに呼ぶ。表示する秒を 1 つ進める (曲の長さを超えない)。
+local function step_time()
+	if shown == nil or shown >= math.floor(duration) then
 		return
 	end
-	if math.floor(estimate()) > shown then
-		shown = shown + 1
+	shown = shown + 1
+	if popup_open then
 		render()
 	end
 end
-
-time:subscribe("routine", advance_time)
 
 -- 状態と位置と曲の長さ (ミリ秒) をタブ区切りで返す。未起動の Spotify を起動しないよう pgrep で確認する。
 local POSITION_COMMAND =
@@ -348,34 +335,51 @@ local function parse_position(text)
 	return tonumber((text:gsub(",", ".")))
 end
 
--- ホバーで開いたとき、基準を取り直す (閉じている間のシークはここで直る)
-local function refresh_position()
+-- ホバーで開いたとき、実際の位置に合わせる (閉じている間のシークはここで直る)。
+-- 結果の反映 (または失敗) のあとに、done を呼ぶ。
+local function refresh_position(done)
 	sbar.exec(POSITION_COMMAND, function(out)
-		if type(out) ~= "string" then
-			return
+		if type(out) == "string" then
+			local state, position, length = out:match("^(%a+)\t([%d.,]+)\t(%d+)")
+			if state == "playing" or state == "paused" then
+				position = parse_position(position)
+				length = tonumber(length) / 1000
+				if position and length > 0 then
+					rebase(position, length, state == "playing")
+				end
+			end
 		end
-		local state, position, duration = out:match("^(%a+)\t([%d.,]+)\t(%d+)")
-		if state ~= "playing" and state ~= "paused" then
-			return
-		end
-		position = parse_position(position)
-		duration = tonumber(duration) / 1000
-		if position and duration > 0 then
-			rebase(position, duration, state == "playing")
+		if done then
+			done()
 		end
 	end)
 end
 
--- ポップアップを開く。表示は、通知で取った基準からの見積もりに合わせ、その後に取得で直す。
-local function open_time()
+-- ポップアップを開く。実際の位置に合わせてから開く
+-- (遅れがたまっていても、数字が前に飛ぶのを見せない)。取得に約 0.14 秒かかるので、その分、開くのが遅れる。
+-- 取得が返らないときも、OPEN_TIMEOUT 秒で開く。
+local function open_popup()
 	popup_open = true
-	shown = math.floor(estimate())
-	render()
-	refresh_position()
+	open_id = open_id + 1
+	local id = open_id
+	local opened = false
+
+	local function open()
+		if opened or not popup_open or id ~= open_id then
+			return
+		end
+		opened = true
+		render(false)
+		spotify:set({ popup = { drawing = true } })
+	end
+
+	refresh_position(open)
+	sbar.delay(OPEN_TIMEOUT, open)
 end
 
 -- 回転ループ。停止 -> 再生が短時間で続いても古いループが残らないよう世代で管理する。
 -- 停止しても角度は戻さず、次の再生は止まった角度から続ける。
+-- 再生位置の表示 (秒) もこのループの同じ周で進める (回転と同じタイミングで変わる)。
 local angle = 0
 local spinning = false
 local generation = 0
@@ -384,6 +388,7 @@ local function tick(id)
 	if not spinning or id ~= generation then
 		return
 	end
+	step_time()
 	angle = (angle + ROTATION_STEP) % 360
 	spotify:set({ background = { image = { rotation = angle } } })
 	sbar.delay(TICK, function()
@@ -437,7 +442,6 @@ end
 local function show_icon()
 	showing_art = false
 	popup_open = false
-	playback.playing = false
 	spotify:set({
 		icon = { drawing = true },
 		label = { drawing = false },
@@ -564,8 +568,7 @@ end)
 -- バーの外へ出たときは mouse.exited.global でも閉じる。
 hit:subscribe("mouse.entered", function()
 	if showing_art then
-		spotify:set({ popup = { drawing = true } })
-		open_time()
+		open_popup()
 	end
 end)
 
