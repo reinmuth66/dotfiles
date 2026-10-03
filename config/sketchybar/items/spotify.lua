@@ -8,6 +8,8 @@
 -- 回転は background.image.rotation を使う (SketchyBar#815 のパッチが前提、pkgs/sketchybar/)。
 -- 操作: 左クリックで再生/一時停止、上スクロールで前の曲、下スクロールで次の曲。
 -- マウスを乗せると、曲名・アーティスト・アルバムをポップアップで表示する。
+-- マウス操作は、bracket 全体を覆う透明な item (hit) が受ける。画像の item は再描画が多く、
+-- マウスを購読させると mouse.exited が届かずポップアップが閉じなくなることがあるため (ui.add_hit_layer)。
 
 local ui = require("ui")
 local colors = require("colors")
@@ -77,6 +79,9 @@ local spotify = ui.add_item("spotify", "right", {
 })
 
 ui.add_bracket("spotify.bracket", { spotify }, nil, ui.bracket_padding)
+
+-- bracket の範囲 (spotify の幅 + 左右の padding) 全体でマウス操作を受ける
+local hit = ui.add_hit_layer("spotify.hit", SIZE, ui.bracket_padding)
 
 -- ポップアップの中身。縦に追加順 (上から曲名、アーティスト、アルバム) で並ぶ。
 -- 空の項目 (ポッドキャストのアーティストなど) は非表示にする。
@@ -282,13 +287,13 @@ end)
 
 -- ホバーでポップアップを開閉する (曲情報があるとき、つまり画像を出している間だけ)。
 -- バーの外へ出たときは mouse.exited.global でも閉じる。
-spotify:subscribe("mouse.entered", function()
+hit:subscribe("mouse.entered", function()
 	if showing_art then
 		spotify:set({ popup = { drawing = true } })
 	end
 end)
 
-spotify:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
+hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	spotify:set({ popup = { drawing = false } })
 end)
 
@@ -307,7 +312,7 @@ end
 -- Home Manager Apps のパスで指定する (名前だと更新用の一時コピーに解決されることがある)。
 local SPOTIFY_APP = os.getenv("HOME") .. "/Applications/Home Manager Apps/Spotify.app"
 
-spotify:subscribe("mouse.clicked", function(env)
+hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
 		spotify_command("playpause")
 	elseif env.BUTTON == "right" then
@@ -322,7 +327,7 @@ local SCROLL_COOLDOWN = 1.0
 local SCROLL_UP_SIGN = 1
 local scroll_locked = false
 
-spotify:subscribe("mouse.scrolled", function(env)
+hit:subscribe("mouse.scrolled", function(env)
 	local delta = tonumber(env.SCROLL_DELTA)
 	if not delta or delta == 0 or scroll_locked then
 		return
