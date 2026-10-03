@@ -49,12 +49,14 @@ local POPUP_FONT_STYLE = "Bold" -- 欧文は System Font Bold、日本語は W6 
 -- 再生位置のバーは、時刻をカバー画像の下に出す分、文字の領域の全幅に伸ばす
 local SLIDER_WIDTH = TEXT_WIDTH
 
--- サウンドビジュアライザ (棒グラフ)。窓は文字の領域と同じ幅で、再生位置のバーのすぐ上に重ねる
--- (窓の下端は、バー (高さ 4) の上端の 1pt 上)。窓の縦の位置は、空き (spotify.viz) の y_offset から決める。
+-- サウンドビジュアライザ (棒グラフ)。窓は文字の領域と同じ幅で、再生位置のバーのすぐ上から、
+-- ポップアップの上の余白の手前 (左の列の上端、CONTENT_TOP) まで伸ばす。窓は透明なので、曲名などの文字の上にも棒が重なる。
+-- 窓の下端は、バー (高さ 4) の上端の 1pt 上。上端と下端は、ポップアップの縦の中央からの距離 (上が正)。
 -- 設定 (棒の数、感度など) は modules/cavaviz.nix。ここでは窓の位置と大きさだけを決める。
 local VIZ_WIDTH = TEXT_WIDTH
-local VIZ_HEIGHT = 22
-local VIZ_Y = BOTTOM_ROW_Y + 2 + 1 + math.floor(VIZ_HEIGHT / 2) -- 窓の中央 (空きの y_offset)
+local VIZ_TOP = CONTENT_TOP
+local VIZ_BOTTOM = BOTTOM_ROW_Y + 2 + 1
+local VIZ_HEIGHT = VIZ_TOP - VIZ_BOTTOM
 local VIZ_APP = os.getenv("HOME") .. "/Applications/Home Manager Apps/CavaViz.app"
 local VIZ_CONFIG_HOME = os.getenv("HOME") .. "/.config/cavaviz"
 local VIZ_TEMPLATE = VIZ_CONFIG_HOME .. "/config.template"
@@ -278,12 +280,11 @@ local time = sbar.add("slider", "spotify.time", SLIDER_WIDTH, {
 sbar.add("item", "spotify.viz", {
 	position = "popup.spotify",
 	width = TEXT_WIDTH,
-	y_offset = VIZ_Y,
 	padding_left = 0,
 	padding_right = 0,
 	icon = { drawing = false },
 	label = { drawing = false },
-	background = { drawing = true, color = 0x00000000, height = VIZ_HEIGHT },
+	background = { drawing = true, color = 0x00000000 },
 })
 
 add_popup_spacer("spotify.pad.right", POPUP_PADDING)
@@ -551,10 +552,10 @@ local function viz_slot()
 	return nil
 end
 
--- 窓の左上の位置。x は空きの中央、y は popup の縦の中央から VIZ_Y (上が正) の位置を、窓の中央にする。
+-- 窓の左上の位置。x は空きの中央、y は popup の縦の中央から VIZ_TOP (上が正) の位置を、窓の上端にする。
 local function viz_window_pos(rect)
 	local x = math.floor(rect.origin[1] + (rect.size[1] - VIZ_WIDTH) / 2 + 0.5)
-	local y = math.floor(rect.origin[2] + rect.size[2] / 2 - VIZ_Y - VIZ_HEIGHT / 2 + 0.5)
+	local y = math.floor(rect.origin[2] + rect.size[2] / 2 - VIZ_TOP + 0.5)
 	return x, y
 end
 

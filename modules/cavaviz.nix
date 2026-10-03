@@ -7,9 +7,10 @@ let
   cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
 
   # cava は設定ディレクトリ ($XDG_CONFIG_HOME/cava/shaders) からシェーダーを読む。
-  # 同梱の bar_spectrum.frag を、次の 2 点だけ変えた bar_clear.frag にして使う。
+  # 同梱の bar_spectrum.frag を、次の 3 点だけ変えた bar_clear.frag にして使う。
   # - 背景 (棒の外と、棒の間の隙間) を、bg_color ではなくアルファ 0 (透明) で描く (窓の透明化は sdl-transparent.patch)。
   # - 無音のときに底に引く 1px の線をやめる (棒の高さが 1px 未満なら 0 にする)。
+  # - 棒を半透明 (アルファ 0.5) にして、重なる文字を透けて見せる。窓は premultiplied alpha で合成されるので、色にもアルファを掛ける。
   # 上流で該当の行が変わったら、--replace-fail でビルドが失敗する。
   # 必要なシェーダーが揃っていれば、cava は設定ディレクトリに何も書き込まない
   # (読み取り専用のストアでも動く。実機で確認済み)。
@@ -19,7 +20,8 @@ let
     cp ${shaders}/pass_through.vert $out/cava/shaders/pass_through.vert
     substitute ${shaders}/bar_spectrum.frag $out/cava/shaders/bar_clear.frag \
       --replace-fail 'fragColor = vec4(bg_color, 1.0);' 'fragColor = vec4(0.0);' \
-      --replace-fail 'y = 1.0 / u_resolution.y;' 'y = 0.0;'
+      --replace-fail 'y = 1.0 / u_resolution.y;' 'y = 0.0;' \
+      --replace-fail 'fragColor = vec4(fg_color, 1.0);' 'fragColor = vec4(fg_color * 0.5, 0.5);'
   '';
 
   # sdl_x / sdl_y はポップアップを開くたびに変わるので、@X@ などのまま置いておき (幅と高さも @W@ @H@ にして、
