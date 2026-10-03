@@ -35,7 +35,7 @@ local function update()
 		source = source:match("^%s*(.-)%s*$")
 
 		if source:find("Japanese") then
-			ime:set({ label = "JP" })
+			ime:set({ label = "JA" })
 		else
 			ime:set({ label = "EN" })
 		end
