@@ -4,13 +4,21 @@ local ui = require("ui")
 local snapshot_path = os.getenv("HOME")
 	.. "/Library/Application Support/com.zmk-battery-center.app/external/battery-state-v1.json"
 
+local LABEL = {
+	font_size = 11,
+	-- bracketの右端からテキストまでの余白。他のbracketと同じ値にそろえる。
+	-- 右端のitemなのでlabel自身のpadding_rightは0にし(add_label)、余白はここだけで決める。
+	central_padding_right = ui.bracket_padding,
+}
+
 local NUB = {
 	width = 1,
 	height = 4,
 	corner_radius = 1,
-	-- ラベルのpadding_right(LABEL.central_padding_right)を基準に、
-	-- nubがラベルの左に隙間なく来るよう実機で校正した値。
-	gap = 2,
+	-- sketchybarは、nubをラベルのpadding_rightの分だけ右へずらして配置する
+	-- (実機検証: central_padding_rightを5から8にするとnubも3px右へ寄った)。
+	-- その分を引き、central_padding_right=5のときに実機で校正したgap=2と同じ見た目にする。
+	gap = LABEL.central_padding_right - 3,
 }
 
 local BAR = {
@@ -24,24 +32,19 @@ local BAR = {
 -- outlineとnubは、互いのpadding_rightが同じ値のときに隙間なく隣接する
 -- (sketchybarの実機検証で確認した挙動)。outline側はNUB.gapをそのまま使う。
 
-local LABEL = {
-	font_size = 11,
-	central_padding_right = 5, -- ラベル自身の右隣アイテムとの間隔
-}
-
--- zmk-battery-center本家のdigit_count()/pct_col_wと同じ考え方:
--- central/peripheralのうち桁数が大きい方に合わせて、ラベル幅を2段で共有する。
--- そうすることで、両方が1桁の時はアイコンとの間隔が詰まり、
--- 片方だけ桁数が多い時だけ、短い方の数字の左に余白ができる。
--- 各値は実機で"5%"/"45%"/"100%"をwidth=1(意図的に不足させる)に設定し、
+-- batteryと同じく、1桁は"05%"のように0埋めして2桁として扱う。
+-- central/peripheralのうち桁数が大きい方に合わせて、ラベル幅を2段(2桁/3桁)で共有する。
+-- 100%のときだけ幅が変わり、他のレベルでは変わらない。
+-- 各値は実機で"45%"/"100%"をwidth=1(意図的に不足させる)に設定し、
 -- bounding_rectsのsize(sketchybarが自動的に上書きして広げた実際の幅)を
--- 確認して実測した値。LABEL.font_sizeを変更した場合は再測定が必要。
+-- 確認して実測した値(label内側のpadding左右4pxずつを含む)から、
+-- add_labelでpadding_rightを0にした分の4pxを引いている。
+-- LABEL.font_sizeを変更した場合は再測定が必要。
 -- ラベルはalign="right"なので、幅を増やした分はバーとテキストの間隔になる。
 local LABEL_GAP_EXTRA = 1
 local LABEL_WIDTH_BY_DIGITS = {
-	[1] = 22 + LABEL_GAP_EXTRA, -- "5%"実測21px + 余裕1px
-	[2] = 29 + LABEL_GAP_EXTRA, -- "45%"実測28px + 余裕1px
-	[3] = 36 + LABEL_GAP_EXTRA, -- "100%"実測35px + 余裕1px
+	[2] = 25 + LABEL_GAP_EXTRA, -- "45%"実測28px - padding_right 4px + 余裕1px
+	[3] = 32 + LABEL_GAP_EXTRA, -- "100%"実測35px - padding_right 4px + 余裕1px
 }
 local MAX_LABEL_WIDTH = LABEL_WIDTH_BY_DIGITS[3]
 
@@ -61,6 +64,7 @@ local function add_label(name, width, padding_right, row_offset)
 			font = { style = "Bold", size = LABEL.font_size },
 			y_offset = row_offset,
 			align = "right",
+			padding_right = 0,
 		},
 	})
 end
@@ -87,6 +91,9 @@ local function add_outline(name, padding_right, row_offset)
 		drawing = false,
 		width = BAR.width,
 		padding_right = padding_right,
+		-- bracketの左端に来るitemなので、bracketの左端からバーまでの余白をここで決める
+		-- (central/peripheralのoutlineは同じ位置に重なるので、両方に同じ値を入れる)。
+		padding_left = ui.bracket_padding,
 		icon = { drawing = false },
 		label = { drawing = false },
 		background = {
@@ -119,7 +126,8 @@ local function add_fill(name, padding_right, row_offset)
 end
 
 -- sketchybarはposition="right"のアイテムを追加順に右→左へ並べ、各アイテムの
--- 座標は「自分のpadding_right」でのみ制御できる(padding_leftは効かない)。
+-- 座標は「自分のpadding_right」でのみ制御できる(padding_leftは配置に効かず、
+-- bracketの範囲にだけ含まれる。add_outlineはそれを左余白に使う)。
 -- ここではcentralのlabel/nub/outlineを先に追加し、そのすぐ後ろに
 -- peripheralのlabel/nub/outlineを差し込むことで、peripheral側は
 -- 「centralグループの合計幅(group_offset)ぶんpadding_rightを引くだけ」で
@@ -165,7 +173,8 @@ local peripheral =
 
 -- 上下2段を重ねるための負のpadding_rightを使う都合で、左隣のアイテムとの間に
 -- 見た目より広い隙間ができる。bracketの左に置いたspacerのpadding_rightを調整し、
--- 左隣のbracket(ime)との実測の隙間がui.bracket_gapになるよう詰める(ui.close_gap)。
+-- 左隣のbracket(ime)との実測の隙間が、他のbracket間と同じ(通常のspacerを挟んだとき)に
+-- なるよう詰める(ui.close_gap)。
 -- spacerはbracketより後に作ること(実機検証。幅は自動にしないと効かない: ui.add_spacer)。
 local GAP_SETTLE_DELAY = 0.3 -- レイアウト反映を待つ秒数
 
@@ -213,22 +222,13 @@ local function fill_width_for(level)
 	return trunc(inner_width * clamped_level / 100)
 end
 
--- zmk-battery-center本家のdigit_count()と同じロジック。
--- levelがnil(未接続/非表示)の場合は1を返し、共有幅を無駄に広げないようにする
--- (本家はunwrap_or(2)だが、本実装ではhide_group時に幅が意味を持たないため
--- 最小値でよい)。
+-- 1桁は0埋めして2桁として扱うので、返すのは2か3のみ(100%のときだけ3)。
+-- levelがnil(未接続/非表示)の場合は最小の2を返し、共有幅を無駄に広げないようにする。
 local function digit_count(level)
-	if level == nil then
-		return 1
-	end
-	local clamped = math.min(level, 100)
-	if clamped >= 100 then
+	if level ~= nil and level >= 100 then
 		return 3
-	elseif clamped >= 10 then
-		return 2
-	else
-		return 1
 	end
+	return 2
 end
 
 -- central/peripheralの桁数のうち大きい方に合わせて共有レイアウトを適用する。
@@ -266,7 +266,8 @@ local function apply_group(group, connection_status, level_str, fill_padding_rig
 	group.nub:set({ drawing = true })
 	group.outline:set({ drawing = true })
 	group.fill:set({ drawing = true, width = fill_width, padding_right = fill_padding_right })
-	group.label:set({ drawing = true, label = level .. "%" })
+	-- 1桁のときだけ0埋めして、9%と10%で幅が変わらないようにする(batteryと同じ)
+	group.label:set({ drawing = true, label = string.format("%02d%%", trunc(level)) })
 
 	return fill_padding_right
 end

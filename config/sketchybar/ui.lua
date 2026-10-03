@@ -137,8 +137,13 @@ local function visible_rect(name)
 	return nil
 end
 
--- 隣り合う left (左) と right (右) の見た目上の隙間が spacing になるよう、
--- 2 つの間に置いた spacer (add_spacer で作ったもの) の padding_right を調整する。
+-- add_spacer が描画する幅 (空のラベルが 1px の幅を持つ。実機で測定)。
+-- spacer の padding_right を width にしても、見た目の隙間は width + 1 になる。
+local SPACER_RENDERED_WIDTH = 1
+
+-- 隣り合う left (左) と right (右) の見た目上の隙間が、通常の spacer (add_spacer の
+-- width が spacing のもの) を挟んだときと同じになるよう、2 つの間に置いた spacer の
+-- padding_right を調整する。見た目の隙間は spacing + SPACER_RENDERED_WIDTH。
 -- left / right には bracket 名も渡せる。
 -- 実測値に対する差分で更新するので、何度呼んでも収束する。
 -- どちらかが非表示なら spacer を spacing (通常の間隔) に戻す。
@@ -156,7 +161,7 @@ function M.close_gap(opts)
 
 	local gap = right.origin[1] - (left.origin[1] + left.size[1])
 	local current = sbar.query(spacer.name).geometry.padding_right
-	spacer:set({ padding_right = current - (gap - spacing) })
+	spacer:set({ padding_right = current - (gap - (spacing + SPACER_RENDERED_WIDTH)) })
 end
 
 return M
