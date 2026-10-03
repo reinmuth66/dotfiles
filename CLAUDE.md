@@ -62,7 +62,7 @@ nh darwin switch ~/dotfiles
 **CavaViz (サウンドビジュアライザ) の注意:**
 - cava の SDL 版に `pkgs/cavaviz/sdl-window.patch` (枠なし・最前面) と `sdl-transparent.patch` (窓の透明化。sdl2-compat 経由で SDL3 の透明フラグを渡す。背景はシェーダーがアルファ 0 で描く) を当て、`/usr/bin/codesign` で ad-hoc 署名した .app にする。署名はビルド中に行うので、Nix のサンドボックスが無効 (`sandbox = false`) であることが前提。
 - 音声の取得 (Core Audio tap) には「システムオーディオ録音」の許可が要る。初回だけ、ポップアップを開いて再生すると macOS 標準のダイアログが出るので「許可」を押す (そのときの最初の起動は失敗するが、次から動く)。システム設定の「システムオーディオ録音のみ」に `~/Applications/Home Manager Apps/CavaViz.app` を手で追加しても付けられる (一覧に出なくても、`TCC.db` には記録される)。署名の指定要件を識別子 (`local.dotfiles.cavaviz`) だけにしてあるので、cava を更新しても許可は外れない。識別子を変えると、許可を付け直す必要がある (古い項目は `tccutil reset AudioCapture <識別子>` で消せる)。
-- 起動と停止は `config/sketchybar/items/spotify.lua` が行う。再生中にホバーすると、cava を画面外に隠して起動し、準備ができてからポップアップと窓を同時に出す (ホバーから約 0.42 秒)。ホバーが外れる、または再生が止まると止める。
+- 起動と停止は `config/sketchybar/items/spotify.lua` が行う。再生中にホバーすると、ポップアップをすぐ開いてフェードインさせながら、cava を画面外に隠して起動し、アニメーションの終わりと準備完了の遅いほうで窓を出す (アニメーションの長さ `FADE_IN_FRAMES_VIZ` を、cava の準備にかかる時間の約 0.4 秒に合わせてある)。ホバーが外れる、または再生が止まると止める。
 
 **Spotify ポップアップの配色:**
 - `config/sketchybar/palette.lua` が、アルバム画像の色の頻度表 (ImageMagick で抽出。`sketchybar.nix` の `extraPackages` に `imagemagick`) から、アクセント・背景・文字の色を決める。無彩色の画像は従来の固定色に戻す。
