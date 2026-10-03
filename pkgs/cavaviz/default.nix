@@ -5,6 +5,10 @@
 # - cava に sdl-window.patch を当てる: 枠なし・最前面 (ウィンドウレベル 102。sketchybar のポップアップは
 #   101)・クリックを通す・フォーカスを奪わない。あわせて、cava が許可の有無を事前に確認して、なければ
 #   エラーで終了する処理をやめる (下記)。
+# - sdl-transparent.patch: 窓を透明にする。nixpkgs の SDL2 は sdl2-compat (中身は SDL3) で、窓の作成時のフラグを
+#   そのまま SDL3 に渡すので、SDL3 の SDL_WINDOW_TRANSPARENT (0x40000000) を足す。これがないと SDL3 が窓の
+#   view の背景を黒で塗り、シェーダーのアルファが無視される。アルファつきの GL の面も要求する。
+#   シェーダーがアルファ 0 で描いた所は、後ろのポップアップが透けて見える (シェーダーは modules/cavaviz.nix)。
 # - fftw-estimate.patch: FFT の計画を FFTW_MEASURE (実測して最速の方式を探す) から FFTW_ESTIMATE にする。
 #   起動時の cava_init が約 670ms から数 ms になる (結果は同じ)。起動の遅さの大半はここだった。
 # - 音声の取得 (Core Audio tap) には「システムオーディオ録音」の許可が要る。許可は起動元のアプリに付くので、
@@ -24,6 +28,7 @@ let
   cavaSdl = (cava.override { withSDL2 = true; }).overrideAttrs (old: {
     patches = (old.patches or [ ]) ++ [
       ./sdl-window.patch
+      ./sdl-transparent.patch
       ./fftw-estimate.patch
     ];
     # パッチが objc_msgSend を使うので、Objective-C のランタイムをリンクする

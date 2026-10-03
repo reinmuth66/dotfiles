@@ -53,14 +53,14 @@ nh darwin switch ~/dotfiles
 | `yazi.nix` | yazi パッケージ + xdg.configFile (config/yazi/ + プラグイン) |
 | `claude.nix` | home.file (config/claude/) |
 | `czg.nix` | importNpmLock (pkgs/czg/) — conventional commit TUI |
-| `cavaviz.nix` | Spotify ポップアップの円形サウンドビジュアライザ (pkgs/cavaviz/ の CavaViz.app + cava の設定) |
+| `cavaviz.nix` | Spotify ポップアップの棒グラフ (bar_spectrum) のサウンドビジュアライザ (pkgs/cavaviz/ の CavaViz.app + cava の設定) |
 
 **config/ に設定ファイルを置くツール:**
 - `programs.*` で表現できない、または Lua/JSON-with-comments など Nix に変換しにくいもの
 - ghostty、zed、wezterm、nvim、yazi、claude
 
 **CavaViz (サウンドビジュアライザ) の注意:**
-- cava の SDL 版に `pkgs/cavaviz/sdl-window.patch` を当て、`/usr/bin/codesign` で ad-hoc 署名した .app にする。署名はビルド中に行うので、Nix のサンドボックスが無効 (`sandbox = false`) であることが前提。
+- cava の SDL 版に `pkgs/cavaviz/sdl-window.patch` (枠なし・最前面) と `sdl-transparent.patch` (窓の透明化。sdl2-compat 経由で SDL3 の透明フラグを渡す。背景はシェーダーがアルファ 0 で描く) を当て、`/usr/bin/codesign` で ad-hoc 署名した .app にする。署名はビルド中に行うので、Nix のサンドボックスが無効 (`sandbox = false`) であることが前提。
 - 音声の取得 (Core Audio tap) には「システムオーディオ録音」の許可が要る。初回だけ、ポップアップを開いて再生すると macOS 標準のダイアログが出るので「許可」を押す (そのときの最初の起動は失敗するが、次から動く)。システム設定の「システムオーディオ録音のみ」に `~/Applications/Home Manager Apps/CavaViz.app` を手で追加しても付けられる (一覧に出なくても、`TCC.db` には記録される)。署名の指定要件を識別子 (`local.dotfiles.cavaviz`) だけにしてあるので、cava を更新しても許可は外れない。識別子を変えると、許可を付け直す必要がある (古い項目は `tccutil reset AudioCapture <識別子>` で消せる)。
 - 起動と停止は `config/sketchybar/items/spotify.lua` が行う。再生中にホバーすると、cava を画面外に隠して起動し、準備ができてからポップアップと窓を同時に出す (ホバーから約 0.42 秒)。ホバーが外れる、または再生が止まると止める。
 

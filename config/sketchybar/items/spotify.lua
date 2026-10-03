@@ -9,10 +9,11 @@
 -- (毎秒の osascript の取得は行わない。詳しくは再生位置の節を参照)。
 -- 回転は background.image.rotation を使う (SketchyBar#815 のパッチが前提、pkgs/sketchybar/)。
 -- 操作: 左クリックで再生/一時停止、上スクロールで前の曲、下スクロールで次の曲。
--- マウスを乗せると、カバー画像と、曲名・アーティスト・アルバム・再生位置をポップアップで横並びに表示する
+-- マウスを乗せると、カバー画像と、曲名・アーティスト・アルバム・再生位置をポップアップで表示する
 -- (配置は FelixKratz/dotfiles の spotify ウィジェットを参考にした。表示のみで、ボタンは持たない)。
--- ポップアップの右端には、再生中の音に合わせて動く円形のサウンドビジュアライザを出す。cava の SDL の窓を
--- ポップアップの空き (spotify.viz) に重ねる。再生中にホバーすると、cava を隠して起動し、準備ができてから
+-- カバー画像の下に「経過時間 / 総時間」を出し、曲情報の下に、再生位置のバーと、その上に再生中の音に合わせて
+-- 動く棒グラフ (cava の bar_spectrum) を出す。棒グラフは cava の SDL の窓を、ポップアップの空き (spotify.viz)
+-- に重ねる。再生中にホバーすると、cava を隠して起動し、準備ができてから
 -- ポップアップと窓を同時に出す (modules/cavaviz.nix、pkgs/cavaviz/ を参照)。
 -- マウス操作は、bracket 全体を覆う透明な item (hit) が受ける。画像の item は再描画が多く、
 -- マウスを購読させると mouse.exited が届かずポップアップが閉じなくなることがあるため (ui.add_hit_layer)。
@@ -25,25 +26,35 @@ local ART_PX = SIZE * 4 -- キャッシュする画像の一辺 (px)
 local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/spotify"
 
 -- ポップアップの配置 (pt)。見た目は実機で確認して調整する。
--- 左から 余白 | カバー画像 | 余白 | 文字の領域 (TEXT_WIDTH) | 余白 | ビジュアライザ (VIZ_SIZE) | 余白 の順に並べる。
+-- 左から 余白 | カバー画像 | 余白 | 文字の領域 (TEXT_WIDTH) | 余白 の順に並べる。
+-- 縦は、左の列がカバー画像 + 経過時間 / 総時間、右の列が 曲名・アーティスト・アルバム + 棒グラフ + 再生位置のバー。
+-- y_offset は、ポップアップの縦の中央からの距離 (上が正)。
 local COVER_SIZE = 72
 local COVER_PX = COVER_SIZE * 4 -- ポップアップ用に、アイコン用 (ART_PX) とは別に大きい画像をキャッシュする
-local POPUP_HEIGHT = 98
 local POPUP_PADDING = 12
 local TEXT_WIDTH = 200
+local TIME_GAP = 3 -- カバー画像と、その下の時刻の間 (pt)
+local TIME_ROW_HEIGHT = 13 -- 時刻の行の高さ (pt)
+local CONTENT_HEIGHT = COVER_SIZE + 2 * colors.popup.border_width + TIME_GAP + TIME_ROW_HEIGHT -- 左の列の高さ (偶数にする)
+local POPUP_HEIGHT = CONTENT_HEIGHT + 2 * POPUP_PADDING
+local CONTENT_TOP = math.floor(CONTENT_HEIGHT / 2) -- 中央から見た、左の列の上端
+-- 時刻の行と、再生位置のバーは、左の列の下端に高さをそろえる (行の中央)
+local BOTTOM_ROW_Y = -(CONTENT_TOP - math.floor(TIME_ROW_HEIGHT / 2))
 -- ポップアップの文字は、メニューバーと同じシステムフォントにする。
 -- ファミリに ".AppleSystemUIFont" を指定すると欧文は SF になり、日本語は自動で
 -- メニューバーと同じ ".Hiragino Kaku Gothic Interface" (W4) に切り替わる (CoreText で確認)。
 -- "SF Pro" などの名前は、SF Pro が入っていないと Helvetica に解決されてしまう。
 local POPUP_FONT_FAMILY = ".AppleSystemUIFont"
 local POPUP_FONT_STYLE = "Bold" -- 欧文は System Font Bold、日本語は W6 になる (Regular なら W4)
-local TIME_WIDTH = 36 -- 再生位置バーの両脇の時刻 (経過 / 総時間) の幅
-local SLIDER_WIDTH = TEXT_WIDTH - 2 * TIME_WIDTH
+-- 再生位置のバーは、時刻をカバー画像の下に出す分、文字の領域の全幅に伸ばす
+local SLIDER_WIDTH = TEXT_WIDTH
 
--- サウンドビジュアライザ。窓は VIZ_SIZE 四方で、ポップアップの空き (spotify.viz) の中央に重ねる。
--- 円は窓の高さいっぱいに描かれるので、POPUP_HEIGHT より小さくして、上下に余白を残す。
+-- サウンドビジュアライザ (棒グラフ)。窓は文字の領域と同じ幅で、再生位置のバーのすぐ上に重ねる
+-- (窓の下端は、バー (高さ 4) の上端の 1pt 上)。窓の縦の位置は、空き (spotify.viz) の y_offset から決める。
 -- 設定 (棒の数、感度など) は modules/cavaviz.nix。ここでは窓の位置と大きさだけを決める。
-local VIZ_SIZE = 84
+local VIZ_WIDTH = TEXT_WIDTH
+local VIZ_HEIGHT = 22
+local VIZ_Y = BOTTOM_ROW_Y + 2 + 1 + math.floor(VIZ_HEIGHT / 2) -- 窓の中央 (空きの y_offset)
 local VIZ_APP = os.getenv("HOME") .. "/Applications/Home Manager Apps/CavaViz.app"
 local VIZ_CONFIG_HOME = os.getenv("HOME") .. "/.config/cavaviz"
 local VIZ_TEMPLATE = VIZ_CONFIG_HOME .. "/config.template"
@@ -137,7 +148,7 @@ local hit = ui.add_hit_layer("spotify.hit", SIZE, BRACKET_PADDING)
 
 -- ポップアップの中身。横に追加順で並ぶ: カバー画像 | 文字の領域。
 -- 文字の領域は、曲名・アーティスト・アルバム・再生位置の item を width = 0 にして同じ x から
--- y_offset で縦にずらして重ね、その右に TEXT_WIDTH の空き (spotify.pad.body) を置いて幅を確保する。
+-- y_offset で縦にずらして重ね、その右に TEXT_WIDTH の空き (spotify.viz) を置いて幅を確保する。
 -- 空の項目 (ポッドキャストのアーティストなど) は非表示にする (その行は空く)。
 -- 文字は POPUP_FONT_FAMILY / POPUP_FONT_STYLE (メニューバーと同じフォント) で、size と color だけ行ごとに変える。
 -- features は OpenType の機能タグ (カンマ区切り)。時刻には等幅数字の "tnum" を渡す
@@ -167,9 +178,29 @@ local COVER_RADIUS = 6
 local COVER_BORDER = colors.popup.border_width
 local COVER_BOX = COVER_SIZE + 2 * COVER_BORDER
 
+-- 経過時間 / 総時間: カバー画像の下の中央。width = 0 の item を画像の直前に置き、画像と同じ x から描く。
+-- 時刻は等幅数字 (tnum) にして、秒が変わっても幅を変えない。
+local time_text = sbar.add("item", "spotify.time.text", {
+	position = "popup.spotify",
+	width = 0,
+	y_offset = BOTTOM_ROW_Y,
+	padding_left = 0,
+	padding_right = 0,
+	icon = { drawing = false },
+	label = {
+		string = "00:00 / 00:00",
+		font = popup_font(10.0, "tnum"),
+		width = COVER_BOX,
+		align = "center",
+		padding_left = 0,
+		padding_right = 0,
+	},
+})
+
 local cover = sbar.add("item", "spotify.cover", {
 	position = "popup.spotify",
 	width = COVER_BOX,
+	y_offset = CONTENT_TOP - math.floor(COVER_BOX / 2),
 	padding_left = 0,
 	padding_right = 0,
 	icon = { drawing = false },
@@ -195,9 +226,9 @@ add_popup_spacer("spotify.pad.cover", POPUP_PADDING)
 -- 文字は幅 (TEXT_WIDTH) に収まる所で切る。幅は文字ごとの em 換算の見積もりで測る (truncate を参照)。
 -- 行ごとの文字数は固定せず、size から決まる。
 local ROWS = {
-	{ key = "title", size = 14.0, y_offset = 30 },
-	{ key = "artist", size = 12.0, y_offset = 10 },
-	{ key = "album", size = 11.0, y_offset = -7, color = 0xffaaaaaa },
+	{ key = "title", size = 14.0, y_offset = CONTENT_TOP - 9 },
+	{ key = "artist", size = 12.0, y_offset = CONTENT_TOP - 29 },
+	{ key = "album", size = 11.0, y_offset = CONTENT_TOP - 46, color = 0xffaaaaaa },
 }
 
 local rows = {}
@@ -222,32 +253,17 @@ for _, row in ipairs(ROWS) do
 	}
 end
 
--- 再生位置: 左に経過時間、右に総時間、間にバー。バーは表示だけ (操作は受けない)。
--- 秒の更新は、アルバム画像の回転と同じ周 (回転ループ) で進める (step_time の付近)。
+-- 再生位置のバー。文字の領域の全幅に伸ばし、高さは時刻の行にそろえる。バーは表示だけ (操作は受けない)。
+-- 時刻は、カバー画像の下 (time_text)。秒の更新は、アルバム画像の回転と同じ周 (回転ループ) で進める
+-- (step_time の付近)。
 local time = sbar.add("slider", "spotify.time", SLIDER_WIDTH, {
 	position = "popup.spotify",
 	width = 0,
-	y_offset = -32,
+	y_offset = BOTTOM_ROW_Y,
 	padding_left = 0,
 	padding_right = 0,
-	-- 時刻は等幅数字 (tnum) にして、秒が変わっても幅を変えない。
-	-- 経過時間は左端、総時間は右端に寄せ、文字の領域の両端 (曲名の左端、バーの右端) にそろえる
-	icon = {
-		string = "00:00",
-		font = popup_font(10.0, "tnum"),
-		width = TIME_WIDTH,
-		align = "left",
-		padding_left = 0,
-		padding_right = 0,
-	},
-	label = {
-		string = "00:00",
-		font = popup_font(10.0, "tnum"),
-		width = TIME_WIDTH,
-		align = "right",
-		padding_left = 0,
-		padding_right = 0,
-	},
+	icon = { drawing = false },
+	label = { drawing = false },
 	slider = {
 		percentage = 0,
 		highlight_color = colors.white,
@@ -255,19 +271,19 @@ local time = sbar.add("slider", "spotify.time", SLIDER_WIDTH, {
 	},
 })
 
-add_popup_spacer("spotify.pad.body", TEXT_WIDTH)
-add_popup_spacer("spotify.pad.viz", POPUP_PADDING)
-
--- ビジュアライザの窓を重ねる空き。位置は sketchybar --query の bounding_rects で取る。
+-- ビジュアライザの窓を重ねる空き。幅は TEXT_WIDTH で、文字の領域の右の端まで広げて幅を確保する
+-- (曲名などの item は width = 0 なので、この空きが文字の領域の幅になる)。位置は sketchybar --query の
+-- bounding_rects で取る。矩形は、popup の高さいっぱいの帯になる (y_offset は含まれない)。
 -- 何も描かない item だと位置が取れない可能性があるので、透明な背景を持たせる。
 sbar.add("item", "spotify.viz", {
 	position = "popup.spotify",
-	width = VIZ_SIZE,
+	width = TEXT_WIDTH,
+	y_offset = VIZ_Y,
 	padding_left = 0,
 	padding_right = 0,
 	icon = { drawing = false },
 	label = { drawing = false },
-	background = { drawing = true, color = 0x00000000 },
+	background = { drawing = true, color = 0x00000000, height = VIZ_HEIGHT },
 })
 
 add_popup_spacer("spotify.pad.right", POPUP_PADDING)
@@ -349,7 +365,7 @@ local OPEN_TIMEOUT = 0.5 -- 位置の取得が返らなくても、ポップア�
 local SNAP_BACK = 1.5 -- 実際の位置が表示より後ろへこの秒数以上ずれていたら、表示も戻して合わせる
 
 -- 分も 0 埋めの 2 桁 (mm:ss) にして、桁数が増えて幅が変わらないようにする。
--- 100 分以上は 3 桁になり、TIME_WIDTH を超えて見切れる。
+-- 100 分以上は 3 桁になり、時刻の行 (COVER_BOX) を超えて見切れる。
 local function format_time(seconds)
 	return string.format("%02d:%02d", math.floor(seconds / 60), math.floor(seconds % 60))
 end
@@ -360,11 +376,8 @@ local function render(animated)
 		return
 	end
 	local function set_values()
-		time:set({
-			icon = { string = format_time(shown) },
-			label = { string = format_time(duration) },
-			slider = { percentage = math.min(100, shown / duration * 100) },
-		})
+		time_text:set({ label = { string = format_time(shown) .. " / " .. format_time(duration) } })
+		time:set({ slider = { percentage = math.min(100, shown / duration * 100) } })
 	end
 	if animated == false then
 		set_values()
@@ -515,10 +528,10 @@ local function set_lit(on)
 	end)
 end
 
--- サウンドビジュアライザ。cava の SDL の窓 (CavaViz.app) を、ポップアップの空き (spotify.viz) の中央に重ねる。
+-- サウンドビジュアライザ。cava の SDL の窓 (CavaViz.app) を、ポップアップの空き (spotify.viz) に重ねる。
 -- 再生中のホバーで起動し (ポップアップを開く前に viz_wait)、ホバーが外れる、または再生が止まったら止める
 -- (停止中は何も描かないので、動かす意味がない)。ポップアップを開く前から、窓を画面外に隠して準備しておく。
--- 起動のたびに、窓の位置を設定のひな形 (VIZ_TEMPLATE の @X@ @Y@ @SIZE@) に入れて、キャッシュに書き出す。
+-- 起動のたびに、窓の位置と大きさを設定のひな形 (VIZ_TEMPLATE の @X@ @Y@ @W@ @H@) に入れて、キャッシュに書き出す。
 -- 音声の取得 (Core Audio tap) の許可は CavaViz.app に付いているので、sketchybar の子プロセスにせず、
 -- open で起動する (pkgs/cavaviz/default.nix を参照)。
 -- viz.running: cava を起動した (起動の待ちを含む)。viz.ready: 準備完了のイベントが届いた。
@@ -538,10 +551,10 @@ local function viz_slot()
 	return nil
 end
 
--- 窓の左上の位置。空きの中央に置く。
+-- 窓の左上の位置。x は空きの中央、y は popup の縦の中央から VIZ_Y (上が正) の位置を、窓の中央にする。
 local function viz_window_pos(rect)
-	local x = math.floor(rect.origin[1] + (rect.size[1] - VIZ_SIZE) / 2 + 0.5)
-	local y = math.floor(rect.origin[2] + (rect.size[2] - VIZ_SIZE) / 2 + 0.5)
+	local x = math.floor(rect.origin[1] + (rect.size[1] - VIZ_WIDTH) / 2 + 0.5)
+	local y = math.floor(rect.origin[2] + rect.size[2] / 2 - VIZ_Y - VIZ_HEIGHT / 2 + 0.5)
 	return x, y
 end
 
@@ -565,7 +578,7 @@ end
 -- 設定のひな形に位置 (画面外) を入れて書き出し、制御ファイルの初期値 (hide) を書いて、cava を起動する。
 -- 制御ファイル ("show X Y" か "hide") は、起動後も窓の表示、移動、非表示の指示に使う。
 local VIZ_START = [[
-mkdir -p %q && sed -e 's/@X@/%d/' -e 's/@Y@/%d/' -e 's/@SIZE@/%d/' %q > %q \
+mkdir -p %q && sed -e 's/@X@/%d/' -e 's/@Y@/%d/' -e 's/@W@/%d/' -e 's/@H@/%d/' %q > %q \
 	&& printf %%s %q > %q \
 	&& open -n -a %q --env XDG_CONFIG_HOME=%q --env CAVAVIZ_CONTROL=%q --env CAVAVIZ_READY_BIN="$(command -v sketchybar)" --env CAVAVIZ_READY_EVENT=%s --env CAVAVIZ_READY_ID=%d --stderr %q --args -p %q
 ]]
@@ -577,7 +590,8 @@ local function viz_launch(id)
 			VIZ_RUNTIME_DIR,
 			VIZ_HIDDEN_POS,
 			VIZ_HIDDEN_POS,
-			VIZ_SIZE,
+			VIZ_WIDTH,
+			VIZ_HEIGHT,
 			VIZ_TEMPLATE,
 			VIZ_CONFIG,
 			"hide",

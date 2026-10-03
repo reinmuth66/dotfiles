@@ -1,0 +1,29 @@
+--- a/output/sdl_glsl.c
++++ b/output/sdl_glsl.c
+@@ -90,9 +90,17 @@
+     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 1);
+     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
++    // A framebuffer with an alpha channel, so that the shader can leave parts of the window transparent.
++    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+ #endif
+ 
+     Uint32 sdl_flags = SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS | SDL_WINDOW_ALWAYS_ON_TOP;
++#ifdef __APPLE__
++    // SDL_WINDOW_TRANSPARENT of SDL3 (0x40000000). SDL2 here is sdl2-compat, which passes the flags on to SDL3.
++    // SDL3 then makes the NSWindow non-opaque with a clear background and the GL surface non-opaque.
++    // Without it, SDL3 paints the view layer black behind the GL surface (the alpha of the shader is ignored).
++    sdl_flags |= 0x40000000;
++#endif
+ 
+     if (full_screen == 1)
+         sdl_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+@@ -165,7 +173,7 @@
+         exit(1);
+     }
+ 
+-    glClearColor(0.f, 0.f, 0.f, 1.f);
++    glClearColor(0.f, 0.f, 0.f, 0.f);
+ 
+     GLfloat vertexData[] = {-1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 1.0f};
+ 
