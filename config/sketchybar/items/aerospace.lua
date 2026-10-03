@@ -10,15 +10,18 @@ local spaces = {}
 -- 番号とアプリアイコンの間隔 (px)
 local LABEL_GAP = 10
 
--- フォーカス中の workspace に出す背景 (pill) の、文字から端までの余白と高さ (px)。
+-- フォーカス中の workspace に出す背景 (pill) の、文字から端までの余白 (px)。
 local PILL_PADDING = 6
-local PILL_HEIGHT = 22
--- bracket の端から pill までの余白 (px)。上下の余白 (bracket の高さ - PILL_HEIGHT) / 2 に揃える。
-local PILL_INSET = (colors.bracket.height - PILL_HEIGHT) / 2
 -- pill 同士の間隔 (px)
 local PILL_GAP = 10
 -- 各 workspace の外側の padding。隣り合う 2 つで足して PILL_GAP になる。
+-- bracket の範囲は item の padding を含むので、bracket の左右の端から pill までの余白も
+-- この値 (PILL_GAP の半分) になる。そのため端に spacer は置かない。
 local ITEM_PADDING = PILL_GAP / 2
+-- bracket の上下の端から pill までの余白 (px)。左右の端と同じく PILL_GAP の半分にそろえる。
+local PILL_MARGIN_Y = PILL_GAP / 2
+-- pill の高さは bracket の高さと上下の余白から決まる。
+local PILL_HEIGHT = colors.bracket.height - 2 * PILL_MARGIN_Y
 
 local function app_name_from_line(line)
 	local fields = {}
@@ -144,8 +147,6 @@ local function on_monitor_change(env)
 	end
 end
 
-local edge_left = ui.add_spacer("left", PILL_INSET - ITEM_PADDING, "space.edge_left")
-
 local members = {}
 for i = 1, 9 do
 	local sid = tostring(i)
@@ -154,10 +155,6 @@ for i = 1, 9 do
 	space:subscribe("aerospace_monitor_change", on_monitor_change)
 	table.insert(members, 1, space)
 end
-
-local edge_right = ui.add_spacer("left", PILL_INSET - ITEM_PADDING, "space.edge_right")
-table.insert(members, 1, edge_right)
-table.insert(members, edge_left)
 
 ui.add_bracket("space.bracket", members)
 
