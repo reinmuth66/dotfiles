@@ -14,10 +14,13 @@
 local ui = require("ui")
 local colors = require("colors")
 
-local SIZE = 28 -- 表示サイズ (pt)
+local SIZE = 24 -- 表示サイズ (pt)。アイコンのフォントサイズも同じ値にする (このフォントでは字面が一辺 SIZE の正方形になる)
 local ART_PX = SIZE * 4 -- キャッシュする画像の一辺 (px)
-local ICON_PX = 16 -- アイコンのフォントサイズ。このフォントでは字面が一辺 ICON_PX の正方形になる
 local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/spotify"
+
+-- bracket は円にする。幅を高さ (colors.bracket.height) と同じにし、角の半径は短辺の半分以上にする
+-- (背景の描画側で短辺の半分に丸められる)。左右の padding は、円の中に画像が同心で収まる値。
+local BRACKET_PADDING = (colors.bracket.height - SIZE) / 2
 
 -- 回転: 1 周が ROTATION_PERIOD 秒になるよう、TICK 秒ごとに角度を進める。
 -- 負の値は rotation を減らす向き (見た目の向きはこの符号で決まる)。
@@ -42,11 +45,11 @@ local spotify = ui.add_item("spotify", "right", {
 	-- 箱は SIZE のままにして、字面が箱の中の中央に収まるようにする。
 	icon = {
 		string = ":spotify:",
-		font = "sketchybar-app-font:Regular:" .. ICON_PX .. ".0",
+		font = "sketchybar-app-font:Regular:" .. SIZE .. ".0",
 		color = 0x99ffffff, -- 起動していないことが分かるよう、少し薄くする
 		width = SIZE,
 		align = "left",
-		padding_left = (SIZE - ICON_PX) / 2,
+		padding_left = 0, -- 字面は箱と同じ大きさなので、余白はいらない
 		padding_right = 0,
 	},
 	-- 画像を暗くするための覆い。画像の背景より後に描かれるラベルの背景を、画像と同じ大きさで重ねる
@@ -78,10 +81,12 @@ local spotify = ui.add_item("spotify", "right", {
 	},
 })
 
-ui.add_bracket("spotify.bracket", { spotify }, nil, ui.bracket_padding)
+ui.add_bracket("spotify.bracket", { spotify }, {
+	background = { color = 0xff000000, corner_radius = colors.bracket.height / 2 },
+}, BRACKET_PADDING)
 
 -- bracket の範囲 (spotify の幅 + 左右の padding) 全体でマウス操作を受ける
-local hit = ui.add_hit_layer("spotify.hit", SIZE, ui.bracket_padding)
+local hit = ui.add_hit_layer("spotify.hit", SIZE, BRACKET_PADDING)
 
 -- ポップアップの中身。縦に追加順 (上から曲名、アーティスト、アルバム) で並ぶ。
 -- 空の項目 (ポッドキャストのアーティストなど) は非表示にする。
@@ -198,6 +203,8 @@ local function show_icon()
 end
 
 -- アルバム画像を取得してキャッシュし、そのパスを標準出力に返す。
+-- キャッシュのファイル名には ART_PX を含める。SIZE を変えたとき、古い解像度の画像が残ると、
+-- 表示サイズが SIZE からずれる (表示サイズ = 画像の実ピクセル * SIZE / ART_PX)。
 -- 未起動の Spotify を osascript が起動してしまわないよう、先に pgrep で確認する。
 local FETCH_ARTWORK = string.format(
 	[[
@@ -205,7 +212,7 @@ pgrep -x Spotify >/dev/null || exit 1
 url=$(osascript -e 'tell application "Spotify" to get artwork url of current track') || exit 1
 [ -n "$url" ] || exit 1
 dir=%q
-file="$dir/${url##*/}.jpg"
+file="$dir/${url##*/}.%d.jpg"
 if [ ! -s "$file" ]; then
   mkdir -p "$dir"
   find "$dir" -type f -mtime +30 -delete 2>/dev/null
@@ -217,6 +224,7 @@ fi
 printf '%%s' "$file"
 ]],
 	CACHE_DIR,
+	ART_PX,
 	ART_PX
 )
 
