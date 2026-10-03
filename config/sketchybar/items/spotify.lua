@@ -818,11 +818,18 @@ viz_start = function()
 	if not spinning or not popup_open then
 		return
 	end
-	-- 普通は、ホバーの時点で起動済み (viz_wait)。ここで起動した場合 (ポップアップを開いたまま再生が始まった
-	-- とき) は、起動の指示 (制御ファイルへの "hide" の書き込み) と競合しないよう、前回の位置をすぐには使わない
+	-- 普通は、ホバーの時点で起動済み (viz_wait)。ここで起動した場合 (ポップアップを開いたまま、停止から
+	-- 再生に戻したときなど) は、起動の指示 (制御ファイルへの "hide" の書き込み) と、窓を出す指示 (同じファイルへの
+	-- "show" の書き込み) の順序が決まらず、"hide" があとになると窓が出なくなる。そのため、準備完了を待ってから出す。
 	local was_running = viz.running
 	viz_ensure_hidden()
-	viz_show_at_slot(was_running)
+	if was_running then
+		viz_show_at_slot(true)
+	else
+		viz.on_ready = function()
+			viz_show_at_slot(false)
+		end
+	end
 end
 
 -- ポップアップを開くときに呼ぶ。cava を隠して起動し、準備ができたら on_ready を呼ぶ。
@@ -1063,6 +1070,7 @@ end)
 -- SCROLL_DELTA の符号は上スクロールが正の想定。逆なら SCROLL_UP_SIGN を -1 にする。
 local SCROLL_COOLDOWN = 1.0
 local SCROLL_UP_SIGN = 1
+local PREVIOUS_REFRESH_DELAY = 0.4 -- 「前の曲」の命令から、再生位置を取り直すまでの秒数
 local scroll_locked = false
 
 hit:subscribe("mouse.scrolled", function(env)
@@ -1074,7 +1082,15 @@ hit:subscribe("mouse.scrolled", function(env)
 	sbar.delay(SCROLL_COOLDOWN, function()
 		scroll_locked = false
 	end)
-	spotify_command(delta * SCROLL_UP_SIGN > 0 and "previous track" or "next track")
+	local previous = delta * SCROLL_UP_SIGN > 0
+	spotify_command(previous and "previous track" or "next track")
+	if previous then
+		-- 曲の途中なら、Spotify は同じ曲の先頭に戻す (シーク)。シークでは分散通知が来ないので、
+		-- 少し待って (Spotify が位置を戻すのを待つ)、実際の位置に合わせ直す。別の曲に戻った場合は通知が来る。
+		sbar.delay(PREVIOUS_REFRESH_DELAY, function()
+			refresh_position(nil, false)
+		end)
+	end
 end)
 
 -- 起動時 (再読み込み含む) に既に再生中でも拾えるよう、現在の状態を一度だけ取得する
