@@ -112,17 +112,32 @@ end
 -- そのため、この item は width を使わず icon.width で幅を確保し、右へ target_width、左へ
 -- 2 * padding を戻して、隣の item の位置を変えない (padding_left + padding_right + 幅 = 0)。
 function M.add_hit_layer(name, target_width, padding, props)
-	return M.add_item(
-		name,
-		"right",
-		merge({
-			padding_left = -2 * padding,
-			padding_right = -target_width,
-			icon = { string = "", width = target_width + 2 * padding, padding_left = 0, padding_right = 0 },
-			label = { drawing = false },
-			background = { drawing = true, color = 0x00000000 },
-		}, props)
-	)
+	return M.add_hit_layer_over(name, target_width, target_width + 2 * padding, props)
+end
+
+-- bracket の中に複数の item が並ぶ (幅が違う、または重なっている) ときの add_hit_layer。
+-- 位置と幅は hit_layer_geometry で決める。
+-- 重ねる item より後 (かつ bracket より後) に追加すること。
+function M.add_hit_layer_over(name, chain_width, bracket_width, props)
+	local layer = M.hit_layer_geometry(chain_width, bracket_width)
+	layer.label = { drawing = false }
+	layer.background = { drawing = true, color = 0x00000000 }
+	return M.add_item(name, "right", merge(layer, props))
+end
+
+-- bracket 全体 (bracket_width) を覆い、隣の item の位置を変えない hit の padding と幅。
+-- chain_width は、bracket の中の item が配置を右から左へ進める幅の合計。
+-- width を指定した item は、後続の配置を width の分しか進めない (padding は数えられない) ので、
+-- 幅を指定した item の width を合計する (幅が自動の item は含めない。実機で検証)。
+-- bracket の右端から、hit を置く位置 (chain_width だけ進んだ所) までを負の padding_right で戻し、
+-- padding_left で bracket の左端から配置の続きまで進めて、隣の位置を元に戻す。
+-- (padding_left + padding_right + 幅 = 0)。幅が変わるときは、この値を set し直す。
+function M.hit_layer_geometry(chain_width, bracket_width)
+	return {
+		padding_left = chain_width - bracket_width,
+		padding_right = -chain_width,
+		icon = { string = "", width = bracket_width, padding_left = 0, padding_right = 0 },
+	}
 end
 
 -- bounding_rects はディスプレイ名をキーにした表。先頭の 1 つを使う。
