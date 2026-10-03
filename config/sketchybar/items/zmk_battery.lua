@@ -319,6 +319,31 @@ local function apply_hit(chain_width, layout)
 	local geometry = ui.hit_layer_geometry(chain_width, bracket_width)
 	geometry.drawing = true
 	hit:set(geometry)
+	return bracket_width
+end
+
+-- 直近に反映したときのchain_widthとbracket_width。apply_gapが前回との差分を取るための基準。
+-- 最初のupdateより前は、itemが全て非表示で比べる基準がないのでnil
+-- (その間のずれはsettle_gapが測って詰める)。
+local last_chain_width, last_bracket_width
+
+-- 左隣との隙間を、測定を待たずに保つ。
+-- 隣のitemの位置は、このbracketの中でsketchybarが配置を進めた幅(chain_width)と、
+-- bracketの背景の幅(bracket_width)の差で決まる。バーや桁数が変わると両者は別々に変わるので、
+-- 隙間は「chain_widthの増分 - bracket_widthの増分」だけ変わる(実機で確認。fillを1px細くすると
+-- 左隣が1px右へずれる)。同じだけspacerのpadding_rightを動かせば隙間は変わらない。
+-- settle_gapの測り直しだけに頼ると、その間(GAP_SETTLE_DELAY)は左隣の位置がずれたままになる。
+-- settle_gapは、このモデルで拾えない誤差(ペリフェラルの有無の切り替えなど)を直す役に回る。
+-- ui.close_gapと同じく、spacerの現在値に対する差分で更新するので、
+-- settle_gapが先に補正していても二重にならない。
+-- current_padding_rightは、バッチを始める前に問い合わせたspacerの現在値
+-- (バッチの途中では問い合わせられない)。
+local function apply_gap(chain_width, bracket_width, current_padding_right)
+	if last_chain_width ~= nil then
+		local delta = (chain_width - last_chain_width) - (bracket_width - last_bracket_width)
+		gap_spacer:set({ padding_right = current_padding_right - delta })
+	end
+	last_chain_width, last_bracket_width = chain_width, bracket_width
 end
 
 -- fields(snapshotの1行 = {id, levelPercent, valueStatus}。なければnil)から、表示に使う状態を作る。
@@ -358,6 +383,13 @@ local function update()
 		local central_state = state_from(central_fields)
 		local peripheral_state = state_from(peripheral_fields)
 		local digits = math.max(digit_count(central_state.level), digit_count(peripheral_state.level))
+
+		-- 以降のsetを1つのメッセージにまとめる。別々に送ると、sketchybarがその間の
+		-- 中途半端なレイアウトを1フレーム描画し、左隣のitemが一瞬ずれる(実機で確認。
+		-- fillとspacerを別々にsetすると1フレームだけ1px動き、1回のメッセージなら動かない)。
+		-- バッチの中では問い合わせられないので、spacerの現在値は先に取っておく。
+		local gap_padding_right = sbar.query(gap_spacer.name).geometry.padding_right
+		sbar.begin_config()
 		local layout = apply_shared_layout(LABEL_WIDTH_BY_DIGITS[digits])
 
 		-- peripheral_fillの計算がcentral_fillのpadding_rightに依存するため、
@@ -370,7 +402,9 @@ local function update()
 			hide_group(peripheral)
 		end
 
-		apply_hit(chain_width, layout)
+		local bracket_width = apply_hit(chain_width, layout)
+		apply_gap(chain_width, bracket_width, gap_padding_right)
+		sbar.end_config()
 		settle_gap()
 	end)
 end
