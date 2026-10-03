@@ -92,6 +92,39 @@ function M.add_spacer(position, width, name)
 	})
 end
 
+-- 操作 (ホバー・クリック・スクロール) を受けるための、透明で静的な item。
+-- right の item (width を指定したもの) とその bracket の真上に重なり、bracket 全体で反応する。
+--
+-- マウスイベントは、カーソルの下にあるウィンドウに届く。SketchyBar は、マウスイベントを購読している
+-- item が再描画されるたびに、その item のマウス追跡領域を張り直す。このとき mouse.exited が
+-- 届かなくなることがあり (実機で再現)、ホバーで開いたポップアップが閉じなくなる。
+-- 再描画される item に購読させず、この item に購読させれば、この item は再描画されないので起きない。
+-- bracket の背景 (item の padding の部分) は item のウィンドウに含まれないが、この item は
+-- padding まで覆うので、bracket 全体で反応する。
+--
+-- target_width は重ねる item の width、padding は add_bracket で item に付けた左右の padding。
+-- 重ねる item より後に追加すること (ウィンドウは後に追加した item が上になる)。
+-- 購読は呼び出し側で行う。作った後は背景などを変更しないこと (再描画されると上の問題が戻る)。
+--
+-- 位置は、自分の padding を負の値にして合わせる。実機検証した SketchyBar の配置の癖:
+--   - width を指定した item の後は、配置が width の分しか進まない (padding は数えられない)。
+--   - 自分の width を指定すると、負の padding が隣へ伝わらず隙間ができる。
+-- そのため、この item は width を使わず icon.width で幅を確保し、右へ target_width、左へ
+-- 2 * padding を戻して、隣の item の位置を変えない (padding_left + padding_right + 幅 = 0)。
+function M.add_hit_layer(name, target_width, padding, props)
+	return M.add_item(
+		name,
+		"right",
+		merge({
+			padding_left = -2 * padding,
+			padding_right = -target_width,
+			icon = { string = "", width = target_width + 2 * padding, padding_left = 0, padding_right = 0 },
+			label = { drawing = false },
+			background = { drawing = true, color = 0x00000000 },
+		}, props)
+	)
+end
+
 -- bounding_rects はディスプレイ名をキーにした表。先頭の 1 つを使う。
 -- 非表示の item は origin が (-9999, -9999) になるので、画面外なら nil を返す。
 local function visible_rect(name)
