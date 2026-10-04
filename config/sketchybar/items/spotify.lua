@@ -493,7 +493,7 @@ local function popup_look(visible)
 		return visible and c or with_alpha(c, 0)
 	end
 	local dy = visible and 0 or SLIDE_DISTANCE
-	spotify:set({ popup = { background = { color = color(p.bg), border_color = color(p.border) } } })
+	spotify:set({ popup = { background = { color = p.bg, border_color = p.border } } })
 	cover:set({ label = { background = { color = visible and with_alpha(p.bg, 0) or p.bg } } })
 	time_text:set({ label = { color = color(p.text) } })
 	-- slider.background.color は、進んだ部分 (foreground) の色も同じ値に動かす (SketchyBar の slider.c)。
