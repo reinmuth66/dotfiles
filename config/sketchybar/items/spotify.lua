@@ -4,7 +4,7 @@
 --   未起動・停止中: 画像の代わりに Spotify のアイコンを出す (アイテム自体は常に表示)
 --   切り替え時は覆いの濃さを滑らかに変える
 -- 状態は Spotify の分散通知 (media_change は macOS 26 で発火しない) から受け取り、
--- 画像は osascript の artwork url を取得して使う。
+-- 画像は osascript の artwork url から取得し、キャッシュする (キャッシュの設計は load_artwork の付近を参照)。
 -- ポップアップの再生位置は、通知の Playback Position を基準に、ローカルの時計で進める
 -- (毎秒の osascript の取得は行わない。詳しくは再生位置の節を参照)。
 -- 回転は background.image.rotation を使う (SketchyBar#815 のパッチが前提、pkgs/sketchybar/)。
@@ -908,66 +908,191 @@ local function show_icon()
 	})
 end
 
--- アルバム画像を取得してキャッシュし、アイコン用 (ART_PX) とポップアップ用 (COVER_PX) のパスと、
--- 画像の色の頻度表 ("個数,R,G,B;..."。palette.lua が配色を決める。ImageMagick がなければ空) を
--- タブ区切りで標準出力に返す。
--- キャッシュのファイル名には画像の一辺 (px) を含める。サイズを変えたとき、古い解像度の画像が残ると、
--- 表示サイズが設定からずれる (表示サイズ = 画像の実ピクセル * scale)。
+-- アルバム画像のキャッシュ。1 枚の画像につき、アイコン用 (ART_PX) とポップアップ用 (COVER_PX) の 2 サイズと、
+-- 色の頻度表 ("個数,R,G,B;..."。palette.lua が配色を決める) の 3 ファイルを、画像の ID (artwork url の末尾) で持つ。
+-- ファイル名にサイズ (px) を含めるのは、サイズを変えたとき、古い解像度の画像が残ると、表示サイズが設定から
+-- ずれるため (表示サイズ = 画像の実ピクセル * scale)。
+-- 流れは、曲 ID -> 画像の ID と url (osascript。一度引いた曲は覚えておく) -> キャッシュの確認 (Lua) ->
+-- なければ取得 (シェル)。確認を Lua で行うので、キャッシュにある画像では、取得のためのシェルを起動しない。
+-- 取得は画像の ID ごとに 1 本だけ走らせる (同じアルバムの曲を続けて切り替えると、同じ画像の取得が重なる。
+-- 重なった要求は、走っている取得の完了を待つ)。取得は、curl の出力を中間ファイルなしで magick に渡し、
+-- 1 回のデコードで 2 サイズと頻度表を出す。出力は一時ファイルに書いて、最後に mv で置く (途中の状態が見えない)。
+local COLOR_SWATCHES = 32 -- 頻度表の色数 (palette.lua の入力)
+local COLOR_SAMPLE_PX = 48 -- 頻度表を数えるときの画像の一辺 (px)
+
 -- 未起動の Spotify を osascript が起動してしまわないよう、先に pgrep で確認する。
-local FETCH_ARTWORK = string.format(
-	[[
-pgrep -x Spotify >/dev/null || exit 1
-url=$(osascript -e 'tell application "Spotify" to get artwork url of current track') || exit 1
-[ -n "$url" ] || exit 1
+local ARTWORK_URL_COMMAND =
+	[[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to get artwork url of current track' 2>/dev/null]]
+
+-- 画像の ID (key) と url から、3 つのファイルを作る。curl か magick が失敗したら (pipefail)、何も置かない。
+local function download_command(key, url)
+	return string.format(
+		[[
+set -o pipefail
 dir=%q
-small="$dir/${url##*/}.%d.jpg"
-large="$dir/${url##*/}.%d.jpg"
-if [ ! -s "$small" ] || [ ! -s "$large" ]; then
-  mkdir -p "$dir"
-  find "$dir" -type f -mtime +30 -delete 2>/dev/null
-  src="$dir/${url##*/}.tmp"
-  curl -sfL --max-time 10 "$url" -o "$src" \
-    && sips -s format jpeg -s dpiWidth 72 -s dpiHeight 72 -Z %d "$src" --out "$small" >/dev/null \
-    && sips -s format jpeg -s dpiWidth 72 -s dpiHeight 72 -Z %d "$src" --out "$large" >/dev/null \
-    || { rm -f "$src" "$small" "$large"; exit 1; }
-  rm -f "$src"
+key=%q
+mkdir -p "$dir"
+tmp="$dir/.$key.$$"
+curl -sfL --max-time 10 %q \
+  | magick - -units PixelsPerInch -density 72 \
+      -resize %dx%d -write "jpeg:$tmp.large" \
+      -resize %dx%d -write "jpeg:$tmp.small" \
+      -resize %dx%d -colors %d -depth 8 -format %%c histogram:info:- \
+  | sed -nE 's/^ *([0-9]+): *\( *([0-9]+), *([0-9]+), *([0-9]+).*/\1,\2,\3,\4/p' | paste -sd';' - > "$tmp.colors"
+if [ $? -eq 0 ] && [ -s "$tmp.small" ] && [ -s "$tmp.large" ]; then
+  [ -s "$tmp.colors" ] && mv -f "$tmp.colors" "$dir/$key.colors32"
+  mv -f "$tmp.large" "$dir/$key.%d.jpg" && mv -f "$tmp.small" "$dir/$key.%d.jpg"
 fi
-colors="$dir/${url##*/}.colors32"
-if [ ! -s "$colors" ]; then
-  magick "$small" -resize 48x48 -colors 32 -depth 8 -format %%c histogram:info:- 2>/dev/null \
-    | sed -nE 's/^ *([0-9]+): *\( *([0-9]+), *([0-9]+), *([0-9]+).*/\1,\2,\3,\4/p' | paste -sd';' - > "$colors.tmp"
-  if [ -s "$colors.tmp" ]; then mv "$colors.tmp" "$colors"; else rm -f "$colors.tmp"; fi
-fi
-printf '%%s\t%%s\t%%s' "$small" "$large" "$(cat "$colors" 2>/dev/null)"
+rm -f "$tmp.large" "$tmp.small" "$tmp.colors"
 ]],
-	CACHE_DIR,
-	ART_PX,
-	COVER_PX,
-	ART_PX,
-	COVER_PX
-)
+		CACHE_DIR,
+		key,
+		url,
+		COVER_PX,
+		COVER_PX,
+		ART_PX,
+		ART_PX,
+		COLOR_SAMPLE_PX,
+		COLOR_SAMPLE_PX,
+		COLOR_SWATCHES,
+		COVER_PX,
+		ART_PX
+	)
+end
+
+local function artwork_files(key)
+	local base = CACHE_DIR .. "/" .. key
+	return {
+		small = string.format("%s.%d.jpg", base, ART_PX),
+		large = string.format("%s.%d.jpg", base, COVER_PX),
+		colors = base .. ".colors32",
+	}
+end
+
+local function read_file(path)
+	local f = io.open(path, "rb")
+	if not f then
+		return nil
+	end
+	local text = f:read("*a")
+	f:close()
+	return text ~= "" and text or nil
+end
+
+local function file_exists(path)
+	local f = io.open(path, "rb")
+	if not f then
+		return false
+	end
+	local size = f:seek("end")
+	f:close()
+	return size ~= nil and size > 0
+end
+
+-- 3 つとも揃っていれば files と頻度表を返す (色の頻度表が欠けた古いキャッシュは、取り直して揃える)
+local function cached_artwork(key)
+	local files = artwork_files(key)
+	local histogram = read_file(files.colors)
+	if histogram and file_exists(files.small) and file_exists(files.large) then
+		return files, (histogram:gsub("%s+$", ""))
+	end
+	return nil
+end
+
+-- 古い画像の掃除は、起動時 (再読み込み含む) に 1 回だけ行う (取得と重ならない)
+sbar.exec(string.format("find %q -type f -mtime +30 -delete 2>/dev/null", CACHE_DIR))
+
+local downloads = {} -- 画像の ID -> 取得の完了を待っている処理 (取得が走っている間だけ持つ)
+
+-- 画像を用意して、done(files, histogram) を呼ぶ (失敗したら done(nil))。
+local function ensure_artwork(key, url, done)
+	local files, histogram = cached_artwork(key)
+	if files then
+		done(files, histogram)
+		return
+	end
+	if downloads[key] then
+		table.insert(downloads[key], done)
+		return
+	end
+	downloads[key] = { done }
+	sbar.exec(download_command(key, url), function()
+		local waiting = downloads[key]
+		downloads[key] = nil
+		local ready, ready_histogram = cached_artwork(key)
+		if not ready then
+			-- 色の頻度表だけ作れなかったときも、画像は出す (配色は固定色に戻る)
+			local partial = artwork_files(key)
+			if file_exists(partial.small) and file_exists(partial.large) then
+				ready, ready_histogram = partial, ""
+			end
+		end
+		for _, callback in ipairs(waiting) do
+			callback(ready, ready_histogram)
+		end
+	end)
+end
+
+-- 曲 ID から画像の ID と url を引く。画像を出せた曲は覚えていて (load_artwork)、osascript を呼ばない。
+-- 取得に失敗した曲は覚えない (誤った url を取っても、使い回さない)。
+local artwork_of_track = {}
+
+local function resolve_artwork(track_id, done)
+	local known = artwork_of_track[track_id]
+	if known then
+		done(known)
+		return
+	end
+	sbar.exec(ARTWORK_URL_COMMAND, function(out)
+		local url = type(out) == "string" and out:match("^%s*(https?://%S+)") or nil
+		local key = url and url:match("([^/]+)$")
+		done(key and { key = key, url = url } or nil)
+	end)
+end
 
 local current_track = nil
 
-local function load_artwork(track_id)
+-- 取得に失敗したとき (ネットワークや osascript の一時的な失敗) は、少し待って取り直す。
+local ARTWORK_ATTEMPTS = 3
+local ARTWORK_RETRY_DELAY = 0.5 -- 秒
+
+local function load_artwork(track_id, attempt)
+	attempt = attempt or 1
 	current_track = track_id
-	sbar.exec(FETCH_ARTWORK, function(path)
+	local function retry()
+		if attempt < ARTWORK_ATTEMPTS then
+			sbar.delay(ARTWORK_RETRY_DELAY, function()
+				if current_track == track_id then
+					load_artwork(track_id, attempt + 1)
+				end
+			end)
+		else
+			current_track = nil -- 次のイベントで再試行する
+		end
+	end
+	resolve_artwork(track_id, function(artwork)
 		-- 取得中に曲が変わった・停止した場合は捨てる
 		if current_track ~= track_id then
 			return
 		end
-		local small, large, histogram
-		if type(path) == "string" then
-			small, large, histogram = path:match("^([^\t]+)\t([^\t]+)\t?(.*)$")
-		end
-		if not small then
-			current_track = nil -- 次のイベントで再試行する
+		if not artwork then
+			retry()
 			return
 		end
-		spotify:set({ background = { image = { string = small } } })
-		cover:set({ background = { image = { string = large, drawing = true } } })
-		apply_palette(palette.from_histogram(histogram) or palette.default)
-		show_art()
+		ensure_artwork(artwork.key, artwork.url, function(files, histogram)
+			if current_track ~= track_id then
+				return
+			end
+			if not files then
+				retry()
+				return
+			end
+			artwork_of_track[track_id] = artwork
+			spotify:set({ background = { image = { string = files.small } } })
+			cover:set({ background = { image = { string = files.large, drawing = true } } })
+			apply_palette(palette.from_histogram(histogram) or palette.default)
+			show_art()
+		end)
 	end)
 end
 
