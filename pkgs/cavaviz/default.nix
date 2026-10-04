@@ -1,14 +1,19 @@
 { stdenvNoCC, cava }:
 
-# cava の SDL/GLSL 版を、sketchybar の Spotify ポップアップに重ねて表示するための .app。
+# cava の SDL/GLSL 版を、sketchybar の Spotify ポップアップの下に敷いて、背景と棒グラフを描かせるための .app。
 #
-# - cava に sdl-window.patch を当てる: 枠なし・最前面 (ウィンドウレベル 102。sketchybar のポップアップは
-#   101)・クリックを通す・フォーカスを奪わない。あわせて、cava が許可の有無を事前に確認して、なければ
+# - cava に sdl-window.patch を当てる: 枠なし・ウィンドウレベル 100 (sketchybar のポップアップは
+#   101 なので、ポップアップの文字や画像が窓の上に描かれる)・クリックを通す・フォーカスを奪わない。あわせて、cava が許可の有無を事前に確認して、なければ
 #   エラーで終了する処理をやめる (下記)。
 # - sdl-transparent.patch: 窓を透明にする。nixpkgs の SDL2 は sdl2-compat (中身は SDL3) で、窓の作成時のフラグを
 #   そのまま SDL3 に渡すので、SDL3 の SDL_WINDOW_TRANSPARENT (0x40000000) を足す。これがないと SDL3 が窓の
 #   view の背景を黒で塗り、シェーダーのアルファが無視される。アルファつきの GL の面も要求する。
-#   シェーダーがアルファ 0 で描いた所は、後ろのポップアップが透けて見える (シェーダーは modules/cavaviz.nix)。
+#   シェーダーがアルファ 0 で描いた所 (ポップアップの角の外) は、後ろのデスクトップが透けて見える (シェーダーは popup.frag)。
+# - sdl-highdpi.patch: 窓の描画面を Retina 解像度 (1pt が 2px) にする。シェーダーは pt で描くので、角丸と枠、
+#   半ポイント位置の窓が、ぼやけずに描ける。サイズ変更時の glViewport も、pt ではなく px の大きさにする。
+# - sdl-fractional-position.patch: 窓の位置の指示 ("show X Y") で小数を受け付け、NSWindow の setFrameOrigin で
+#   置く。SDL_SetWindowPosition は整数 pt しか指定できないが、SketchyBar のポップアップは半ポイント位置に
+#   描かれることがあり (中央揃えで、項目の位置が x.5 のとき)、窓に描く背景と枠がずれて見えるため。
 # - sdl-ax-subrole.patch: 窓のアクセシビリティの subrole を AXSystemFloatingWindow にする。既定の
 #   AXStandardWindow だと、AeroSpace が窓を管理対象にして、終了時に workspace の先頭のウィンドウへ
 #   フォーカスを移してしまう (複数ウィンドウのアプリで、作業中のウィンドウが勝手に切り替わる)。
@@ -34,6 +39,8 @@ let
       ./sdl-transparent.patch
       ./fftw-estimate.patch
       ./sdl-ax-subrole.patch
+      ./sdl-highdpi.patch
+      ./sdl-fractional-position.patch
     ];
     # パッチが objc_msgSend を使うので、Objective-C のランタイムをリンクする
     env = (old.env or { }) // {

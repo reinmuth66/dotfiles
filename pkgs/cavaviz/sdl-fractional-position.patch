@@ -1,0 +1,71 @@
+--- a/output/sdl_glsl.c	2026-10-05 01:33:19
++++ b/output/sdl_glsl.c	2026-10-05 01:33:35
+@@ -11,6 +11,7 @@
+ #include <objc/message.h>
+ #include <objc/runtime.h>
+ #include <CoreFoundation/CoreFoundation.h>
++#include <CoreGraphics/CoreGraphics.h>
+ // Call an Objective-C method from C without writing Objective-C.
+ #define MSG0(o, s) ((id (*)(id, SEL))objc_msgSend)((o), sel_registerName(s))
+ #define MSGL(o, s, v) ((void (*)(id, SEL, long))objc_msgSend)((o), sel_registerName(s), (v))
+@@ -19,6 +20,23 @@
+ // moves its focus to it, and when the window closes it focuses the first window of the workspace, which
+ // switches the active window of the app the user was working in. A floating-window subrole makes it ignore us.
+ static id viz_ax_subrole(id self, SEL _cmd) { return (id)CFSTR("AXSystemFloatingWindow"); }
++// The NSWindow of the SDL window. SDL_SetWindowPosition takes whole points only, but the popup under the window
++// can sit at a half-point position (and the Retina drawable can show it), so the window is placed through
++// NSWindow with fractional coordinates.
++static id viz_nswindow = NULL;
++
++// Move the window so that its top left corner is at (x, y), in points from the top left corner of the primary
++// display (the coordinates of sketchybar --query). Cocoa counts y from the bottom left corner of the primary display.
++static void viz_move_window(double x, double y) {
++    if (viz_nswindow == NULL)
++        return;
++    id screens = MSG0((id)objc_getClass("NSScreen"), "screens");
++    id primary = ((id (*)(id, SEL, unsigned long))objc_msgSend)(screens, sel_registerName("objectAtIndex:"), 0);
++    CGRect screen_frame = ((CGRect (*)(id, SEL))objc_msgSend)(primary, sel_registerName("frame"));
++    CGRect window_frame = ((CGRect (*)(id, SEL))objc_msgSend)(viz_nswindow, sel_registerName("frame"));
++    CGPoint origin = CGPointMake(x, screen_frame.size.height - y - window_frame.size.height);
++    ((void (*)(id, SEL, CGPoint))objc_msgSend)(viz_nswindow, sel_registerName("setFrameOrigin:"), origin);
++}
+ #endif
+ 
+ #include <math.h>
+@@ -127,6 +145,7 @@
+         SDL_VERSION(&wminfo.version);
+         if (SDL_GetWindowWMInfo(glWindow, &wminfo)) {
+             id win = (id)wminfo.info.cocoa.window;
++            viz_nswindow = win;
+             MSGL(win, "setLevel:", 100);
+             MSGL(win, "setIgnoresMouseEvents:", 1);
+             MSGL(win, "setHasShadow:", 0);
+@@ -299,7 +318,7 @@
+ #ifdef __APPLE__
+ // Move the window with a control file instead of restarting cava (a restart takes ~0.35 s and the bars vanish meanwhile).
+ // The path is in $CAVAVIZ_CONTROL and the file is checked once per frame (when its mtime changed):
+-//   "show X Y"  move the window to (X, Y) and draw again
++//   "show X Y"  move the window to (X, Y) (decimals are fine) and draw again
+ //   "hide"      move the window off the screen and stop drawing (the audio tap and the FFT keep running)
+ static int viz_hidden = 0;
+ static struct timespec viz_control_mtime;
+@@ -346,8 +365,8 @@
+     if (f == NULL)
+         return;
+     char cmd[16] = "";
+-    int x = 0, y = 0;
+-    int n = fscanf(f, "%15s %d %d", cmd, &x, &y);
++    double x = 0, y = 0;
++    int n = fscanf(f, "%15s %lf %lf", cmd, &x, &y);
+     fclose(f);
+ 
+     // Hide by making the window transparent, and do NOT move it: a move right after the opacity change makes
+@@ -358,7 +377,7 @@
+         SDL_SetWindowOpacity(glWindow, 0.0f);
+         viz_hidden = 1;
+     } else if (n == 3 && strcmp(cmd, "show") == 0) {
+-        SDL_SetWindowPosition(glWindow, x, y);
++        viz_move_window(x, y);
+         SDL_SetWindowOpacity(glWindow, 1.0f);
+         viz_hidden = 0;
+     }

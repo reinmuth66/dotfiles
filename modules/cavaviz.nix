@@ -1,47 +1,36 @@
 { lib, pkgs, ... }:
 
-# Spotify のポップアップの再生位置バーに重ねて表示する、棒グラフのサウンドビジュアライザ (cava の SDL 版)。
-# 起動と停止、窓の位置合わせは config/sketchybar/items/spotify.lua が行う。
+# Spotify のポップアップの下に敷く、棒グラフのサウンドビジュアライザ (cava の SDL 版)。
+# cava の窓は、ポップアップの背景、枠、棒グラフを描く。SketchyBar のポップアップ自身の背景は透明にして、
+# 文字やカバー画像、再生位置のバーだけを、この窓の上に描かせる (別の窓の前後は window level でしか決まらず、
+# 1 つの窓の中の背景と文字の間には入れないため)。
+# 起動と停止、窓の位置合わせ、背景の受け渡しは config/sketchybar/items/spotify.lua が行う。
 # .app の作り方と、音声取得の許可については pkgs/cavaviz/default.nix を参照。
 let
   cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
 
   # cava は設定ディレクトリ ($XDG_CONFIG_HOME/cava/shaders) からシェーダーを読む。
-  # 同梱の bar_spectrum.frag を、次の 3 点だけ変えた bar_clear.frag にして使う。
-  # - 背景 (棒の外と、棒の間の隙間) を、bg_color ではなくアルファ 0 (透明) で描く (窓の透明化は sdl-transparent.patch)。
-  # - 無音のときに底に引く 1px の線をやめる (棒の高さが 1px 未満なら 0 にする)。
-  # - 棒を半透明 (アルファ 0.5) にして、重なる文字を透けて見せる。窓は premultiplied alpha で合成されるので、色にもアルファを掛ける。
-  #   元の main を bar_main に改名して、新しい main で結果に 0.5 を掛ける (背景は 0 のまま。棒の色が fg_color でもグラデーションでも効く)。
-  # 上流で該当の行が変わったら、--replace-fail でビルドが失敗する。
+  # 背景、枠、棒を描く popup.frag (pkgs/cavaviz/) を置く。窓の透明化は sdl-transparent.patch。
   # 必要なシェーダーが揃っていれば、cava は設定ディレクトリに何も書き込まない
   # (読み取り専用のストアでも動く。実機で確認済み)。
   shaders = "${pkgs.cava.src}/output/shaders";
   configHome = pkgs.runCommand "cavaviz-config-home" { } ''
     mkdir -p $out/cava/shaders
     cp ${shaders}/pass_through.vert $out/cava/shaders/pass_through.vert
-    substitute ${shaders}/bar_spectrum.frag $out/cava/shaders/bar_clear.frag \
-      --replace-fail 'fragColor = vec4(bg_color, 1.0);' 'fragColor = vec4(0.0);' \
-      --replace-fail 'y = 1.0 / u_resolution.y;' 'y = 0.0;' \
-      --replace-fail 'void main() {' 'void bar_main() {'
-    cat >> $out/cava/shaders/bar_clear.frag <<'EOF'
-
-    void main() {
-        bar_main();
-        fragColor *= 0.5;
-    }
-    EOF
+    cp ${../pkgs/cavaviz/popup.frag} $out/cava/shaders/popup.frag
   '';
 
   # sdl_x / sdl_y はポップアップを開くたびに変わるので、@X@ などのまま置いておき (幅と高さも @W@ @H@ にして、
-  # 大きさは spotify.lua の VIZ_WIDTH / VIZ_HEIGHT に合わせる)、
+  # 大きさは spotify.lua の POPUP_BG_WIDTH / POPUP_BG_HEIGHT に合わせる)、
   # spotify.lua が置き換えて、キャッシュに書き出したものを cava に渡す。
   settings = {
     general = {
       framerate = 30;
       bars = 40;
-      # 棒の数は、窓の幅 (spotify.lua の VIZ_WIDTH = 200) に収まる範囲に限られる:
-      # bars × bar_width + (bars - 1) × bar_spacing <= 窓の幅。超えると cava が "window is too narrow" で終了する。
-      # bar_spacing は、bar_clear.frag (bar_spectrum.frag と同じ) では棒と棒の間の隙間 (px) になる (棒の幅は窓の幅 / bars - bar_spacing)。
+      # 棒は、棒を描く領域の幅 (popup.frag の VIZ の幅 = spotify.lua の VIZ_WIDTH = 200) の両端に、最初の棒の左端と
+      # 最後の棒の右端が合うように並ぶ。棒の幅は (領域の幅 - (bars - 1) × bar_spacing) / bars になる (bar_width は使われない)。
+      # cava は、bars × bar_width + (bars - 1) × bar_spacing が窓の幅 (ポップアップの幅) を超えると、
+      # "window is too narrow" で終了する。
       bar_width = 3;
       bar_spacing = 2;
       # 固定の感度にする。autosens は起動直後に感度を 0 から上げるので、棒が約 0.8 秒かけて伸びてしまう。
@@ -56,7 +45,7 @@ let
     output = {
       method = "sdl_glsl";
       vertex_shader = "pass_through.vert";
-      fragment_shader = "bar_clear.frag";
+      fragment_shader = "popup.frag";
       # mono は、左から右へ低音から高音の順に並べる (stereo だと、低音が左右の端、高音が中央の鏡像になる)
       channels = "mono";
       mono_option = "average";
@@ -66,15 +55,17 @@ let
       sdl_y = "@Y@";
     };
     color = {
-      background = "'#111111'"; # bar_clear.frag では使わない (窓は透明)
-      # 棒の色。@FG@ は spotify.lua が、アルバム画像から決めた色 (なければ #ffffff) に置き換える。
-      # foreground ではなくグラデーションで指定する (同じ色を 2 つ並べて、単色に見せる)。
-      # SIGUSR2 で読み直されるのは、グラデーションの色 (有無と色数も) だけで、foreground は読み直されないため。
+      background = "'#111111'"; # popup.frag では使わない
+      foreground = "'#ffffff'"; # 同上
+      # popup.frag は、色をグラデーションの 3 色で受け取る。@FG@ (棒)、@BG@ (ポップアップの背景)、@BORDER@ (枠) は、
+      # spotify.lua が、アルバム画像から決めた配色に置き換える。
+      # foreground / background ではなくグラデーションで指定するのは、SIGUSR2 で読み直されるのが、
+      # グラデーションの色 (有無と色数も) だけで、foreground / background は読み直されないため。
       # 動いている間の変更は、設定を書き直して cava に SIGUSR2 を送る (窓も音声の取得も作り直さない)。
-      foreground = "'#ffffff'"; # グラデーションを使うので、シェーダーでは使われない
       gradient = 1;
       gradient_color_1 = "'@FG@'";
-      gradient_color_2 = "'@FG@'";
+      gradient_color_2 = "'@BG@'";
+      gradient_color_3 = "'@BORDER@'";
     };
     smoothing = {
       # 10 以下は、音が切れたときの落下の緩和が無効になり、棒が瞬時に落ちる

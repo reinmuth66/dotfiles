@@ -1,0 +1,31 @@
+--- a/output/sdl_glsl.c	2026-10-05 01:33:10
++++ b/output/sdl_glsl.c	2026-10-05 01:33:19
+@@ -105,6 +105,9 @@
+     // SDL3 then makes the NSWindow non-opaque with a clear background and the GL surface non-opaque.
+     // Without it, SDL3 paints the view layer black behind the GL surface (the alpha of the shader is ignored).
+     sdl_flags |= 0x40000000;
++    // A Retina drawable (2 pixels per point). The shader works in points (u_resolution is the window size in
++    // points), so a window placed at a half-point position and its rounded border are drawn without blur.
++    sdl_flags |= SDL_WINDOW_ALLOW_HIGHDPI;
+ #endif
+ 
+     if (full_screen == 1)
+@@ -439,12 +442,15 @@
+ 
+     while (SDL_PollEvent(&event)) {
+         if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
+-            glViewport(0, 0, event.window.data1, event.window.data2);
++            // The size of the event is in points; the viewport is in pixels (twice as large on a Retina display).
++            int pixel_w = event.window.data1, pixel_h = event.window.data2;
++            SDL_GL_GetDrawableSize(glWindow, &pixel_w, &pixel_h);
++            glViewport(0, 0, pixel_w, pixel_h);
+             if (uniform_input_texture != -1) {
+                 glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+-                glViewport(0, 0, event.window.data1, event.window.data2);
++                glViewport(0, 0, pixel_w, pixel_h);
+                 glBindTexture(GL_TEXTURE_2D, texture);
+-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, event.window.data1, event.window.data2, 0,
++                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, pixel_w, pixel_h, 0,
+                              GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+ 
+                 glBindFramebuffer(GL_FRAMEBUFFER, 0);

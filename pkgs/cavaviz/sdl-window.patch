@@ -69,19 +69,20 @@
  
      if (full_screen == 1)
          sdl_flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
-@@ -78,6 +102,28 @@
+@@ -78,6 +102,29 @@
          fprintf(stderr, "Window could not be created! SDL_Error: %s\n", SDL_GetError());
          exit(1);
      }
 +#ifdef __APPLE__
-+    // Embed the window above sketchybar's popups (window level 101): click-through, no shadow,
-+    // visible on every space, and without taking the keyboard focus.
++    // Put the window just below sketchybar's popups (window level 101), so that the popup's contents (text,
++    // cover) are drawn over it: click-through, no shadow, visible on every space, and without taking the
++    // keyboard focus.
 +    {
 +        SDL_SysWMinfo wminfo;
 +        SDL_VERSION(&wminfo.version);
 +        if (SDL_GetWindowWMInfo(glWindow, &wminfo)) {
 +            id win = (id)wminfo.info.cocoa.window;
-+            MSGL(win, "setLevel:", 102);
++            MSGL(win, "setLevel:", 100);
 +            MSGL(win, "setIgnoresMouseEvents:", 1);
 +            MSGL(win, "setHasShadow:", 0);
 +            // NSWindowCollectionBehaviorCanJoinAllSpaces | Stationary | IgnoresCycle
@@ -98,7 +99,7 @@
      glContext = SDL_GL_CreateContext(glWindow);
      if (glContext == NULL) {
          fprintf(stderr, "GLContext could not be created! SDL Error: %s\n", SDL_GetError());
-@@ -232,12 +278,115 @@
+@@ -232,12 +279,115 @@
      SDL_GL_SwapWindow(glWindow);
  }
  
@@ -214,7 +215,7 @@
      if (re_paint || continuous_rendering) {
          if (uniform_input_texture != -1) {
              glActiveTexture(GL_TEXTURE0);
-@@ -267,7 +416,11 @@
+@@ -267,7 +417,11 @@
              glBindFramebuffer(GL_FRAMEBUFFER, 0);
          }
      }
