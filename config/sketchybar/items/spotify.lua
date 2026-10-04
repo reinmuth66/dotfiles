@@ -458,9 +458,11 @@ local function refresh_position(done, animated)
 	end)
 end
 
--- ポップアップを開くときのアニメーション: 背景、枠、文字、画像をフェードインさせながら、
--- 中身を SLIDE_DISTANCE だけ上から定位置へ下ろす。ポップアップの窓全体の透明度は変えられないので、
+-- ポップアップを開くときのアニメーション: 背景と枠は最初から不透明にして、文字、画像、バーだけを
+-- フェードインさせながら、SLIDE_DISTANCE だけ上から定位置へ下ろす。ポップアップの窓全体の透明度は変えられないので、
 -- item ごとに色の alpha と y_offset を動かす。開くたびに、隠した状態にしてから定位置へ動かす
+-- 画像には alpha を指定できず、背景色の覆いで隠している。背景が透明なまま覆いだけが不透明だと、画像の位置に
+-- 背景色の四角が浮いて見えるので、背景はフェードさせない (覆いは背景と同じ色になり、画像も文字と同じ質で現れる)。
 -- 閉じるときは、逆向き (透明にしながら上へ戻す) に動かしてから閉じる (close_popup)。
 -- 棒グラフ (cava の窓) は SketchyBar の外なので動かせない。アニメーションの終わりに合わせて出す (open_popup)。
 local FADE_IN_FRAMES = 10 -- 60 フレームで 1 秒。再生中でない (棒グラフがない) ときの長さ
@@ -483,7 +485,8 @@ for _, row in ipairs(ROWS) do
 	slide_items[#slide_items + 1] = { rows[row.key].item, row.y_offset }
 end
 
--- visible が true なら配色と位置を定位置 (current_palette) に、false なら隠した状態 (透明、上にずらす) にする
+-- visible が true なら配色と位置を定位置 (current_palette) に、false なら中身を隠した状態 (透明、上にずらす) にする。
+-- 背景と枠は、どちらでも定位置の色のまま
 local function popup_look(visible)
 	local p = current_palette
 	local function color(c)
