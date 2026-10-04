@@ -5,15 +5,16 @@
 --            補色どうしが混ざって平均が定まらないときは、有彩色のうち占有率が最大の色の色相にする
 --   avg    : 画像全体の平均色 (頻度表の加重平均)。背景の彩度と明るさ (知覚輝度) の目安。
 --            画像の明るさ (L*) が、dark の背景と light の背景のどちらに近いかで、背景の明るさを決める (閾値を置かず、両側から等距離)
---   accent : hue から色相が ACCENT_MIN_HUE_GAP 以上離れた色のうち、彩度 x 明るさ x 占有率^SHARE_POWER x
---            (hue からの色相の離れ具合) が最大の色 (なければ制限なしで選ぶ)。最も目立ち、背景から離れた色。
---            白系の色 (彩度が低く明るい) も候補で、色相は最も離れているものとして採点する
+--   accent : hue から色相が ACCENT_MIN_HUE_GAP 以上離れた色のうち、Android Palette 方式のスコア
+--            (彩度、明るさ、占有率それぞれの、目標値との近さの重み付き和) が最大の色 (なければ制限なしで選ぶ)。
+--            目標の明るさは背景に合わせる (dark の背景なら明るく、light の背景なら暗く)。
+--            白系の色 (彩度が低く明るい) も候補で、色相は最も離れているものとして扱う
 --            再生バーの進んだ部分の色。彩度は上限で抑え、背景とのコントラストが足りなければ補正する
 -- 反映先:
 --   bg      : hue の色相で、avg の彩度と明るさから作る (ポップアップの背景。透過させない)
 --   text, subtext, track : bg と同じ色相で、dark なら明るく、light なら暗く作る。bg とのコントラストが足りなければ補正する
 --   border  : accent と同じ色相の、彩度の低い色
---   viz     : hue と色相が近い (背景と同系統の) 色の中で、同じスコアが最大の色 (棒グラフ)
+--   viz     : hue と色相が近い (背景と同系統の) 色の中で、accent と同じスコア (目標の明るさも同じ) が最大の色 (棒グラフ)
 -- 無彩色の画像 (アクセントが見つからない) では nil を返す。呼び出し側は default に戻す。
 
 local colors = require("colors")
@@ -25,11 +26,16 @@ local MIN_SATURATION = 0.3 -- これより彩度が低い色は、アクセン�
 local MIN_VALUE = 0.25 -- これより暗い色も、アクセントにしない
 local BASE_MIN_SATURATION = 0.15 -- 背景の色相にする色の条件 (アクセントより緩くする)
 local BASE_MIN_VALUE = 0.1 -- 暗い空や夜の画像でも、その色を背景に使えるようにする
-local SHARE_POWER = 0.25 -- アクセントのスコアでの占有率の効き方 (小さいほど、面積の小さい鮮やかな色が選ばれやすい)
-local HUE_BONUS = 2.0 -- 背景と色相が正反対の色は、アクセントのスコアが (1 + この値) 倍になる
+-- 再生バーと棒グラフの色のスコア (Android の Palette API の Target と同じ方式): 重み x (1 - |値 - 目標値|) の、彩度、明るさ、占有率の和。
+-- 彩度と明るさは HSL。占有率は、最も多い色に対する割合 (0〜1。目標は 1)。重みは Palette の既定 (VIBRANT) とは違う (淡い色に偏らないよう、
+-- 彩度を重く、占有率を軽くしてある)
+local ACCENT_WEIGHT_SATURATION = 0.5
+local ACCENT_WEIGHT_LIGHTNESS = 0.3
+local ACCENT_WEIGHT_POPULATION = 0.2
+local ACCENT_TARGET_SATURATION = 1.0 -- 鮮やかな色が高得点になる
 local ACCENT_MIN_HUE_GAP = 0.15 -- 再生バーの色は、まず背景の色相からこれ以上 (0.15 = 54 度) 離れた色から選ぶ
 local WHITE_MIN_VALUE = 0.8 -- 彩度が MIN_SATURATION 未満でも、これ以上明るい色は、再生バーの候補にする (白系)
-local WHITE_VIVIDNESS = 0.1 -- 白系の色を、彩度がこの値の色として採点する (大きいほど、白系が選ばれやすい)
+local WHITE_VIVIDNESS = 0.1 -- 白系の色を、(HSL の) 彩度がこの値の色として採点する (大きいほど、白系が選ばれやすい)
 local MIN_SHARE = 0.003 -- アクセントにする色の占有率の下限 (数 px だけの色を拾わない)
 local VIZ_MAX_HUE_GAP = 0.12 -- 棒グラフの色は、背景の色相からこの範囲 (0.12 = 約 43 度) の色から選ぶ
 local VIZ_FALLBACK_VALUE = 0.85 -- 範囲内に候補がないとき、背景の色相で作る棒グラフの色の明るさ
@@ -48,6 +54,7 @@ local TRACK_CONTRAST = 1.5 -- 再生位置のバーの、進んでいない部�
 -- アクセントの色が出ないので、どちらかに寄せる)。
 --   bg_*  : 背景の彩度 (平均色の彩度 x saturation_scale を min〜max に収める) と、相対輝度 (平均色の輝度 x luminance_scale を同様に収める)
 --   text, subtext, track : 背景と同じ色相で作る色 (HSV の S と V)。コントラストが足りなければ補正される
+--   accent_lightness : 再生バーと棒グラフの色の目標の明るさ (HSL の L。背景から離れた色が高得点になる)
 --   border_value : 枠線の明るさ (HSV の V)
 local THEMES = {
 	dark = {
@@ -56,6 +63,7 @@ local THEMES = {
 		text = { s = 0.12, v = 0.96 },
 		subtext = { s = 0.15, v = 0.70 }, -- colors の既定は無彩色の 0xaaaaaa
 		track = { s = 0.3, v = 0.3 },
+		accent_lightness = 0.7,
 		border_value = 0.42,
 	},
 	light = {
@@ -64,6 +72,7 @@ local THEMES = {
 		text = { s = 0.3, v = 0.1 },
 		subtext = { s = 0.25, v = 0.3 },
 		track = { s = 0.2, v = 0.72 },
+		accent_lightness = 0.3,
 		border_value = 0.62,
 	},
 }
@@ -146,7 +155,16 @@ local function hue_distance(a, b)
 	return math.min(d, 1 - d)
 end
 
--- 頻度表の各色を { r, g, b, h, s, v, share } にする (share は占有率)。画像が空なら nil。
+-- RGB (0〜255) の HSL の明るさと彩度
+local function rgb_to_hsl(r, g, b)
+	r, g, b = r / 255, g / 255, b / 255
+	local max, min = math.max(r, g, b), math.min(r, g, b)
+	local l = (max + min) / 2
+	local d = max - min
+	return l, d == 0 and 0 or d / (1 - math.abs(2 * l - 1))
+end
+
+-- 頻度表の各色を { r, g, b, h, s, v, l, hsl_s, share } にする (share は占有率)。画像が空なら nil。
 local function analyze(list)
 	local total = 0
 	for _, c in ipairs(list) do
@@ -158,7 +176,8 @@ local function analyze(list)
 	local out = {}
 	for _, c in ipairs(list) do
 		local h, s, v = rgb_to_hsv(c[2], c[3], c[4])
-		out[#out + 1] = { r = c[2], g = c[3], b = c[4], h = h, s = s, v = v, share = c[1] / total }
+		local l, hsl_s = rgb_to_hsl(c[2], c[3], c[4])
+		out[#out + 1] = { r = c[2], g = c[3], b = c[4], h = h, s = s, v = v, l = l, hsl_s = hsl_s, share = c[1] / total }
 	end
 	return out
 end
@@ -201,14 +220,29 @@ local function pick_hue(swatches)
 	return ((math.atan2 or math.atan)(y, x) / (2 * math.pi)) % 1
 end
 
--- アクセントにする色を選ぶ。なければ nil。
--- スコアは彩度 x 明るさ x 占有率^SHARE_POWER (白系は彩度を WHITE_VIVIDNESS とする) で、refs (すでに選んだ色) のどれからも色相が離れているほど
--- 最大 (1 + HUE_BONUS) 倍まで高くする (反映先ごとに同じ色相ばかりにならないように)。
--- min_gap を渡すと、refs のどれかと色相の距離が min_gap 未満の色は候補から外す。
-local function pick_accent(swatches, refs, min_gap)
+local function max_share(swatches)
+	local max = 0
+	for _, c in ipairs(swatches) do
+		max = math.max(max, c.share)
+	end
+	return max
+end
+
+-- 再生バーと棒グラフの色のスコア: ACCENT_WEIGHT_* の重み x (1 - |値 - 目標値|) の、彩度 (目標は ACCENT_TARGET_SATURATION)、
+-- 明るさ (目標は target_lightness)、占有率 (目標は最も多い色と同じ割合 top_share) の和。saturation は HSL の彩度 (白系は WHITE_VIVIDNESS)。
+local function score(c, saturation, target_lightness, top_share)
+	return ACCENT_WEIGHT_SATURATION * (1 - math.abs(saturation - ACCENT_TARGET_SATURATION))
+		+ ACCENT_WEIGHT_LIGHTNESS * (1 - math.abs(c.l - target_lightness))
+		+ ACCENT_WEIGHT_POPULATION * c.share / top_share
+end
+
+-- アクセントにする色を選ぶ。なければ nil。スコアは score (白系の彩度は WHITE_VIVIDNESS)。
+-- min_gap を渡すと、refs (すでに選んだ色) のどれかと色相の距離が min_gap 未満の色は候補から外す (白系は色相に意味がないので外さない)。
+local function pick_accent(swatches, refs, min_gap, target_lightness)
+	local top_share = max_share(swatches)
 	local best, best_score
 	for _, c in ipairs(swatches) do
-		local white = c.s < MIN_SATURATION and c.v >= WHITE_MIN_VALUE -- 白系 (色相に意味がないので、最も離れた色として扱う)
+		local white = c.s < MIN_SATURATION and c.v >= WHITE_MIN_VALUE -- 白系
 		if (white or (c.s >= MIN_SATURATION and c.v >= MIN_VALUE)) and c.share >= MIN_SHARE then
 			local gap = 0.5
 			if not white then
@@ -217,10 +251,9 @@ local function pick_accent(swatches, refs, min_gap)
 				end
 			end
 			if not min_gap or gap >= min_gap then
-				local vividness = white and WHITE_VIVIDNESS or c.s
-				local score = vividness * c.v * c.share ^ SHARE_POWER * (1 + HUE_BONUS * gap / 0.5)
-				if not best_score or score > best_score then
-					best, best_score = c, score
+				local sc = score(c, white and WHITE_VIVIDNESS or c.hsl_s, target_lightness, top_share)
+				if not best_score or sc > best_score then
+					best, best_score = c, sc
 				end
 			end
 		end
@@ -228,15 +261,16 @@ local function pick_accent(swatches, refs, min_gap)
 	return best
 end
 
--- 棒グラフの色を選ぶ: hue (背景の色相) と近い (VIZ_MAX_HUE_GAP 以内の) 色のうち、彩度 x 明るさ x 占有率^SHARE_POWER が最大のもの。
+-- 棒グラフの色を選ぶ: hue (背景の色相) と近い (VIZ_MAX_HUE_GAP 以内の) 色のうち、score が最大のもの。
 -- 背景と同系統だが、背景より鮮やかで明るい別の色になる。候補がなければ、hue で作った色にする。
-local function pick_viz(swatches, hue)
+local function pick_viz(swatches, hue, target_lightness)
+	local top_share = max_share(swatches)
 	local best, best_score
 	for _, c in ipairs(swatches) do
 		if c.s >= MIN_SATURATION and c.v >= MIN_VALUE and hue_distance(c.h, hue) <= VIZ_MAX_HUE_GAP then
-			local score = c.s * c.v * c.share ^ SHARE_POWER
-			if not best_score or score > best_score then
-				best, best_score = c, score
+			local sc = score(c, c.hsl_s, target_lightness, top_share)
+			if not best_score or sc > best_score then
+				best, best_score = c, sc
 			end
 		end
 	end
@@ -318,20 +352,7 @@ function M.from_histogram(histogram)
 	if not swatches then
 		return nil
 	end
-	local hue = pick_hue(swatches)
-	-- 再生バーの色: 背景の色相から離れた色 (ACCENT_MIN_HUE_GAP 以上) を優先する。なければ制限なしで選ぶ。
-	local refs = hue and { { h = hue } } or {}
-	local accent = pick_accent(swatches, refs, ACCENT_MIN_HUE_GAP) or pick_accent(swatches, refs)
-	if not accent or (not hue and accent.s < MIN_SATURATION) then
-		return nil -- 有彩色がない (白系だけ) 画像は、default に戻す
-	end
-	hue = hue or accent.h
-	local viz = pick_viz(swatches, hue)
-	local function limit(c)
-		return { h = c.h, s = math.min(c.s, ACCENT_MAX_SATURATION), v = c.v }
-	end
-	accent, viz = limit(accent), limit(viz)
-	-- 背景: 彩度と相対輝度を、画像全体の平均色から作る。dark と light は、作った背景の L* が平均色の L* に近いほう (同じなら dark)
+	-- dark と light は、作る背景の L* が平均色の L* に近いほう (同じなら dark)
 	local avg = average(swatches)
 	local function theme_luminance(t)
 		return clamp(avg.lum * t.bg_luminance.scale, t.bg_luminance.min, t.bg_luminance.max)
@@ -340,6 +361,21 @@ function M.from_histogram(histogram)
 	local light = math.abs(lightness(theme_luminance(THEMES.light)) - target)
 		< math.abs(lightness(theme_luminance(THEMES.dark)) - target)
 	local theme = light and THEMES.light or THEMES.dark
+	local hue = pick_hue(swatches)
+	-- 再生バーの色: 背景の色相から離れた色 (ACCENT_MIN_HUE_GAP 以上) を優先する。なければ制限なしで選ぶ。
+	local refs = hue and { { h = hue } } or {}
+	local accent = pick_accent(swatches, refs, ACCENT_MIN_HUE_GAP, theme.accent_lightness)
+		or pick_accent(swatches, refs, nil, theme.accent_lightness)
+	if not accent or (not hue and accent.s < MIN_SATURATION) then
+		return nil -- 有彩色がない (白系だけ) 画像は、default に戻す
+	end
+	hue = hue or accent.h
+	local viz = pick_viz(swatches, hue, theme.accent_lightness)
+	local function limit(c)
+		return { h = c.h, s = math.min(c.s, ACCENT_MAX_SATURATION), v = c.v }
+	end
+	accent, viz = limit(accent), limit(viz)
+	-- 背景: 彩度と相対輝度を、画像全体の平均色から作る
 	local bg_s = clamp(avg.s * theme.bg_saturation.scale, theme.bg_saturation.min, theme.bg_saturation.max)
 	local bg_lum = theme_luminance(theme)
 	local bg = at_luminance(hue, bg_s, bg_lum)
