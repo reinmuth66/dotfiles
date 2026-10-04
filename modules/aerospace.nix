@@ -29,6 +29,10 @@
           "if" = { app-id = "com.zmk-battery-center.app"; };
           run = "layout floating";
         }
+        {
+          "if" = { app-id = "com.spotify.client"; };
+          run = "move-node-to-workspace F";
+        }
       ];
 
       exec-on-workspace-change = [
@@ -91,6 +95,8 @@
         alt-7 = "workspace 7";
         alt-8 = "workspace 8";
         alt-9 = "workspace 9";
+
+        alt-f = "workspace F";
 
         # ウィンドウを別ワークスペースへ移動し、そのままそのワークスペースへ切り替え
         alt-shift-1 = "move-node-to-workspace --focus-follows-window 1";
