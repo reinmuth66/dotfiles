@@ -9,6 +9,9 @@
 #   そのまま SDL3 に渡すので、SDL3 の SDL_WINDOW_TRANSPARENT (0x40000000) を足す。これがないと SDL3 が窓の
 #   view の背景を黒で塗り、シェーダーのアルファが無視される。アルファつきの GL の面も要求する。
 #   シェーダーがアルファ 0 で描いた所は、後ろのポップアップが透けて見える (シェーダーは modules/cavaviz.nix)。
+# - sdl-ax-subrole.patch: 窓のアクセシビリティの subrole を AXSystemFloatingWindow にする。既定の
+#   AXStandardWindow だと、AeroSpace が窓を管理対象にして、終了時に workspace の先頭のウィンドウへ
+#   フォーカスを移してしまう (複数ウィンドウのアプリで、作業中のウィンドウが勝手に切り替わる)。
 # - fftw-estimate.patch: FFT の計画を FFTW_MEASURE (実測して最速の方式を探す) から FFTW_ESTIMATE にする。
 #   起動時の cava_init が約 670ms から数 ms になる (結果は同じ)。起動の遅さの大半はここだった。
 # - 音声の取得 (Core Audio tap) には「システムオーディオ録音」の許可が要る。許可は起動元のアプリに付くので、
@@ -30,6 +33,7 @@ let
       ./sdl-window.patch
       ./sdl-transparent.patch
       ./fftw-estimate.patch
+      ./sdl-ax-subrole.patch
     ];
     # パッチが objc_msgSend を使うので、Objective-C のランタイムをリンクする
     env = (old.env or { }) // {

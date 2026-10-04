@@ -1,0 +1,26 @@
+--- a/output/sdl_glsl.c
++++ b/output/sdl_glsl.c
+@@ -10,10 +10,15 @@
+ #include <SDL2/SDL_syswm.h>
+ #include <objc/message.h>
+ #include <objc/runtime.h>
++#include <CoreFoundation/CoreFoundation.h>
+ // Call an Objective-C method from C without writing Objective-C.
+ #define MSG0(o, s) ((id (*)(id, SEL))objc_msgSend)((o), sel_registerName(s))
+ #define MSGL(o, s, v) ((void (*)(id, SEL, long))objc_msgSend)((o), sel_registerName(s), (v))
+ #define MSGI(o, s, v) ((id (*)(id, SEL, long))objc_msgSend)((o), sel_registerName(s), (v))
++// AeroSpace manages every window whose accessibility subrole is AXStandardWindow: it tiles the window and
++// moves its focus to it, and when the window closes it focuses the first window of the workspace, which
++// switches the active window of the app the user was working in. A floating-window subrole makes it ignore us.
++static id viz_ax_subrole(id self, SEL _cmd) { return (id)CFSTR("AXSystemFloatingWindow"); }
+ #endif
+ 
+ #include <math.h>
+@@ -123,6 +128,7 @@
+             MSGL(win, "setHasShadow:", 0);
+             // NSWindowCollectionBehaviorCanJoinAllSpaces | Stationary | IgnoresCycle
+             MSGL(win, "setCollectionBehavior:", 1 | 16 | 64);
++            class_replaceMethod(object_getClass(win), sel_registerName("accessibilitySubrole"), (IMP)viz_ax_subrole, "@@:");
+         }
+         for (int i = 0; i < 5; i++) {
+             SDL_PumpEvents();
