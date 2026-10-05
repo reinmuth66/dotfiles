@@ -1,5 +1,6 @@
 return {
 	white = 0xffffffff,
+	dim = 0x99ffffff,
 
 	space = {
 		fg = 0x66ffffff,

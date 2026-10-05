@@ -1,0 +1,110 @@
+local colors = require("colors")
+local ui = require("ui")
+
+-- 字面の高さ (px)。Hack Nerd Font Bold 18pt を CoreText で実測 (信号 1〜4 / alert は 13.9、off は 15.0)。
+-- bracket の上下の余白と、左右の余白をそろえるのに使う。フォントやサイズを変えたら再測定が必要。
+local GLYPH_HEIGHT = 15
+local MARGIN = ui.vertical_margin(GLYPH_HEIGHT)
+
+-- アイコンの箱の幅 (padding を含む全幅)。字面は箱の外にはみ出すと見切れるので、字面の幅
+-- (実測 17.5。advance は 10.8 しかない。どのグリフも同じ幅で、左端から始まる) を切り上げた値にする。
+-- 字面は箱の左端 + padding_left から描かれる (spotify.lua と同じ) ので、padding_left は 0 のままでよい。
+-- 実測値 (Hack Nerd Font Bold 18pt): フォントやサイズを変えたら再測定が必要。
+local ICON_WIDTH = 18
+
+-- 接続中は信号の強さで 4 段階 (扇形の 1〜4)、接続していない (alert) とオフは薄くする。
+-- 形はすべて扇形にそろえてある。
+local LEVEL_ICONS = {
+	"󰤟", -- nf-md-wifi_strength_1
+	"󰤢", -- nf-md-wifi_strength_2
+	"󰤥", -- nf-md-wifi_strength_3
+	"󰤨", -- nf-md-wifi_strength_4
+}
+local DISCONNECTED = { icon = "󰤫", color = colors.dim } -- nf-md-wifi_strength_alert_outline
+local OFF = { icon = "󰤭", color = colors.dim } -- nf-md-wifi_strength_off
+
+local SETTINGS_URL = "x-apple.systempreferences:com.apple.wifi-settings-extension"
+
+local wifi = ui.add_item("wifi", "right", {
+	update_freq = 15,
+	-- 余白は bracket の padding で決めるため、アイコンの内側の padding は箱の位置合わせ以外は 0 にする
+	icon = {
+		font = { size = 18.0 },
+		y_offset = 1,
+		width = ICON_WIDTH,
+		align = "left",
+		padding_left = 0,
+		padding_right = 0,
+	},
+	label = { drawing = false },
+})
+
+ui.add_bracket("wifi.bracket", { wifi }, nil, MARGIN)
+
+-- bracket 全体でクリックを受ける (item の padding の部分は、item 自身では反応しない。ui.add_hit_layer)
+local hit = ui.add_hit_layer_over("wifi.hit", ICON_WIDTH + 2 * MARGIN, ICON_WIDTH + 2 * MARGIN)
+ui.add_spacer("right", ui.bracket_gap)
+
+local current
+
+-- 標準メニューバーの Wi-Fi 項目の説明文 (アクセシビリティ。例: "Wi‑Fi、接続済み、3本") から、
+-- 標準の表示と同じ線の数を読む。SketchyBar のプロセスから取れる (実機で確認。約 0.13 秒)。
+-- 項目の位置は変わるので、説明文に "Wi" を含むものを探す。説明文は表示言語に依存するので、
+-- 数字を取れなければ、強さ不明として最大のアイコンにする。
+local SIGNAL_SCRIPT = [[tell application "System Events" to tell process "ControlCenter"
+repeat with mi in menu bar items of menu bar 1
+set d to description of mi
+if d contains "Wi" then return d
+end repeat
+end tell]]
+
+-- en0 が Wi-Fi (networksetup -listallhardwareports で確認)。IP があれば接続中、なければ電源で
+-- オフと未接続を分ける。ipconfig は IP が無いと何も出力しない。
+-- 線の数は、接続中のときだけ読む。
+local COMMAND = [[
+ip=$(ipconfig getifaddr en0)
+echo "ip=$ip"
+echo "power=$(networksetup -getairportpower en0 | awk '{ print $NF }')"
+if [ -n "$ip" ]; then
+	echo "signal=$(osascript -e ']] .. SIGNAL_SCRIPT .. [[' 2>/dev/null)"
+fi
+]]
+
+local function update()
+	sbar.exec(COMMAND, function(out)
+		if type(out) ~= "string" then
+			return
+		end
+
+		local state
+		if out:match("ip=%d+%.%d+%.%d+%.%d+") then
+			-- 線の数は 0〜3 で、アイコンの段階 (1〜4) に 1 を足して対応させる
+			local signal = out:match("signal=([^\n]*)") or ""
+			local bars = tonumber(signal:match("(%d+)本") or signal:match("(%d+)%s*bars?"))
+			local level = bars and math.max(1, math.min(bars + 1, #LEVEL_ICONS)) or #LEVEL_ICONS
+			state = { key = "connected" .. level, icon = LEVEL_ICONS[level], color = colors.white }
+		elseif out:match("power=Off") then
+			state = { key = "off", icon = OFF.icon, color = OFF.color }
+		else
+			state = { key = "disconnected", icon = DISCONNECTED.icon, color = DISCONNECTED.color }
+		end
+
+		if state.key == current then
+			return
+		end
+		current = state.key
+
+		wifi:set({ icon = { string = state.icon, color = state.color } })
+	end)
+end
+
+-- wifi_change は、接続し直したときなどに同じ時刻に 2 回届く (実機で確認)。
+-- update は状態が前回と同じなら何もしないので、そのまま購読する。
+wifi:subscribe({ "wifi_change", "system_woke", "routine", "forced" }, update)
+update()
+
+-- クリックで、システム設定の Wi-Fi の画面を開く。すでに前面に出ているときは閉じる
+-- (標準メニューバーのパネルは、押すと標準メニューバーが出てしまうため使わない)
+hit:subscribe("mouse.clicked", function()
+	ui.toggle_settings(SETTINGS_URL, "Wi")
+end)
