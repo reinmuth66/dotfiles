@@ -1,27 +1,45 @@
 { config, pkgs, ... }:
 
 let
-  clockHelper = pkgs.stdenv.mkDerivation {
-    pname = "sketchybar-clock-helper";
-    version = "0-unstable";
+  # config/sketchybar/helper/<name>.c をビルドして sketchybar-<name>-helper にする
+  mkHelper =
+    name:
+    pkgs.stdenv.mkDerivation {
+      pname = "sketchybar-${name}-helper";
+      version = "0-unstable";
 
-    src = ../config/sketchybar/helper;
+      src = ../config/sketchybar/helper;
 
-    buildInputs = [ pkgs.apple-sdk_15 ];
+      buildInputs = [ pkgs.apple-sdk_15 ];
 
-    buildPhase = ''
-      runHook preBuild
-      $CC -std=c99 -O2 clock.c -framework CoreFoundation -o clock-helper
-      runHook postBuild
-    '';
+      buildPhase = ''
+        runHook preBuild
+        $CC -std=c99 -O2 ${name}.c -framework CoreFoundation -o ${name}-helper
+        runHook postBuild
+      '';
 
-    installPhase = ''
-      runHook preInstall
-      mkdir -p $out/bin
-      cp clock-helper $out/bin/sketchybar-clock-helper
-      runHook postInstall
-    '';
+      installPhase = ''
+        runHook preInstall
+        mkdir -p $out/bin
+        cp ${name}-helper $out/bin/sketchybar-${name}-helper
+        runHook postInstall
+      '';
+    };
+
+  mkHelperAgent = name: helper: {
+    enable = true;
+    config = {
+      ProgramArguments = [ "${helper}/bin/sketchybar-${name}-helper" ];
+      ProcessType = "Interactive";
+      KeepAlive = true;
+      RunAtLoad = true;
+      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/sketchybar/${name}-helper.err.log";
+      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/sketchybar/${name}-helper.out.log";
+    };
   };
+
+  clockHelper = mkHelper "clock";
+  systemHelper = mkHelper "system";
 in
 {
   programs.sketchybar = {
@@ -41,15 +59,6 @@ in
     extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick ]; # imagemagick: spotify の色の抽出
   };
 
-  launchd.agents.sketchybar-clock-helper = {
-    enable = true;
-    config = {
-      ProgramArguments = [ "${clockHelper}/bin/sketchybar-clock-helper" ];
-      ProcessType = "Interactive";
-      KeepAlive = true;
-      RunAtLoad = true;
-      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/sketchybar/clock-helper.err.log";
-      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/sketchybar/clock-helper.out.log";
-    };
-  };
+  launchd.agents.sketchybar-clock-helper = mkHelperAgent "clock" clockHelper;
+  launchd.agents.sketchybar-system-helper = mkHelperAgent "system" systemHelper;
 }
