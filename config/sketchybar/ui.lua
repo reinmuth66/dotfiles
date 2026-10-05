@@ -147,6 +147,47 @@ function M.hit_layer_geometry(chain_width, bracket_width)
 	}
 end
 
+-- ポップアップの文字は、メニューバーと同じシステムフォントにする。
+-- ファミリに ".AppleSystemUIFont" を指定すると欧文は SF になり、日本語は自動で
+-- メニューバーと同じ ".Hiragino Kaku Gothic Interface" (W4) に切り替わる (CoreText で確認)。
+-- "SF Pro" などの名前は、SF Pro が入っていないと Helvetica に解決されてしまう。
+M.POPUP_FONT_FAMILY = ".AppleSystemUIFont"
+M.POPUP_FONT_STYLE = "Bold" -- 欧文は System Font Bold、日本語は W6 になる (Regular なら W4)
+
+-- features は OpenType の機能タグ (カンマ区切り)。時刻には等幅数字の "tnum" を渡す
+function M.popup_font(size, features)
+	return { family = M.POPUP_FONT_FAMILY, style = M.POPUP_FONT_STYLE, size = size, features = features }
+end
+
+-- システム設定の画面を開く。その画面がすでに前面に出ているときは、閉じる (トグル)。
+-- 前面かどうかは、System Settings のウィンドウ (最前面の 1 枚) のタイトルが title_pattern を含むかで見る
+-- (アクセシビリティ。実機で、タイトルが "Wi‑Fi" / "Bluetooth" で取れることを確認)。
+-- タイトルは表示言語に依存するので、取れない・一致しないときは、閉じずに開く (前面へ出す) だけにする。
+-- 最後のウィンドウを閉じるとシステム設定のアプリ自体が終了する (実機で確認)。
+function M.toggle_settings(url, title_pattern)
+	local check = string.format(
+		[[tell application "System Events"
+if not (exists process "System Settings") then return "open"
+tell process "System Settings"
+if (count of windows) = 0 then return "open"
+if frontmost and (name of window 1) contains "%s" then return "close"
+return "open"
+end tell
+end tell]],
+		title_pattern
+	)
+	local close = [[tell application "System Events" to tell process "System Settings" to click (value of attribute "AXCloseButton" of window 1)]]
+	-- 起動していないときの確認 (osascript) は約 1.6 秒かかるので、pgrep (約 0.02 秒) で先に見て、
+	-- 起動していなければ確認せずにすぐ開く (起動中の確認は約 0.13 秒)
+	local command = string.format(
+		"if pgrep -qx 'System Settings' && [ \"$(osascript -e '%s' 2>/dev/null)\" = close ]; then osascript -e '%s' >/dev/null 2>&1; else open '%s'; fi",
+		check,
+		close,
+		url
+	)
+	sbar.exec(command)
+end
+
 -- bounding_rects はディスプレイ名をキーにした表。先頭の 1 つを使う。
 -- 非表示の item は origin が (-9999, -9999) になるので、画面外なら nil を返す。
 local function visible_rect(name)

@@ -46,12 +46,6 @@ local POPUP_HEIGHT = CONTENT_HEIGHT + 2 * POPUP_PADDING
 local CONTENT_TOP = math.floor(CONTENT_HEIGHT / 2) -- 中央から見た、左の列の上端
 -- 時刻の行と、再生位置のバーは、左の列の下端に高さをそろえる (行の中央)
 local BOTTOM_ROW_Y = -(CONTENT_TOP - math.floor(TIME_ROW_HEIGHT / 2))
--- ポップアップの文字は、メニューバーと同じシステムフォントにする。
--- ファミリに ".AppleSystemUIFont" を指定すると欧文は SF になり、日本語は自動で
--- メニューバーと同じ ".Hiragino Kaku Gothic Interface" (W4) に切り替わる (CoreText で確認)。
--- "SF Pro" などの名前は、SF Pro が入っていないと Helvetica に解決されてしまう。
-local POPUP_FONT_FAMILY = ".AppleSystemUIFont"
-local POPUP_FONT_STYLE = "Bold" -- 欧文は System Font Bold、日本語は W6 になる (Regular なら W4)
 -- 再生位置のバーは、時刻をカバー画像の下に出す分、文字の領域の全幅に伸ばす
 local SLIDER_WIDTH = TEXT_WIDTH
 
@@ -172,11 +166,8 @@ local hit = ui.add_hit_layer("spotify.hit", SIZE, BRACKET_PADDING)
 -- 文字の領域は、曲名・アーティスト・アルバム・再生位置の item を width = 0 にして同じ x から
 -- y_offset で縦にずらして重ね、その右に TEXT_WIDTH の空き (spotify.viz) を置いて幅を確保する。
 -- 空の項目 (ポッドキャストのアーティストなど) は非表示にする (その行は空く)。
--- 文字は POPUP_FONT_FAMILY / POPUP_FONT_STYLE (メニューバーと同じフォント) で、size と color だけ行ごとに変える。
--- features は OpenType の機能タグ (カンマ区切り)。時刻には等幅数字の "tnum" を渡す
-local function popup_font(size, features)
-	return { family = POPUP_FONT_FAMILY, style = POPUP_FONT_STYLE, size = size, features = features }
-end
+-- 文字は ui.popup_font (メニューバーと同じシステムフォント) で、size と color だけ行ごとに変える。
+local popup_font = ui.popup_font
 
 local function add_popup_spacer(name, width)
 	return sbar.add("item", name, {
