@@ -26,7 +26,9 @@ let
   settings = {
     general = {
       framerate = 30;
-      bars = 40;
+      bars = 32;
+      lower_cutoff_freq = 40;
+      higher_cutoff_freq = 12000;
       # 棒は、棒を描く領域の幅 (popup.frag の VIZ の幅 = spotify.lua の VIZ_WIDTH = 200) の両端に、最初の棒の左端と
       # 最後の棒の右端が合うように並ぶ。棒の幅は (領域の幅 - (bars - 1) × bar_spacing) / bars になる (bar_width は使われない)。
       # cava は、bars × bar_width + (bars - 1) × bar_spacing が窓の幅 (ポップアップの幅) を超えると、
@@ -36,7 +38,7 @@ let
       # 固定の感度にする。autosens は起動直後に感度を 0 から上げるので、棒が約 0.8 秒かけて伸びてしまう。
       # 感度は、Spotify の再生音で、最大の棒の 99 パーセンタイルが 0.9 になる値 (曲や音量で変わる)。
       autosens = 0;
-      sensitivity = 3800;
+      sensitivity = 3000;
     };
     input = {
       method = "coreaudio";
