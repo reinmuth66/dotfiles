@@ -1,11 +1,6 @@
 local colors = require("colors")
 local ui = require("ui")
 
--- 字面の高さ (px)。Hack Nerd Font Bold 18pt を CoreText で実測 (3 つとも 15.0)。
--- bracket の上下の余白と、左右の余白をそろえるのに使う。フォントやサイズを変えたら再測定が必要。
-local GLYPH_HEIGHT = 15
-local MARGIN = ui.vertical_margin(GLYPH_HEIGHT)
-
 -- アイコンの箱の幅 (padding を含む全幅)。字面は箱の外にはみ出すと見切れるので、字面の最大幅
 -- (実測 13.5。advance は 10.8 しかない) を切り上げた値にする。
 -- 字面は箱の左端 + padding_left から描かれるので (spotify.lua と同じ)、状態ごとの padding_left で
@@ -34,12 +29,6 @@ local bluetooth = ui.add_item("bluetooth", "right", {
 	},
 	label = { drawing = false },
 })
-
-ui.add_bracket("bluetooth.bracket", { bluetooth }, nil, MARGIN)
-
--- bracket 全体でクリックを受ける (item の padding の部分は、item 自身では反応しない。ui.add_hit_layer)
-local hit = ui.add_hit_layer_over("bluetooth.hit", ICON_WIDTH + 2 * MARGIN, ICON_WIDTH + 2 * MARGIN)
-ui.add_spacer("right", ui.bracket_gap)
 
 -- 接続・切断・電源の切り替えで届く。何も変わらなくても数秒おきに届く (実機で確認) ので、
 -- 状態が前回と同じなら何もしない。電源専用の通知 (IOBluetoothHostController...) は届かない。
@@ -84,8 +73,10 @@ bluetooth:subscribe("bluetooth_status", on_status)
 bluetooth:subscribe({ "system_woke", "routine", "forced" }, update)
 update()
 
--- クリックで、システム設定の Bluetooth の画面を開く。すでに前面に出ているときは閉じる
--- (標準メニューバーのパネルは、押すと標準メニューバーが出てしまうため使わない)
-hit:subscribe("mouse.clicked", function()
-	ui.toggle_settings(SETTINGS_URL, "Bluetooth")
-end)
+-- bracket と、クリックを受ける領域は、items/network.lua が作る (Wi-Fi と Bluetooth を 1 つの bracket にまとめる)
+return {
+	item = bluetooth,
+	icon_width = ICON_WIDTH,
+	settings_url = SETTINGS_URL,
+	title_pattern = "Bluetooth", -- システム設定のウィンドウのタイトルに含まれる文字 (ui.toggle_settings)
+}
