@@ -31,7 +31,7 @@ local function merge(base, extra)
 	return out
 end
 
--- position は "left" / "right" / "center" のいずれかを必ず指定する
+-- position は "left" / "right" / "center" / "q" (ノッチの左) / "e" (ノッチの右) のいずれかを必ず指定する
 -- (sketchybar の既定は left だが、呼び出し側で意図を明示させる)。
 function M.add_item(name, position, props)
 	return sbar.add("item", name, merge(props or {}, { position = position }))
@@ -100,7 +100,7 @@ function M.add_spacer(position, width, name)
 end
 
 -- 操作 (ホバー・クリック・スクロール) を受けるための、透明で静的な item。
--- right の item (width を指定したもの) とその bracket の真上に重なり、bracket 全体で反応する。
+-- right (または q) の item (width を指定したもの) とその bracket の真上に重なり、bracket 全体で反応する。
 --
 -- マウスイベントは、カーソルの下にあるウィンドウに届く。SketchyBar は、マウスイベントを購読している
 -- item が再描画されるたびに、その item のマウス追跡領域を張り直す。このとき mouse.exited が
@@ -125,11 +125,13 @@ end
 -- bracket の中に複数の item が並ぶ (幅が違う、または重なっている) ときの add_hit_layer。
 -- 位置と幅は hit_layer_geometry で決める。
 -- 重ねる item より後 (かつ bracket より後) に追加すること。
+-- 重ねる item が "q" (ノッチの左) のときは、props.position = "q" を渡す (配置は right と同じ右から左)。
 function M.add_hit_layer_over(name, chain_width, bracket_width, props)
 	local layer = M.hit_layer_geometry(chain_width, bracket_width)
 	layer.label = { drawing = false }
 	layer.background = { drawing = true, color = 0x00000000 }
-	return M.add_item(name, "right", merge(layer, props))
+	local position = props and props.position or "right"
+	return M.add_item(name, position, merge(layer, props))
 end
 
 -- bracket の右端から from〜to (px) の範囲を覆い、隣の item の位置を変えない hit の padding と幅。

@@ -34,7 +34,7 @@ local NET_SCALE_FLOOR = 100 * 1000
 sbar.add("event", "system_stats")
 
 -- item の width は指定しない。width を指定した item の後は、配置が width の分しか進まず、bracket の padding が
--- 数えられないので、右隣 (spotify) が padding の分だけ重なる (ui.add_hit_layer の説明)。幅は icon.width で決める。
+-- 数えられないので、隣の item が padding の分だけ重なる (ui.add_hit_layer の説明)。幅は icon.width で決める。
 local gear = ui.add_item("system", "right", {
 	icon = {
 		string = "\u{f0493}", -- nf-md-cog
@@ -59,8 +59,6 @@ ui.add_bracket("system.bracket", { gear }, nil, ui.vertical_margin(GLYPH_HEIGHT)
 -- padding を含む bracket の幅と同じ
 local BRACKET_WIDTH = ICON_WIDTH + 2 * ui.vertical_margin(GLYPH_HEIGHT)
 local hit = ui.add_hit_layer_over("system.hit", BRACKET_WIDTH, BRACKET_WIDTH)
-
-ui.add_spacer("right", ui.bracket_gap)
 
 -- 10 進接頭辞 (1 KB = 1000 B)。メモリ・スワップ・ネットワーク・ディスクで、単位をそろえる。
 -- 100 以上は整数、それ未満は小数 1 桁で出す。

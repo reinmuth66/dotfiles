@@ -93,6 +93,11 @@ local VIZ_HANDOVER_DELAY = 0.1
 -- (背景の描画側で短辺の半分に丸められる)。左右の padding は、円の中に画像が同心で収まる値。
 local BRACKET_PADDING = (colors.bracket.height - SIZE) / 2
 
+-- ノッチと bracket の間隔は、bracket の上下の余白 (バーの高さ - bracket の高さ) / 2 と同じにする。
+-- BAR_HEIGHT は bar.lua の height と同じ値にする。
+local BAR_HEIGHT = 40
+local NOTCH_GAP = (BAR_HEIGHT - colors.bracket.height) / 2
+
 -- 回転: TICK 秒ごとに、角度を ROTATION_STEP だけ進める。1 周が ROTATION_PERIOD 秒になる。
 -- 再生位置の表示 (秒) も同じ周で 1 つ進める (秒の切り替わりと回転が同じタイミングで変わる)。
 -- 負の値は rotation を減らす向き (見た目の向きはこの符号で決まる)。
@@ -105,9 +110,20 @@ local PAUSED_COLOR = 0x99000000
 local PLAYING_COLOR = 0x00000000
 local FADE_FRAMES = 12 -- 再生/一時停止の切り替えにかけるフレーム数 (60 フレームで 1 秒)
 
--- 常に表示する。曲がない間 (未起動・停止中) は Spotify のアイコン、再生中・一時停止中は
+-- ノッチとの間隔は spacer で作る。ノッチに最も近い位置に置くので、spotify より先に追加する。
+-- 幅は NOTCH_GAP - 2 にする。引く 2 の内訳:
+--   - 1: spacer の見た目の隙間は幅 + 1 (ui.lua の SPACER_RENDERED_WIDTH)。
+--   - 1: SketchyBar は "q" の起点を (画面幅 - notch_width) / 2 の切り捨てで求める (bar.c)。notch_width = 209 だと
+--        750 pt になり、実測したノッチの左端 751 pt より 1 pt 外側から並ぶ。ノッチが画面の中心より 0.5 pt 右に
+--        あり、SketchyBar の対称の前提と合わないため (実測は bar.lua)。
+-- TODO: ノッチの右側 ("e") にも item を置くときは、この補正の関数化を検討する。右は起点が実測の右端 960 pt より
+--       1 pt ノッチの内側 (959 pt) になるので、補正は逆向きで、幅は NOTCH_GAP になる (引かない)。
+--       側を渡すと補正を決める関数にして、ノッチの 0.5 pt のずれを 1 か所で扱う (ui.lua に置く)。
+ui.add_spacer("q", NOTCH_GAP - 2, "spotify.notch_gap")
+
+-- ノッチの左隣 (position "q") に置く。常に表示する。曲がない間 (未起動・停止中) は Spotify のアイコン、再生中・一時停止中は
 -- アルバム画像を出す。初期状態はアイコン側 (画像と覆いは非表示)。
-local spotify = ui.add_item("spotify", "right", {
+local spotify = ui.add_item("spotify", "q", {
 	width = SIZE,
 	update_freq = 5, -- 画像を出している間の、Spotify 終了の確認 (routine) に使う
 	-- icon.width は padding を含む箱の全幅 (SketchyBar v2.24.0 の text.c で確認)。
@@ -148,7 +164,7 @@ local spotify = ui.add_item("spotify", "right", {
 		},
 	},
 	popup = {
-		align = "center",
+		align = "left",
 		horizontal = true,
 		height = POPUP_HEIGHT,
 		background = colors.popup,
@@ -160,7 +176,7 @@ ui.add_bracket("spotify.bracket", { spotify }, {
 }, BRACKET_PADDING)
 
 -- bracket の範囲 (spotify の幅 + 左右の padding) 全体でマウス操作を受ける
-local hit = ui.add_hit_layer("spotify.hit", SIZE, BRACKET_PADDING)
+local hit = ui.add_hit_layer("spotify.hit", SIZE, BRACKET_PADDING, { position = "q" })
 
 -- ポップアップの中身。横に追加順で並ぶ: カバー画像 | 文字の領域。
 -- 文字の領域は、曲名・アーティスト・アルバム・再生位置の item を width = 0 にして同じ x から
