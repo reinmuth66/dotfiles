@@ -38,7 +38,12 @@ local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/spotify"
 local COVER_SIZE = 72
 local COVER_PX = COVER_SIZE * 4 -- ポップアップ用に、アイコン用 (ART_PX) とは別に大きい画像をキャッシュする
 local POPUP_PADDING = 12
-local TEXT_WIDTH = 200
+-- ポップアップは、内蔵ディスプレイの画面の中央 (855 pt) に中心が来るようにする。ポップアップは左端 (実測で 714 pt。
+-- bracket の左端と同じ) から右へ伸びるので、幅 = 2 * (855 - 714) = 282 pt。幅は 111 + TEXT_WIDTH (POPUP_BG_WIDTH) なので、
+-- TEXT_WIDTH = 171。ノッチとの間隔 (NOTCH_GAP)、notch_width、SIZE、POPUP_PADDING、COVER_SIZE を変えたときは、
+-- ポップアップの左端を実測し直して、この値を計算し直す (spotify.cover の bounding_rects の x - POPUP_PADDING が左端)。
+-- 画面の中央からずれるのは、内蔵ディスプレイ以外 (ノッチがない外部ディスプレイ) では item の位置が変わるため。
+local TEXT_WIDTH = 171
 local TIME_GAP = 3 -- カバー画像と、その下の時刻の間 (pt)
 local TIME_ROW_HEIGHT = 13 -- 時刻の行の高さ (pt)
 local CONTENT_HEIGHT = COVER_SIZE + 2 * colors.popup.border_width + TIME_GAP + TIME_ROW_HEIGHT -- 左の列の高さ (偶数にする)
@@ -171,7 +176,7 @@ local spotify = ui.add_item("spotify", "q", {
 	},
 })
 
-ui.add_bracket("spotify.bracket", { spotify }, {
+local bracket = ui.add_bracket("spotify.bracket", { spotify }, {
 	background = { color = 0xff000000, corner_radius = colors.bracket.height / 2 },
 }, BRACKET_PADDING)
 
@@ -554,6 +559,16 @@ local function popup_fade_out()
 end
 
 local fading_out = false -- 閉じるアニメーションの途中 (close_popup が重ねて呼ばれても、やり直さない)
+-- ダブルクリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない (close_popup)。
+-- もう一度ダブルクリックすると外す。ピン留め中は bracket の枠線が白くなる。曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
+local pinned = false
+local PINNED_BORDER_COLOR = 0xffffffff -- ピン留め中の bracket の枠線の色 (普段は colors.bracket.border_color)
+
+-- ピン留めの状態を変え、bracket の枠線の色で示す
+local function set_pinned(value)
+	pinned = value
+	bracket:set({ background = { border_color = value and PINNED_BORDER_COLOR or colors.bracket.border_color } })
+end
 
 -- ポップアップを開く。ホバーの瞬間にアニメーションを始め、実際の位置は取得できしだい、アニメーションなしで合わせる
 -- (開いている間にバーが古い位置から伸びないように)。
@@ -601,8 +616,11 @@ end
 
 -- ポップアップを閉じる。棒グラフの窓は、消え残りを避けるため、先に即座に隠す (窓は SketchyBar の外なのでフェードできない)。
 -- ポップアップは、逆向きのアニメーションが終わってから閉じる。その間に開き直されたら (open_id が変わる) 閉じない。
--- mouse.exited と mouse.exited.global が続けて来ても、1 回だけ行う。
+-- mouse.exited と mouse.exited.global が続けて来ても、1 回だけ行う。ピン留め中は閉じない。
 local function close_popup()
+	if pinned then
+		return
+	end
 	local was_open = popup_open
 	popup_open = false
 	-- 窓を隠す指示 (制御ファイルへの同期的な書き込み) を、アニメーションより先に出す
@@ -996,6 +1014,7 @@ end
 
 local function show_icon()
 	showing_art = false
+	set_pinned(false)
 	popup_open = false
 	viz_stop()
 	spotify:set({
@@ -1261,15 +1280,16 @@ end)
 -- ホバーでポップアップを開閉する (曲情報があるとき、つまり画像を出している間だけ)。
 -- バーの外へ出たときは mouse.exited.global でも閉じる。
 hit:subscribe("mouse.entered", function()
-	if showing_art then
+	-- ピン留め中は開いたままなので、開き直さない (フェードインのやり直しになる)
+	if showing_art and not popup_open then
 		open_popup()
 	end
 end)
 
 hit:subscribe({ "mouse.exited", "mouse.exited.global" }, close_popup)
 
--- 操作: 左クリックで再生/一時停止、右クリックで Spotify のウィンドウを表示、
--- 上スクロールで前の曲、下スクロールで次の曲。
+-- 操作: 左クリックで再生/一時停止、左ダブルクリックでポップアップのピン留め (もう一度で外す)、
+-- 右クリックで Spotify のウィンドウを表示、上スクロールで前の曲、下スクロールで次の曲。
 -- 表示は上の分散通知で追従するので、ここでは Spotify に命令を送るだけにする。
 -- 未起動の Spotify を起動してしまわないよう、pgrep で確認してから送る。
 local function spotify_command(command)
@@ -1283,9 +1303,35 @@ end
 -- Home Manager Apps のパスで指定する (名前だと更新用の一時コピーに解決されることがある)。
 local SPOTIFY_APP = os.getenv("HOME") .. "/Applications/Home Manager Apps/Spotify.app"
 
+-- ダブルクリックの検出。SketchyBar にはダブルクリックのイベントがなく、クリックが 2 回届くだけなので、
+-- 1 回目のクリックの再生/一時停止を DOUBLE_CLICK_INTERVAL 秒だけ待ち、その間に 2 回目が来たらダブルクリックとして
+-- ピン留めの切り替えにする (再生/一時停止は行わない)。そのため、再生/一時停止はクリックからこの秒数だけ遅れる。
+-- macOS の既定のダブルクリックの間隔は約 0.5 秒だが、再生/一時停止の遅れを抑えるため短くしてある。
+local DOUBLE_CLICK_INTERVAL = 0.3
+local click_id = 0
+local click_pending = false
+
 hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
-		spotify_command("playpause")
+		if click_pending then
+			click_pending = false
+			-- ポップアップが開いていない (曲情報がない) ときは、ピン留めしない。外すのはいつでもできる
+			if pinned then
+				set_pinned(false)
+			elseif popup_open then
+				set_pinned(true)
+			end
+			return
+		end
+		click_pending = true
+		click_id = click_id + 1
+		local id = click_id
+		sbar.delay(DOUBLE_CLICK_INTERVAL, function()
+			if click_pending and id == click_id then
+				click_pending = false
+				spotify_command("playpause")
+			end
+		end)
 	elseif env.BUTTON == "right" then
 		sbar.exec(string.format("open %q", SPOTIFY_APP))
 	end
