@@ -4,13 +4,13 @@ local ui = require("ui")
 -- アイコンの箱の幅 (padding を含む全幅)。字面は箱の外にはみ出すと見切れるので、字面の最大幅
 -- (実測 13.5。advance は 10.8 しかない) を切り上げた値にする。
 -- 字面は箱の左端 + padding_left から描かれるので (spotify.lua と同じ)、状態ごとの padding_left で
--- 字面の幅 (on 9.5 / connected 13.5 / off 12.0) を箱の中の中央に寄せる。
+-- 字面の幅 (on 9.5 / off 12.0) を箱の中の中央に寄せる。
 -- 実測値 (Hack Nerd Font Bold 18pt): フォントやサイズを変えたら再測定が必要。
 local ICON_WIDTH = 14
 
--- 接続中デバイスがあるときは白、電源が入っているだけのときは少し薄く、オフはさらに薄い色
+-- 接続中デバイスがあるときは、アイコンは on と同じまま白の濃さだけで表す (白 / 少し薄い)。オフはアイコンも変える
 local STATES = {
-	connected = { icon = "󰂱", color = colors.white, pad = 0 }, -- nf-md-bluetooth_connect
+	connected = { icon = "󰂯", color = colors.white, pad = 2 }, -- nf-md-bluetooth
 	on = { icon = "󰂯", color = colors.dim, pad = 2 }, -- nf-md-bluetooth
 	off = { icon = "󰂲", color = colors.dim, pad = 1 }, -- nf-md-bluetooth_off
 }
