@@ -28,8 +28,6 @@ local SPLIT = MARGIN + wifi.icon_width + ICON_GAP / 2
 local wifi_hit = ui.add_hit_region("network.wifi.hit", CHAIN, 0, SPLIT)
 local bluetooth_hit = ui.add_hit_region("network.bluetooth.hit", CHAIN, SPLIT, CHAIN)
 
-ui.add_spacer("right", ui.bracket_gap)
-
 -- クリックで、システム設定のそれぞれの画面を開く。すでに前面に出ているときは閉じる
 -- (標準メニューバーのパネルは、押すと標準メニューバーが出てしまうため使わない)
 wifi_hit:subscribe("mouse.clicked", function()

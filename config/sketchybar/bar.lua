@@ -1,6 +1,8 @@
+local ui = require("ui")
+
 sbar.bar({
 	position = "top",
-	height = 40,
+	height = ui.bar_height,
 	blur_radius = 0,
 	color = 0x00000000,
 	-- 内蔵ディスプレイのノッチの幅 (pt)。position "q" / "e" の item はこの両脇に並ぶ。

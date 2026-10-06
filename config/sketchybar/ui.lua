@@ -80,6 +80,10 @@ function M.add_bracket(name, members, props, padding)
 	)
 end
 
+-- add_spacer が描画する幅 (空のラベルが 1px の幅を持つ。実機で測定)。
+-- spacer の padding_right を width にしても、見た目の隙間は width + 1 になる。
+local SPACER_RENDERED_WIDTH = 1
+
 local spacer_count = 0
 
 -- 幅 width の空白を作る item。name を省くと連番で命名する。
@@ -97,6 +101,29 @@ function M.add_spacer(position, width, name)
 		icon = { drawing = false },
 		label = { string = "", padding_left = 0, padding_right = 0 },
 	})
+end
+
+-- バーの高さ。bar.lua の height に使う (ノッチとの間隔もここから決める)。
+M.bar_height = 40
+
+-- ノッチと bracket の間隔は、bracket の上下の余白 (バーの高さ - bracket の高さ) / 2 と同じにする。
+M.notch_gap = (M.bar_height - colors.bracket.height) / 2
+
+-- SketchyBar が position "q" / "e" の起点を求める位置の、実測したノッチの縁からのずれ (pt)。
+-- ノッチの外側が正、内側が負。ノッチが画面の中心より 0.5 pt 右にあり、SketchyBar の対称の前提
+-- (bar.c は左の起点を (画面幅 - notch_width) / 2 の切り捨てで求める) と合わないため、整数に丸めた結果、
+-- 左右で逆向きにずれる (実測は bar.lua。notch_width = 209 で、左の起点 750 pt / 実測の左端 751 pt、
+-- 右の起点 959 pt / 実測の右端 960 pt)。
+local NOTCH_ORIGIN_OFFSET = { q = 1, e = -1 }
+
+-- ノッチの脇 (position "q" = 左、"e" = 右) の item とノッチの間隔 (M.notch_gap) を作る spacer。
+-- ノッチに最も近い位置に置くので、その側の item より先に追加すること。
+-- 見た目の隙間は 幅 + SPACER_RENDERED_WIDTH + 起点のずれ になるので、上のずれを幅から引いて
+-- 実測のノッチの縁からの間隔をそろえる ("q" は NOTCH_GAP - 2、"e" は NOTCH_GAP)。
+function M.add_notch_spacer(position, name)
+	local offset = NOTCH_ORIGIN_OFFSET[position]
+	assert(offset ~= nil, 'add_notch_spacer: position must be "q" or "e"')
+	return M.add_spacer(position, M.notch_gap - SPACER_RENDERED_WIDTH - offset, name)
 end
 
 -- 操作 (ホバー・クリック・スクロール) を受けるための、透明で静的な item。
@@ -125,12 +152,17 @@ end
 -- bracket の中に複数の item が並ぶ (幅が違う、または重なっている) ときの add_hit_layer。
 -- 位置と幅は hit_layer_geometry で決める。
 -- 重ねる item より後 (かつ bracket より後) に追加すること。
--- 重ねる item が "q" (ノッチの左) のときは、props.position = "q" を渡す (配置は right と同じ右から左)。
+-- 重ねる item が "q" (ノッチの左) のときは props.position = "q" を渡す (配置は right と同じ右から左)。
+-- "e" (ノッチの右) のときは props.position = "e" を渡す (配置は left と同じ左から右)。
 function M.add_hit_layer_over(name, chain_width, bracket_width, props)
 	local layer = M.hit_layer_geometry(chain_width, bracket_width)
 	layer.label = { drawing = false }
 	layer.background = { drawing = true, color = 0x00000000 }
 	local position = props and props.position or "right"
+	if position == "e" then
+		-- "e" (ノッチの右) は左から右へ並ぶので、戻す向きと進める向きが逆になる
+		layer.padding_left, layer.padding_right = layer.padding_right, layer.padding_left
+	end
 	return M.add_item(name, position, merge(layer, props))
 end
 
@@ -215,10 +247,6 @@ local function visible_rect(name)
 	end
 	return nil
 end
-
--- add_spacer が描画する幅 (空のラベルが 1px の幅を持つ。実機で測定)。
--- spacer の padding_right を width にしても、見た目の隙間は width + 1 になる。
-local SPACER_RENDERED_WIDTH = 1
 
 -- 隣り合う left (左) と right (右) の見た目上の隙間が、通常の spacer (add_spacer の
 -- width が spacing のもの) を挟んだときと同じになるよう、2 つの間に置いた spacer の

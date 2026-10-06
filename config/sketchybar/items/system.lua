@@ -33,9 +33,13 @@ local NET_SCALE_FLOOR = 100 * 1000
 -- helper が送るイベント。helper が起動するより先に登録しておく (未登録のイベントは --trigger できない)
 sbar.add("event", "system_stats")
 
+-- ノッチの右隣 (position "e") に置く。ノッチとの間隔は spacer で作る (ui.add_notch_spacer)。
+-- ノッチに最も近い位置に置くので、gear より先に追加する。
+ui.add_notch_spacer("e", "system.notch_gap")
+
 -- item の width は指定しない。width を指定した item の後は、配置が width の分しか進まず、bracket の padding が
 -- 数えられないので、隣の item が padding の分だけ重なる (ui.add_hit_layer の説明)。幅は icon.width で決める。
-local gear = ui.add_item("system", "right", {
+local gear = ui.add_item("system", "e", {
 	icon = {
 		string = "\u{f0493}", -- nf-md-cog
 		font = { size = 18.0 },
@@ -58,7 +62,7 @@ ui.add_bracket("system.bracket", { gear }, nil, ui.vertical_margin(GLYPH_HEIGHT)
 -- bracket 全体でマウス操作を受ける (ui.add_hit_layer_over)。item の幅は自動なので、配置が進む幅 (chain) は
 -- padding を含む bracket の幅と同じ
 local BRACKET_WIDTH = ICON_WIDTH + 2 * ui.vertical_margin(GLYPH_HEIGHT)
-local hit = ui.add_hit_layer_over("system.hit", BRACKET_WIDTH, BRACKET_WIDTH)
+local hit = ui.add_hit_layer_over("system.hit", BRACKET_WIDTH, BRACKET_WIDTH, { position = "e" })
 
 -- 10 進接頭辞 (1 KB = 1000 B)。メモリ・スワップ・ネットワーク・ディスクで、単位をそろえる。
 -- 100 以上は整数、それ未満は小数 1 桁で出す。
