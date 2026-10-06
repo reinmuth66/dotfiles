@@ -6,10 +6,9 @@ local ui = require("ui")
 -- 測定は helper がカーネルの API を直接呼ぶだけなので軽い。この item は、ポップアップが閉じている間は
 -- 履歴を貯めるだけで、描画の指示 (set / push) は出さない。
 
--- 字面の高さ・幅 (px)。Hack Nerd Font Bold 18pt を CoreText で実測 (nf-md-cog は 14.98 x 14.63)。
--- フォントやサイズを変えたら再測定が必要。
-local GLYPH_HEIGHT = 15
-local ICON_WIDTH = 15
+-- アイコンのサイズ (pt)。sketchybar-app-font の :gear: は、字面がほぼ一辺 SIZE の正方形になる
+-- (CoreText で実測。20pt で 19.88 x 19.63)。箱の幅も SIZE にする。フォントやサイズを変えたら再測定が必要。
+local SIZE = 20
 
 -- グラフの幅 (pt)。SketchyBar のグラフは 1pt が 1 点なので、点の数でもある (helper の間隔 2 秒 x 点数が履歴の長さ)
 local GRAPH_WIDTH = 120
@@ -41,10 +40,10 @@ ui.add_notch_spacer("e", "system.notch_gap")
 -- 数えられないので、隣の item が padding の分だけ重なる (ui.add_hit_layer の説明)。幅は icon.width で決める。
 local gear = ui.add_item("system", "e", {
 	icon = {
-		string = "\u{f0493}", -- nf-md-cog
-		font = { size = 18.0 },
-		y_offset = 1,
-		width = ICON_WIDTH,
+		string = ":gear:",
+		font = "sketchybar-app-font:Regular:" .. SIZE .. ".0",
+		width = SIZE,
+		-- 字面は箱の左端から描かれる (spotify.lua)。字面は幅 19.88 なので、箱の中心より 0.06 pt 左に寄るだけ。
 		align = "left",
 		padding_left = 0,
 		padding_right = 0,
@@ -57,11 +56,16 @@ local gear = ui.add_item("system", "e", {
 	},
 })
 
-ui.add_bracket("system.bracket", { gear }, nil, ui.vertical_margin(GLYPH_HEIGHT))
+-- bracket は円にする。幅を高さ (colors.bracket.height) と同じにし、角の半径は短辺の半分にする。
+-- 左右の padding は、円の中に歯車が同心で収まる値 (spotify.lua の BRACKET_PADDING と同じ考え方)。
+local BRACKET_PADDING = (colors.bracket.height - SIZE) / 2
+ui.add_bracket("system.bracket", { gear }, {
+	background = { corner_radius = colors.bracket.height / 2 },
+}, BRACKET_PADDING)
 
 -- bracket 全体でマウス操作を受ける (ui.add_hit_layer_over)。item の幅は自動なので、配置が進む幅 (chain) は
 -- padding を含む bracket の幅と同じ
-local BRACKET_WIDTH = ICON_WIDTH + 2 * ui.vertical_margin(GLYPH_HEIGHT)
+local BRACKET_WIDTH = SIZE + 2 * BRACKET_PADDING
 local hit = ui.add_hit_layer_over("system.hit", BRACKET_WIDTH, BRACKET_WIDTH, { position = "e" })
 
 -- 10 進接頭辞 (1 KB = 1000 B)。メモリ・スワップ・ネットワーク・ディスクで、単位をそろえる。
