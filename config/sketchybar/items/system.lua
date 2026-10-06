@@ -36,16 +36,24 @@ sbar.add("event", "system_stats")
 -- ノッチに最も近い位置に置くので、gear より先に追加する。
 ui.add_notch_spacer("e", "system.notch_gap")
 
+-- bracket は円にする。幅を高さ (colors.bracket.height) と同じにし、角の半径は短辺の半分にする。
+-- 円の中に歯車が同心で収まるよう、歯車の左右に余白 (ICON_PADDING) を取る。
+local BRACKET_WIDTH = colors.bracket.height
+local ICON_PADDING = (BRACKET_WIDTH - SIZE) / 2
+
 -- item の width は指定しない。width を指定した item の後は、配置が width の分しか進まず、bracket の padding が
 -- 数えられないので、隣の item が padding の分だけ重なる (ui.add_hit_layer の説明)。幅は icon.width で決める。
+-- 余白は item の padding ではなく icon の padding にして、item の幅を bracket の幅 (円の直径) と同じにする。
+-- ポップアップは item の端にそろう (align = "right" は item の右端) ので、item が bracket より狭いと、
+-- ポップアップの右端が円の端からずれる。icon.width は padding を含む箱の全幅 (spotify.lua)。
 local gear = ui.add_item("system", "e", {
 	icon = {
 		string = ":gear:",
 		font = "sketchybar-app-font:Regular:" .. SIZE .. ".0",
-		width = SIZE,
-		-- 字面は箱の左端から描かれる (spotify.lua)。字面は幅 19.88 なので、箱の中心より 0.06 pt 左に寄るだけ。
+		width = BRACKET_WIDTH,
+		-- 字面は箱の左端 + padding_left から描かれる (spotify.lua)。字面は幅 19.88 なので、円の中心より 0.06 pt 左に寄るだけ。
 		align = "left",
-		padding_left = 0,
+		padding_left = ICON_PADDING,
 		padding_right = 0,
 	},
 	label = { drawing = false },
@@ -56,16 +64,12 @@ local gear = ui.add_item("system", "e", {
 	},
 })
 
--- bracket は円にする。幅を高さ (colors.bracket.height) と同じにし、角の半径は短辺の半分にする。
--- 左右の padding は、円の中に歯車が同心で収まる値 (spotify.lua の BRACKET_PADDING と同じ考え方)。
-local BRACKET_PADDING = (colors.bracket.height - SIZE) / 2
 ui.add_bracket("system.bracket", { gear }, {
 	background = { corner_radius = colors.bracket.height / 2 },
-}, BRACKET_PADDING)
+}, 0)
 
 -- bracket 全体でマウス操作を受ける (ui.add_hit_layer_over)。item の幅は自動なので、配置が進む幅 (chain) は
--- padding を含む bracket の幅と同じ
-local BRACKET_WIDTH = SIZE + 2 * BRACKET_PADDING
+-- bracket の幅と同じ
 local hit = ui.add_hit_layer_over("system.hit", BRACKET_WIDTH, BRACKET_WIDTH, { position = "e" })
 
 -- 10 進接頭辞 (1 KB = 1000 B)。メモリ・スワップ・ネットワーク・ディスクで、単位をそろえる。
