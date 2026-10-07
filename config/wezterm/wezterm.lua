@@ -21,9 +21,6 @@ config.window_decorations = "RESIZE"
 -- タブバーの表示
 config.show_tabs_in_tab_bar = true
 config.hide_tab_bar_if_only_one_tab = false
--- falseにするとタブバーの透過が効かなくなる
--- config.use_fancy_tab_bar = false
-
 -- タブバーの透過
 config.window_frame = {
 	inactive_titlebar_bg = "none",
@@ -37,7 +34,6 @@ config.window_background_gradient = {
 
 -- タブの追加ボタンを非表示
 config.show_new_tab_button_in_tab_bar = false
--- nightlyのみ使用可能
 -- タブの閉じるボタンを非表示
 config.show_close_tab_button_in_tabs = false
 
@@ -131,10 +127,17 @@ wezterm.on("format-tab-title", function(tab, tabs, panes, config, hover, max_wid
 	}
 end)
 
-wezterm.on("gui-startup", function()
-	local _, _, window = wezterm.mux.spawn_window({})
+-- cmd は `wezterm start -- <プログラム>` で渡されたプログラム。渡さないと、プログラムの指定が無視されてシェルが起動する
+wezterm.on("gui-startup", function(cmd)
+	local _, _, window = wezterm.mux.spawn_window(cmd or {})
 	window:gui_window():maximize()
 end)
+
+if os.getenv("BTM_WINDOW") then
+	wezterm.on("format-window-title", function()
+		return "btm-monitor"
+	end)
+end
 
 ----------------------------------------------------
 -- keybinds

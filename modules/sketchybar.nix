@@ -56,7 +56,7 @@ in
     };
 
     sbarLuaPackage = pkgs.sbarlua;
-    extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick ]; # imagemagick: spotify の色の抽出
+    extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick pkgs.bottom ]; # imagemagick: spotify の色の抽出、bottom: system item の btm の窓
   };
 
   launchd.agents.sketchybar-clock-helper = mkHelperAgent "clock" clockHelper;

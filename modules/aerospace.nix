@@ -34,7 +34,8 @@
           run = "move-node-to-workspace F";
         }
         {
-          "if" = { app-id = "com.apple.ActivityMonitor"; };
+          # sketchybar の system item から起動する btm の窓 (config/wezterm/wezterm.lua が付ける固定のタイトル)
+          "if" = { window-title-regex-substring = "^btm-monitor$"; };
           run = "move-node-to-workspace A";
         }
       ];

@@ -309,7 +309,12 @@ for _, line in ipairs(LINES) do
 				label = { drawing = false },
 				slider = {
 					percentage = 0,
-					background = { height = MIRROR_HALF, corner_radius = 0, color = FLIP_BASE_COLOR, y_offset = MIRROR_LANE_SHIFT },
+					background = {
+						height = MIRROR_HALF,
+						corner_radius = 0,
+						color = FLIP_BASE_COLOR,
+						y_offset = MIRROR_LANE_SHIFT,
+					},
 				},
 			})
 		end
@@ -642,35 +647,41 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	gear:set({ popup = { drawing = false } })
 end)
 
--- 左クリックでアクティビティモニターを開く。アクティビティモニターが最前面にあるときにクリックしたら閉じる。
--- 背面にあるときは、閉じずに前面へ出す。最前面かどうかは lsappinfo で調べる (権限が要らない)。
--- アクティビティモニターは未保存の状態を持たないので、終了は pkill で行う (osascript だと自動操作の許可が要る)。
--- 閉じたときは、直前にいた workspace へ戻る。アクティビティモニターは専用の workspace (MONITOR_WORKSPACE。
--- modules/aerospace.nix の on-window-detected) に送られ、その workspace は空になっても残るので、自動では戻らない。
--- 閉じた後は、その workspace にいるときだけ戻る (別の workspace にいるときに戻ると、行き先が変わってしまう)。
--- pkill の直後に戻っても、終了しきるまではアクティビティモニターが最前面のままで、AeroSpace がフォーカスを
--- その workspace へ引き戻してしまう (実機で確認)。なので、プロセスが消えるのを待ち、さらに AeroSpace が
--- フォーカスを落ち着かせる時間 (0.4 秒。実機で 3 回とも戻れた) を置いてから戻る。
--- 末尾の && / || の連鎖だと、戻る処理が失敗したときに open が走ってしまうので、if で分ける。
-local MONITOR_BUNDLE_ID = "com.apple.ActivityMonitor"
-local MONITOR_WORKSPACE = "A"
-local TOGGLE_MONITOR_COMMAND = string.format(
-	[[if lsappinfo info -only bundleid "$(lsappinfo front)" | grep -q '"%s"'; then
-	pkill -x "Activity Monitor"
-	for _ in $(seq 1 40); do pgrep -qx "Activity Monitor" || break; sleep 0.05; done
-	sleep 0.4
-	if [ "$(aerospace list-workspaces --focused)" = %s ]; then aerospace workspace-back-and-forth; fi
+local BTM_TITLE = "btm-monitor"
+local BTM_WORKSPACE = "A"
+local TOGGLE_BTM_COMMAND = string.format(
+	[[find_window() { aerospace list-windows --all --format '%%{window-id}|%%{window-title}|%%{app-pid}' | awk -F'|' -v t='%s' -v f="$1" '$2 == t { print $f; exit }'; }
+watch_return() {
+	pgrep -f "btm-return $1" >/dev/null && return
+	nohup sh -c 'while kill -0 "$1" 2>/dev/null; do sleep 0.05; done
+for _ in $(seq 1 20); do
+	if [ "$(aerospace list-workspaces --focused)" = "$2" ]; then aerospace workspace-back-and-forth; break; fi
+	sleep 0.05
+done' btm-return "$1" %s >/dev/null 2>&1 &
+}
+if [ "$(aerospace list-windows --focused --format '%%{window-title}')" = '%s' ]; then
+	pid="$(aerospace list-windows --focused --format '%%{app-pid}')"
+	watch_return "$pid"
+	pkill -x btm -P "$pid"
 else
-	open -b %s
+	id="$(find_window 1)"
+	if [ -z "$id" ]; then
+		BTM_WINDOW=1 nohup wezterm --config hide_tab_bar_if_only_one_tab=true start --always-new-process -- btm >/dev/null 2>&1 &
+		for _ in $(seq 1 100); do id="$(find_window 1)"; [ -n "$id" ] && break; sleep 0.05; done
+	fi
+	if [ -n "$id" ]; then
+		watch_return "$(find_window 3)"
+		aerospace focus --window-id "$id"
+	fi
 fi]],
-	MONITOR_BUNDLE_ID,
-	MONITOR_WORKSPACE,
-	MONITOR_BUNDLE_ID
+	BTM_TITLE,
+	BTM_WORKSPACE,
+	BTM_TITLE
 )
 
 hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
-		sbar.exec(TOGGLE_MONITOR_COMMAND)
+		sbar.exec(TOGGLE_BTM_COMMAND)
 	elseif env.BUTTON == "right" then
 		-- ポップアップが開いていないときは、ピン留めしない。外すのはいつでもできる
 		if pinned then
