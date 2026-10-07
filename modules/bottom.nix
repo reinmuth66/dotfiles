@@ -7,6 +7,7 @@
       flags = {
         default_widget_type = "proc";
         default_widget_count = 1;
+        hide_time = true;
       };
       processes = {
         default_tree = true;
@@ -21,6 +22,12 @@
           "User"
           "State"
         ];
+      };
+      disk.mount_filter = {
+        is_list_ignored = false;
+        list = [ "/" ];
+        regex = true;
+        whole_word = true;
       };
     };
   };
