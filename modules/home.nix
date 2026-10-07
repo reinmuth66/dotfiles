@@ -7,6 +7,7 @@
     ./yazi.nix
     ./git.nix
     ./bat.nix
+    ./bottom.nix
     ./atuin.nix
     ./gh.nix
     ./starship.nix
@@ -33,7 +34,6 @@
   };
 
   home.packages = with pkgs; [
-    bottom
     colima
     docker
     dust
