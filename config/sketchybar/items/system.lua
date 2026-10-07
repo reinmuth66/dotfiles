@@ -18,12 +18,13 @@ local ui = require("ui")
 -- (CoreText で実測。20pt で 19.88 x 19.63)。箱の幅も SIZE にする。フォントやサイズを変えたら再測定が必要。
 local SIZE = 20
 
--- グラフの幅 (pt)。SketchyBar のグラフは 1pt が 1 点なので、点の数でもある (helper の間隔 2 秒 x 点数が履歴の長さ)
-local GRAPH_WIDTH = 120
+-- グラフの幅 (pt)。SketchyBar のグラフは 1pt が 1 点なので、点の数でもある (helper の間隔 1 秒 x 点数が履歴の長さ。約 1 分)
+local GRAPH_WIDTH = 60
 local GRAPH_HEIGHT = 18
 local ROW_HEIGHT = 26
 local TITLE_WIDTH = 52
-local VALUE_WIDTH = 96
+-- 数字の列の幅。グラフの幅 (60pt) が狭いので、RAM の行 (使用率と使用量 | Swap) の文字が重ならないよう広めにする
+local VALUE_WIDTH = 120
 local ROW_PADDING = 8
 local CONTENT_WIDTH = TITLE_WIDTH + GRAPH_WIDTH + VALUE_WIDTH
 
@@ -394,7 +395,7 @@ local swap = sbar.add("item", "system.swap", {
 
 -- ディスク I/O の行: 見出し | 読み / 書きの速度 (数字だけ)。
 -- I/O は、平常時の KB/s の揺れに、数百 MB/s のバーストが散発的に混ざるので、グラフにしても形が情報にならない。
--- 値は helper の間隔 (2 秒) の平均で、デバイスに届いた量 (アプリの read / write ではない。ページキャッシュを通った分は含まない)。
+-- 値は helper の間隔 (1 秒) の平均で、デバイスに届いた量 (アプリの read / write ではない。ページキャッシュを通った分は含まない)。
 local io = sbar.add("item", "system.io", {
 	position = "popup.system",
 	width = 0,

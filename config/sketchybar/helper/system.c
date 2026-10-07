@@ -3,7 +3,7 @@
 #include <IOKit/IOKitLib.h>
 #include <mach/mach_host.h>
 #include <net/if.h>
-#include <net/route.h>
+#include <net/if_mib.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/mount.h>
@@ -15,13 +15,15 @@
 // 測定はカーネルの API を直接呼ぶだけで、プロセスを起動しない。
 // 描画や書式は Lua (items/system.lua) が決めるので、ここでは生の値だけを送る。
 
-#define INTERVAL 2.0
+#define INTERVAL 1.0
 // タイマーの許容誤差 (秒)。割り込みをまとめて、省電力にする
-#define TOLERANCE 0.4
+#define TOLERANCE 0.2
 // ディスクの空き容量を測るボリューム。APFS のコンテナ (ディスク全体) の空きが取れる
 #define DISK_PATH "/System/Volumes/Data"
 // ネットワークの interface の index の上限 (これより大きい index は数えない)
 #define MAX_IFACES 256
+// 数える interface (en*) の一覧を作り直す間隔 (秒)。新しく現れた interface は、最大でこの間隔だけ遅れて数え始める
+#define NET_REFRESH_INTERVAL 30.0
 // ストレージのドライバ (内蔵 SSD、外付けディスク、ディスクイメージ) の数の上限
 #define MAX_DRIVES 32
 
@@ -36,8 +38,9 @@ static uint64_t cpu_prev_total;
 static uint64_t net_prev_rx[MAX_IFACES];
 static uint64_t net_prev_tx[MAX_IFACES];
 static bool net_has_prev[MAX_IFACES];
-static char *net_buffer;
-static size_t net_buffer_size;
+static unsigned net_indexes[MAX_IFACES];
+static int net_index_count;
+static double net_indexes_at;
 
 // ストレージのドライバごとの、前回の累計バイト数
 static struct {
@@ -137,44 +140,48 @@ static void disk_usage(uint64_t *free_bytes, uint64_t *total_bytes) {
   *total_bytes = (uint64_t)fs.f_blocks * fs.f_bsize;
 }
 
+// 数える interface (en*) の index の一覧を作り直す。
+// VPN (utun) やブリッジは、同じ通信を二重に数えるので除く。稼働中かどうかは、測るときに見る。
+static void refresh_net_indexes(double current) {
+  net_indexes_at = current;
+  net_index_count = 0;
+  struct if_nameindex *list = if_nameindex();
+  if (!list)
+    return;
+  for (struct if_nameindex *p = list; p->if_index != 0; p++) {
+    if (p->if_index < MAX_IFACES && strncmp(p->if_name, "en", 2) == 0 &&
+        net_index_count < MAX_IFACES)
+      net_indexes[net_index_count++] = p->if_index;
+  }
+  if_freenameindex(list);
+}
+
 // 稼働中の物理 interface (en*) の送受信バイト数の、前回からの増分を足す。
-// VPN (utun) やブリッジは、同じ通信を二重に数えるので除く。
 // interface ごとに前回値を持ち、途中で現れた interface の累計値が急増分にならないようにする。
+// 1 つずつ sysctl (IFMIB) で読む。全 interface を一括で取る方法 (NET_RT_IFLIST2) は、interface が多いと
+// 重く (19 個で約 200 us。IFMIB は 1 つ約 0.5 us)、IFMIB の統計は 64 ビットなので折り返さない。
 static void network_delta(uint64_t *rx, uint64_t *tx) {
   *rx = *tx = 0;
 
-  int mib[6] = {CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0};
-  size_t length;
-  if (sysctl(mib, 6, NULL, &length, NULL, 0) < 0)
-    return;
-  if (length > net_buffer_size) {
-    char *grown = realloc(net_buffer, length);
-    if (!grown)
-      return;
-    net_buffer = grown;
-    net_buffer_size = length;
-  }
-  if (sysctl(mib, 6, net_buffer, &length, NULL, 0) < 0)
-    return;
+  double current = now();
+  if (net_indexes_at == 0 || current - net_indexes_at >= NET_REFRESH_INTERVAL)
+    refresh_net_indexes(current);
 
-  for (char *p = net_buffer; p < net_buffer + length;) {
-    struct if_msghdr *header = (struct if_msghdr *)p;
-    p += header->ifm_msglen;
-    if (header->ifm_type != RTM_IFINFO2)
-      continue;
-
-    struct if_msghdr2 *message = (struct if_msghdr2 *)header;
-    unsigned index = message->ifm_index;
-    char name[IF_NAMESIZE];
-    if (index >= MAX_IFACES || !if_indextoname(index, name) ||
-        strncmp(name, "en", 2) != 0 || !(message->ifm_flags & IFF_UP)) {
-      if (index < MAX_IFACES)
-        net_has_prev[index] = false;
+  for (int i = 0; i < net_index_count; i++) {
+    unsigned index = net_indexes[i];
+    struct ifmibdata data;
+    size_t length = sizeof(data);
+    int mib[6] = {CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_IFDATA, (int)index,
+                  IFDATA_GENERAL};
+    // 取り外された interface や、index が別の interface に使い回されたものは、前回値を捨てる
+    if (sysctl(mib, 6, &data, &length, NULL, 0) != 0 ||
+        strncmp(data.ifmd_name, "en", 2) != 0 || !(data.ifmd_flags & IFF_UP)) {
+      net_has_prev[index] = false;
       continue;
     }
 
-    uint64_t in = message->ifm_data.ifi_ibytes;
-    uint64_t out = message->ifm_data.ifi_obytes;
+    uint64_t in = data.ifmd_data.ifi_ibytes;
+    uint64_t out = data.ifmd_data.ifi_obytes;
     if (net_has_prev[index]) {
       if (in >= net_prev_rx[index])
         *rx += in - net_prev_rx[index];
