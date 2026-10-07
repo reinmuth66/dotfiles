@@ -33,6 +33,10 @@
           "if" = { app-id = "com.spotify.client"; };
           run = "move-node-to-workspace F";
         }
+        {
+          "if" = { app-id = "com.apple.ActivityMonitor"; };
+          run = "move-node-to-workspace A";
+        }
       ];
 
       exec-on-workspace-change = [
@@ -97,6 +101,7 @@
         alt-9 = "workspace 9";
 
         alt-f = "workspace F";
+        alt-a = "workspace A";
 
         # ウィンドウを別ワークスペースへ移動し、そのままそのワークスペースへ切り替え
         alt-shift-1 = "move-node-to-workspace --focus-follows-window 1";

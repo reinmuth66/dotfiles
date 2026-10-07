@@ -2,7 +2,7 @@ local colors = require("colors")
 local ui = require("ui")
 local popup_state = require("popup_state")
 
--- 歯車の item。ホバーで、CPU・メモリ・スワップ・ネットワークの数字とグラフのポップアップを開く。
+-- アクティビティモニターのアイコンの item。ホバーで、CPU・メモリ・スワップ・ネットワークの数字とグラフのポップアップを開く。
 -- データは helper/system.c (sketchybar-system-helper) が一定間隔で測り、system_stats イベントで渡す。
 -- 測定は helper がカーネルの API を直接呼ぶだけなので軽い。この item は、ポップアップが閉じている間は
 -- 履歴を貯めるだけで、描画の指示 (set / push) は出さない。
@@ -15,8 +15,8 @@ local popup_state = require("popup_state")
 --   mirror:  Net。受信 (rx) を上半分に通常のグラフ、送信 (tx) を下半分に上下反転して描く。
 --   text:    RAM (使用率とスワップ)、I/O、ディスクの空き。グラフにしない行 (数字だけ、または円グラフ)。
 
--- アイコンのサイズ (pt)。sketchybar-app-font の :gear: は、字面がほぼ一辺 SIZE の正方形になる
--- (CoreText で実測。20pt で 19.88 x 19.63)。箱の幅も SIZE にする。フォントやサイズを変えたら再測定が必要。
+-- アイコンのサイズ (pt)。sketchybar-app-font の :activity_monitor: は、字面がほぼ一辺 SIZE の正方形になる
+-- (CoreText で実測。20pt で 19.96 x 19.24)。箱の幅も SIZE にする。フォントやサイズを変えたら再測定が必要。
 local SIZE = 20
 
 -- グラフの幅 (pt)。SketchyBar のグラフは 1pt が 1 点なので、点の数でもある (helper の間隔 1 秒 x 点数が履歴の長さ。約 1 分)
@@ -85,7 +85,7 @@ sbar.add("event", "system_stats")
 ui.add_notch_spacer("e", "system.notch_gap")
 
 -- bracket は円にする。幅を高さ (colors.bracket.height) と同じにし、角の半径は短辺の半分にする。
--- 円の中に歯車が同心で収まるよう、歯車の左右に余白 (ICON_PADDING) を取る。
+-- 円の中にアイコンが同心で収まるよう、アイコンの左右に余白 (ICON_PADDING) を取る。
 local BRACKET_WIDTH = colors.bracket.height
 local ICON_PADDING = (BRACKET_WIDTH - SIZE) / 2
 
@@ -96,10 +96,10 @@ local ICON_PADDING = (BRACKET_WIDTH - SIZE) / 2
 -- ポップアップの右端が円の端からずれる。icon.width は padding を含む箱の全幅 (spotify.lua)。
 local gear = ui.add_item("system", "e", {
 	icon = {
-		string = ":gear:",
+		string = ":activity_monitor:",
 		font = "sketchybar-app-font:Regular:" .. SIZE .. ".0",
 		width = BRACKET_WIDTH,
-		-- 字面は箱の左端 + padding_left から描かれる (spotify.lua)。字面は幅 19.88 なので、円の中心より 0.06 pt 左に寄るだけ。
+		-- 字面は箱の左端 + padding_left から描かれる (spotify.lua)。字面は幅 19.96 なので、円の中心より 0.02 pt 左に寄るだけ。
 		align = "left",
 		padding_left = ICON_PADDING,
 		padding_right = 0,
@@ -642,19 +642,35 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	gear:set({ popup = { drawing = false } })
 end)
 
--- 左クリックでシステム設定を開く。システム設定が最前面にあるときにクリックしたら閉じる。
+-- 左クリックでアクティビティモニターを開く。アクティビティモニターが最前面にあるときにクリックしたら閉じる。
 -- 背面にあるときは、閉じずに前面へ出す。最前面かどうかは lsappinfo で調べる (権限が要らない)。
--- システム設定は未保存の状態を持たないので、終了は pkill で行う (osascript だと自動操作の許可が要る)。
-local SETTINGS_BUNDLE_ID = "com.apple.systempreferences"
-local TOGGLE_SETTINGS_COMMAND = string.format(
-	[[lsappinfo info -only bundleid "$(lsappinfo front)" | grep -q '"%s"' && pkill -x "System Settings" || open -b %s]],
-	SETTINGS_BUNDLE_ID,
-	SETTINGS_BUNDLE_ID
+-- アクティビティモニターは未保存の状態を持たないので、終了は pkill で行う (osascript だと自動操作の許可が要る)。
+-- 閉じたときは、直前にいた workspace へ戻る。アクティビティモニターは専用の workspace (MONITOR_WORKSPACE。
+-- modules/aerospace.nix の on-window-detected) に送られ、その workspace は空になっても残るので、自動では戻らない。
+-- 閉じた後は、その workspace にいるときだけ戻る (別の workspace にいるときに戻ると、行き先が変わってしまう)。
+-- pkill の直後に戻っても、終了しきるまではアクティビティモニターが最前面のままで、AeroSpace がフォーカスを
+-- その workspace へ引き戻してしまう (実機で確認)。なので、プロセスが消えるのを待ち、さらに AeroSpace が
+-- フォーカスを落ち着かせる時間 (0.4 秒。実機で 3 回とも戻れた) を置いてから戻る。
+-- 末尾の && / || の連鎖だと、戻る処理が失敗したときに open が走ってしまうので、if で分ける。
+local MONITOR_BUNDLE_ID = "com.apple.ActivityMonitor"
+local MONITOR_WORKSPACE = "A"
+local TOGGLE_MONITOR_COMMAND = string.format(
+	[[if lsappinfo info -only bundleid "$(lsappinfo front)" | grep -q '"%s"'; then
+	pkill -x "Activity Monitor"
+	for _ in $(seq 1 40); do pgrep -qx "Activity Monitor" || break; sleep 0.05; done
+	sleep 0.4
+	if [ "$(aerospace list-workspaces --focused)" = %s ]; then aerospace workspace-back-and-forth; fi
+else
+	open -b %s
+fi]],
+	MONITOR_BUNDLE_ID,
+	MONITOR_WORKSPACE,
+	MONITOR_BUNDLE_ID
 )
 
 hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
-		sbar.exec(TOGGLE_SETTINGS_COMMAND)
+		sbar.exec(TOGGLE_MONITOR_COMMAND)
 	elseif env.BUTTON == "right" then
 		-- ポップアップが開いていないときは、ピン留めしない。外すのはいつでもできる
 		if pinned then
