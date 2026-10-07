@@ -30,8 +30,9 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 | `git.nix` | programs.git、programs.delta、programs.lazygit |
 | `atuin.nix` | programs.atuin |
 | `bat.nix` | programs.bat |
+| `bottom.nix` | programs.bottom|
 | `gh.nix` | programs.gh |
-| `starship.nix` | programs.starship (設定含む) |
+| `starship.nix` | programs.starship|
 | `ghostty.nix` | xdg.configFile (config/ghostty/config) |
 | `zed.nix` | xdg.configFile (config/zed/) |
 | `wezterm.nix` | xdg.configFile (config/wezterm/) |
