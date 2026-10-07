@@ -18,10 +18,6 @@
           "CPU%"
           "Mem%"
           "Time"
-          "R/s"
-          "W/s"
-          "T.Read"
-          "T.Write"
           "User"
           "State"
         ];
