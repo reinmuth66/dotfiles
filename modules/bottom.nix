@@ -23,6 +23,33 @@
           "State"
         ];
       };
+      row = [
+        {
+          child = [
+            {
+              child = [
+                { type = "cpu"; }
+                { type = "mem"; }
+                { type = "net"; }
+              ];
+            }
+            {
+              child = [
+                {
+                  ratio = 1;
+                  type = "disk";
+                }
+                {
+                  ratio = 13;
+                  type = "proc";
+                  default = true;
+                }
+              ];
+            }
+          ];
+        }
+      ];
+      cpu.default = "avg";
       disk.mount_filter = {
         is_list_ignored = false;
         list = [ "/" ];
