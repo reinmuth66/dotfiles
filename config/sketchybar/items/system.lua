@@ -18,10 +18,13 @@ local TITLE_WIDTH = 52
 local VALUE_WIDTH = 96
 local ROW_PADDING = 8
 
--- ディスクの円グラフ (ドーナツ)。表示は DONUT_SIZE (pt)、画像は 4 倍の解像度で描く (spotify.lua の ART_PX と同じ考え方)。
--- SketchyBar は、画像を高さ 32pt にそろえてから scale を掛けて描く (image.c) ので、scale = 表示サイズ / 32。
+-- ディスクの円グラフ (ドーナツ)。表示は DONUT_SIZE (pt)、画像は表示と同じ実ピクセル数 (窓の解像度 2.0 倍) で描く。
+-- SketchyBar の窓は補間なし (window.c の kCGInterpolationNone) で画像を描くので、縮小すると円周の縁が間引かれて
+-- ギザギザになる。等倍で貼れば、ImageMagick のアンチエイリアスがそのまま見える。
+-- ファイルから読んだ画像の表示サイズは 実ピクセル * scale (pt)。高さ 32pt にそろえるのは、リンク画像 (media.artwork)
+-- だけ (image.c の image_calculate_bounds)。なので scale = 表示サイズ / 実ピクセル = 0.5 (窓の解像度が 2.0 なので等倍)。
 local DONUT_SIZE = 22
-local DONUT_PX = DONUT_SIZE * 4
+local DONUT_PX = DONUT_SIZE * 2
 local DONUT_STROKE = DONUT_PX * 0.14
 local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/system"
 
@@ -129,6 +132,18 @@ local ROWS = {
 		scale = fixed,
 		text = function(env)
 			return string.format("%.0f%%", tonumber(env.CPU))
+		end,
+	},
+	{
+		-- CPU のうち、カーネルの処理 (sys) の分。合計と同じ全 CPU 時間に対する割合なので、CPU の行以下になる
+		name = "cpu_sys",
+		title = "Sys",
+		point = function(env)
+			return tonumber(env.CPU_SYS) / 100
+		end,
+		scale = fixed,
+		text = function(env)
+			return string.format("%.0f%%", tonumber(env.CPU_SYS))
 		end,
 	},
 	{
@@ -248,27 +263,18 @@ local disk = sbar.add("item", "system.disk", {
 		image = {
 			string = "",
 			drawing = false,
-			scale = DONUT_SIZE / 32,
+			scale = DONUT_SIZE / DONUT_PX,
 			padding_left = TITLE_WIDTH + (GRAPH_WIDTH - DONUT_SIZE) / 2,
 		},
 	},
 })
 
-local function donut_path(percent)
-	return string.format("%s/disk.%d.%d.png", CACHE_DIR, DONUT_PX, percent)
-end
-
-local function file_exists(path)
-	local f = io.open(path, "rb")
-	if f then
-		f:close()
-		return true
-	end
-	return false
-end
+-- 画像は 1 ファイルだけを使い回す (値ごとのキャッシュも、一時ファイルも作らない)。
+-- SketchyBar が画像を読むのは --set した時だけなので、描き終わってから --set すれば、書き込み途中は読まれない。
+local DONUT_PATH = CACHE_DIR .. "/disk.png"
 
 -- 空き percent % のドーナツを描く。12 時から時計回りに空き (明るい)、残りを使用済み (薄い) にする。
--- 一時ファイルに書いて mv で置く (途中の状態を読まれない)。
+-- 成功したときだけ ok を出力する。
 local function donut_command(percent)
 	local center = DONUT_PX / 2
 	local radius = center - DONUT_STROKE / 2
@@ -287,9 +293,8 @@ local function donut_command(percent)
 			-90 + 360 * percent / 100
 		)
 	end
-	local path = donut_path(percent)
 	return string.format(
-		[[mkdir -p %q && magick -size %dx%d xc:none -fill none -strokewidth %g -stroke 'rgba(255,255,255,0.2)' -draw 'ellipse %g,%g %g,%g 0,360' %s %q && mv -f %q %q]],
+		[[mkdir -p %q && magick -size %dx%d xc:none -fill none -strokewidth %g -stroke 'rgba(255,255,255,0.2)' -draw 'ellipse %g,%g %g,%g 0,360' %s %q && echo ok]],
 		CACHE_DIR,
 		DONUT_PX,
 		DONUT_PX,
@@ -299,34 +304,34 @@ local function donut_command(percent)
 		radius,
 		radius,
 		arc and string.format("-stroke 'rgba(255,255,255,0.85)' -draw '%s'", arc) or "",
-		path .. ".tmp.png",
-		path .. ".tmp.png",
-		path
+		DONUT_PATH
 	)
 end
 
 local donut_shown -- いま出している画像の空き (%)
-local donut_pending = {} -- 描画中の空き (%)
+local donut_wanted -- 出したい空き (%)
+local donut_busy = false -- 描画中。同じファイルへ書くので、描画は 1 本ずつにする
 
-local function show_donut(percent)
-	if donut_shown == percent then
+local function render_donut()
+	if donut_busy or donut_wanted == donut_shown then
 		return
 	end
-	local path = donut_path(percent)
-	if file_exists(path) then
-		donut_shown = percent
-		disk:set({ background = { image = { string = path, drawing = true } } })
-	elseif not donut_pending[percent] then
-		donut_pending[percent] = true
-		sbar.exec(donut_command(percent), function()
-			donut_pending[percent] = nil
-			-- 描いている間に開き直された、または別の値になったときは、いまの値に任せる
-			if file_exists(path) and last_percent == percent then
-				donut_shown = percent
-				disk:set({ background = { image = { string = path, drawing = true } } })
-			end
-		end)
-	end
+	local percent = donut_wanted
+	donut_busy = true
+	sbar.exec(donut_command(percent), function(result)
+		donut_busy = false
+		if tostring(result):match("^ok") then
+			donut_shown = percent
+			disk:set({ background = { image = { string = DONUT_PATH, drawing = true } } })
+			-- 描いている間に値が変わっていたら、続けて描き直す (失敗したときは次の更新で再試行する)
+			render_donut()
+		end
+	end)
+end
+
+local function show_donut(percent)
+	donut_wanted = percent
+	render_donut()
 end
 
 -- 履歴の全体を積み直す。左が古く、右が新しいグラフにする。点が足りない分 (古い側) は 0 で埋める。

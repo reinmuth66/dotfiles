@@ -27,6 +27,7 @@ static vm_size_t page_size;
 static uint64_t mem_total;
 
 static uint64_t cpu_prev_busy;
+static uint64_t cpu_prev_sys;
 static uint64_t cpu_prev_total;
 
 static uint64_t net_prev_rx[MAX_IFACES];
@@ -43,34 +44,42 @@ static double now(void) {
   return tv.tv_sec + tv.tv_usec / 1e6;
 }
 
-// 前回からの CPU 使用率 (0〜100)。全コアの tick の合計から、busy / total を出す
-static double cpu_usage(void) {
+// 前回からの CPU 使用率 (0〜100)。全コアの tick の合計から、busy / total を出す。
+// usage は user + sys + nice の合計、sys はそのうちカーネルの処理 (system) の分。
+// どちらも全 CPU 時間 (idle を含む) で割るので、sys は usage 以下になる。
+static void cpu_usage(double *usage, double *sys) {
+  *usage = *sys = 0;
+
   natural_t count;
   processor_info_array_t info;
   mach_msg_type_number_t info_count;
   if (host_processor_info(host, PROCESSOR_CPU_LOAD_INFO, &count, &info,
                           &info_count) != KERN_SUCCESS)
-    return 0;
+    return;
 
   processor_cpu_load_info_t load = (processor_cpu_load_info_t)info;
-  uint64_t busy = 0, total = 0;
+  uint64_t busy = 0, system_ticks = 0, total = 0;
   for (natural_t i = 0; i < count; i++) {
     uint64_t user = load[i].cpu_ticks[CPU_STATE_USER];
     uint64_t system = load[i].cpu_ticks[CPU_STATE_SYSTEM];
     uint64_t nice = load[i].cpu_ticks[CPU_STATE_NICE];
     uint64_t idle = load[i].cpu_ticks[CPU_STATE_IDLE];
     busy += user + system + nice;
+    system_ticks += system;
     total += user + system + nice + idle;
   }
   vm_deallocate(mach_task_self(), (vm_address_t)info,
                 info_count * sizeof(integer_t));
 
-  double usage = 0;
-  if (total > cpu_prev_total && busy >= cpu_prev_busy)
-    usage = 100.0 * (busy - cpu_prev_busy) / (total - cpu_prev_total);
+  if (total > cpu_prev_total && busy >= cpu_prev_busy &&
+      system_ticks >= cpu_prev_sys) {
+    double elapsed = (double)(total - cpu_prev_total);
+    *usage = 100.0 * (busy - cpu_prev_busy) / elapsed;
+    *sys = 100.0 * (system_ticks - cpu_prev_sys) / elapsed;
+  }
   cpu_prev_busy = busy;
+  cpu_prev_sys = system_ticks;
   cpu_prev_total = total;
-  return usage;
 }
 
 // アクティビティモニタの「使用メモリ」と同じ内訳: アプリ + 確保済み + 圧縮
@@ -163,7 +172,8 @@ static void sample(CFRunLoopTimerRef timer, void *info) {
   if (elapsed <= 0)
     elapsed = INTERVAL;
 
-  double cpu = cpu_usage();
+  double cpu, cpu_sys;
+  cpu_usage(&cpu, &cpu_sys);
   uint64_t mem_used = memory_used();
   uint64_t swap_used, swap_total;
   swap_usage(&swap_used, &swap_total);
@@ -174,10 +184,11 @@ static void sample(CFRunLoopTimerRef timer, void *info) {
 
   char message[512];
   snprintf(message, sizeof(message),
-           "--trigger system_stats CPU=%.1f RAM=%.1f RAM_USED=%llu "
-           "RAM_TOTAL=%llu SWAP_USED=%llu SWAP_TOTAL=%llu NET_RX=%.0f "
-           "NET_TX=%.0f DISK_FREE=%llu DISK_TOTAL=%llu",
-           cpu, mem_total ? 100.0 * mem_used / mem_total : 0.0, mem_used,
+           "--trigger system_stats CPU=%.1f CPU_SYS=%.1f RAM=%.1f "
+           "RAM_USED=%llu RAM_TOTAL=%llu SWAP_USED=%llu SWAP_TOTAL=%llu "
+           "NET_RX=%.0f NET_TX=%.0f DISK_FREE=%llu DISK_TOTAL=%llu",
+           cpu, cpu_sys, mem_total ? 100.0 * mem_used / mem_total : 0.0,
+           mem_used,
            mem_total, swap_used, swap_total, rx / elapsed, tx / elapsed,
            disk_free, disk_total);
   sketchybar(message);
@@ -190,7 +201,8 @@ int main(void) {
   sysctlbyname("hw.memsize", &mem_total, &length, NULL, 0);
 
   // 最初の測定は基準値を取るだけ (増分が要る CPU とネットワークは、2 回目から意味を持つ)
-  cpu_usage();
+  double cpu_first, cpu_sys_first;
+  cpu_usage(&cpu_first, &cpu_sys_first);
   uint64_t rx, tx;
   network_delta(&rx, &tx);
   prev_time = now();
