@@ -14,7 +14,7 @@ let
 
       buildPhase = ''
         runHook preBuild
-        $CC -std=c99 -O2 ${name}.c -framework CoreFoundation -o ${name}-helper
+        $CC -std=c99 -O2 ${name}.c -framework CoreFoundation -framework IOKit -o ${name}-helper
         runHook postBuild
       '';
 

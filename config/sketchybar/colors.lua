@@ -24,7 +24,6 @@ return {
 	},
 
 	swap = {
-		default = 0x44ffffff,
 		alert = 0xaaff0000,
 	},
 }
