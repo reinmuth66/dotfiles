@@ -26,6 +26,7 @@
 local ui = require("ui")
 local colors = require("colors")
 local palette = require("palette")
+local popup_state = require("popup_state")
 
 local SIZE = 24 -- 表示サイズ (pt)。アイコンのフォントサイズも同じ値にする (このフォントでは字面が一辺 SIZE の正方形になる)
 local ART_PX = SIZE * 4 -- キャッシュする画像の一辺 (px)
@@ -922,7 +923,7 @@ end
 
 -- ポップアップを開いたとき、または再生が始まったときに呼ぶ。ポップアップが開いていれば、窓を空きに出す。
 viz_start = function()
-	if not spinning or not popup_open then
+	if not spinning or not popup_open or popup_state.system_open then
 		return
 	end
 	-- 普通は、ホバーの時点で起動済み (viz_wait)。ここで起動した場合 (ポップアップを開いたまま、停止から
@@ -943,7 +944,8 @@ end
 -- on_ready があとで呼ばれるときは true、再生中でない、または準備が済んでいるときは false を返す。
 -- 準備ができなくても、呼び出し側が VIZ_WAIT_TIMEOUT 秒で窓を出す指示を出す (許可がなくて cava が起動できないときなど)。
 viz_wait = function(on_ready)
-	if not spinning then
+	-- system のポップアップが開いている間は、棒グラフを出さない (popup_state.lua)
+	if not spinning or popup_state.system_open then
 		return false
 	end
 	viz_ensure_hidden()

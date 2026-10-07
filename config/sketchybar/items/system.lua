@@ -1,5 +1,6 @@
 local colors = require("colors")
 local ui = require("ui")
+local popup_state = require("popup_state")
 
 -- 歯車の item。ホバーで、CPU・メモリ・スワップ・ネットワークの数字とグラフのポップアップを開く。
 -- データは helper/system.c (sketchybar-system-helper) が一定間隔で測り、system_stats イベントで渡す。
@@ -615,6 +616,7 @@ hit:subscribe("mouse.entered", function()
 		return
 	end
 	popup_open = true
+	popup_state.system_open = true
 	render()
 	gear:set({ popup = { drawing = true } })
 end)
@@ -636,6 +638,7 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 		return
 	end
 	popup_open = false
+	popup_state.system_open = false
 	gear:set({ popup = { drawing = false } })
 end)
 
