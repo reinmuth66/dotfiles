@@ -112,7 +112,7 @@ local gear = ui.add_item("system", "e", {
 	},
 })
 
-ui.add_bracket("system.bracket", { gear }, {
+local bracket = ui.add_bracket("system.bracket", { gear }, {
 	background = { corner_radius = colors.bracket.height / 2 },
 }, 0)
 
@@ -610,13 +610,54 @@ gear:subscribe("system_stats", function(env)
 end)
 
 hit:subscribe("mouse.entered", function()
+	-- ピン留め中は開いたままなので、開き直さない
+	if popup_open then
+		return
+	end
 	popup_open = true
 	render()
 	gear:set({ popup = { drawing = true } })
 end)
 
--- バーの外へ出たときは mouse.exited.global でも閉じる
+-- 右クリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない。
+-- もう一度右クリックすると外す。ピン留め中は bracket の枠線が白くなる (spotify.lua と同じ)。
+local pinned = false
+local PINNED_BORDER_COLOR = 0xffffffff -- ピン留め中の bracket の枠線の色 (普段は colors.bracket.border_color)
+
+-- ピン留めの状態を変え、bracket の枠線の色で示す
+local function set_pinned(value)
+	pinned = value
+	bracket:set({ background = { border_color = value and PINNED_BORDER_COLOR or colors.bracket.border_color } })
+end
+
+-- バーの外へ出たときは mouse.exited.global でも閉じる。ピン留め中は閉じない
 hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
+	if pinned then
+		return
+	end
 	popup_open = false
 	gear:set({ popup = { drawing = false } })
+end)
+
+-- 左クリックでシステム設定を開く。システム設定が最前面にあるときにクリックしたら閉じる。
+-- 背面にあるときは、閉じずに前面へ出す。最前面かどうかは lsappinfo で調べる (権限が要らない)。
+-- システム設定は未保存の状態を持たないので、終了は pkill で行う (osascript だと自動操作の許可が要る)。
+local SETTINGS_BUNDLE_ID = "com.apple.systempreferences"
+local TOGGLE_SETTINGS_COMMAND = string.format(
+	[[lsappinfo info -only bundleid "$(lsappinfo front)" | grep -q '"%s"' && pkill -x "System Settings" || open -b %s]],
+	SETTINGS_BUNDLE_ID,
+	SETTINGS_BUNDLE_ID
+)
+
+hit:subscribe("mouse.clicked", function(env)
+	if env.BUTTON == "left" then
+		sbar.exec(TOGGLE_SETTINGS_COMMAND)
+	elseif env.BUTTON == "right" then
+		-- ポップアップが開いていないときは、ピン留めしない。外すのはいつでもできる
+		if pinned then
+			set_pinned(false)
+		elseif popup_open then
+			set_pinned(true)
+		end
+	end
 end)
