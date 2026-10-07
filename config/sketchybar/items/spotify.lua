@@ -552,8 +552,8 @@ local function popup_fade_out()
 end
 
 local fading_out = false -- 閉じるアニメーションの途中 (close_popup が重ねて呼ばれても、やり直さない)
--- ダブルクリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない (close_popup)。
--- もう一度ダブルクリックすると外す。ピン留め中は bracket の枠線が白くなる。曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
+-- 右クリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない (close_popup)。
+-- もう一度右クリックすると外す。ピン留め中は bracket の枠線が白くなる。曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
 local pinned = false
 local PINNED_BORDER_COLOR = 0xffffffff -- ピン留め中の bracket の枠線の色 (普段は colors.bracket.border_color)
 
@@ -1281,8 +1281,8 @@ end)
 
 hit:subscribe({ "mouse.exited", "mouse.exited.global" }, close_popup)
 
--- 操作: 左クリックで再生/一時停止、左ダブルクリックでポップアップのピン留め (もう一度で外す)、
--- 右クリックで Spotify のウィンドウを表示、上スクロールで前の曲、下スクロールで次の曲。
+-- 操作: 左クリックで再生/一時停止、左ダブルクリックで Spotify のウィンドウを表示、
+-- 右クリックでポップアップのピン留め (もう一度で外す)、上スクロールで前の曲、下スクロールで次の曲。
 -- 表示は上の分散通知で追従するので、ここでは Spotify に命令を送るだけにする。
 -- 未起動の Spotify を起動してしまわないよう、pgrep で確認してから送る。
 local function spotify_command(command)
@@ -1298,7 +1298,7 @@ local SPOTIFY_APP = os.getenv("HOME") .. "/Applications/Home Manager Apps/Spotif
 
 -- ダブルクリックの検出。SketchyBar にはダブルクリックのイベントがなく、クリックが 2 回届くだけなので、
 -- 1 回目のクリックの再生/一時停止を DOUBLE_CLICK_INTERVAL 秒だけ待ち、その間に 2 回目が来たらダブルクリックとして
--- ピン留めの切り替えにする (再生/一時停止は行わない)。そのため、再生/一時停止はクリックからこの秒数だけ遅れる。
+-- Spotify のウィンドウの表示にする (再生/一時停止は行わない)。そのため、再生/一時停止はクリックからこの秒数だけ遅れる。
 -- macOS の既定のダブルクリックの間隔は約 0.5 秒だが、再生/一時停止の遅れを抑えるため短くしてある。
 local DOUBLE_CLICK_INTERVAL = 0.3
 local click_id = 0
@@ -1308,12 +1308,7 @@ hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
 		if click_pending then
 			click_pending = false
-			-- ポップアップが開いていない (曲情報がない) ときは、ピン留めしない。外すのはいつでもできる
-			if pinned then
-				set_pinned(false)
-			elseif popup_open then
-				set_pinned(true)
-			end
+			sbar.exec(string.format("open %q", SPOTIFY_APP))
 			return
 		end
 		click_pending = true
@@ -1326,7 +1321,12 @@ hit:subscribe("mouse.clicked", function(env)
 			end
 		end)
 	elseif env.BUTTON == "right" then
-		sbar.exec(string.format("open %q", SPOTIFY_APP))
+		-- ポップアップが開いていない (曲情報がない) ときは、ピン留めしない。外すのはいつでもできる
+		if pinned then
+			set_pinned(false)
+		elseif popup_open then
+			set_pinned(true)
+		end
 	end
 end)
 
