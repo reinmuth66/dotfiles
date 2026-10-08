@@ -30,6 +30,8 @@ enum Style {
     static let blurRadius: Int32 = 20
     // modules/aerospace.nix の gaps (outer) と同じ余白
     static let margin: CGFloat = 4
+    // 行のグリッドを下へずらす量 (pt)。btm の最上行は文字、最下行は罫線なので、見かけの上下の余白を揃えるための値
+    static let verticalBias: CGFloat = 0
     // wezterm.lua: config.colors (Iceberg Dark)
     static let foreground = "#c6c8d1"
     static let background = "#161821"
@@ -59,6 +61,37 @@ final class Window: NSWindow {
     override var canBecomeKey: Bool { true }
     // 既定の AXStandardWindow だと AeroSpace が窓を管理対象にする。それ以外にして、管理外にする
     override func accessibilitySubrole() -> NSAccessibility.Subrole? { .systemFloatingWindow }
+}
+
+// 端末ビューを置く入れ物。背景の着色も受け持つ (makeContainer の説明を参照)。
+// 窓の大きさは行・桁の整数倍とは限らず、端末ビューをそのまま広げると、行・桁に満たない余りが、下と右にだけ空く。
+// 上下左右に等しく分けて、中央に置く。
+@MainActor
+final class Container: NSView {
+    weak var terminal: LocalProcessTerminalView?
+
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        super.resizeSubviews(withOldSize: oldSize)
+        centerTerminal()
+    }
+
+    func centerTerminal() {
+        guard let terminal, bounds.width >= 1, bounds.height >= 1 else { return }
+        // いったん全体に広げて、SwiftTerm に行・桁数を決めさせ、実際に使う大きさを聞く
+        terminal.frame = bounds
+        let used = terminal.getOptimalFrameSize()
+        // 余りの半分を 0.5pt (Retina の 1px) 単位で切り捨てて、余白にする。切り捨てるので、余白を除いた大きさは
+        // 使う大きさ以上、1pt 未満しか超えず、行・桁数は変わらない
+        let dx = max(0, floor((bounds.width - used.width) / 2 * 2) / 2)
+        let dy = max(0, floor((bounds.height - used.height) / 2 * 2) / 2)
+        // btm は、最上行に文字 (セルの上端近くから描く)、最下行に罫線 (セルの中央に描く) があるので、
+        // 上下を等分しても、内容の下端の余白のほうが大きく見える。見かけを揃えるために、グリッドを下へずらす
+        // (余白の合計は変えない。ずらせる量は、下の余白の範囲まで)
+        let shift = min(Style.verticalBias, dy)
+        terminal.frame = NSRect(
+            x: dx, y: dy - shift,  // y は、下の余白 (AppKit の原点は左下)
+            width: bounds.width - 2 * dx, height: bounds.height - 2 * dy)
+    }
 }
 
 @MainActor
@@ -147,15 +180,24 @@ MainActor.assumeIsolated {
     // 色空間を sRGB にすると、描画バッファが小さくなり、メモリが約 60MB 減る (既定は広色域)
     window.colorSpace = .sRGB
 
-    let terminal = LocalProcessTerminalView(frame: .zero)
-    terminal.autoresizingMask = [.width, .height]
+    // 背景の色 (透過した背景色) は、端末ビューではなく、下に敷くコンテナの layer に塗らせる。
+    // 端末ビューの layer に塗らせると、端末ビューの下端の、行に満たない余りの帯 (cell の高さ未満) だけ、
+    // 背景が二重に重なって、他より濃く見える (実測で、アルファ 0.7 が 0.91 相当になっていた)。
+    let container = Container(frame: NSRect(x: 0, y: 0, width: 1200, height: 800))
+    container.wantsLayer = true
+    container.layer?.backgroundColor = nsColor(Style.background).withAlphaComponent(Style.backgroundOpacity).cgColor
+
+    let terminal = LocalProcessTerminalView(frame: container.bounds)
     terminal.processDelegate = host
-    window.contentView = terminal
+    container.terminal = terminal
+    container.addSubview(terminal)
+    window.contentView = container
+    window.makeFirstResponder(terminal)
     terminal.font = NSFont(name: Style.fontName, size: Style.fontSize)
         ?? NSFont.monospacedSystemFont(ofSize: Style.fontSize, weight: .regular)
     terminal.nativeForegroundColor = nsColor(Style.foreground)
     terminal.nativeBackgroundColor = nsColor(Style.background)
-    terminal.backgroundOpacity = Style.backgroundOpacity
+    terminal.backgroundOpacity = 0 // 既定の背景は塗らず、コンテナの色を見せる
     terminal.caretColor = nsColor(Style.foreground)
     terminal.caretTextColor = nsColor(Style.background)
     terminal.selectedTextBackgroundColor = nsColor(Style.selection)
