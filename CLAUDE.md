@@ -40,6 +40,7 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 | `yazi.nix` | yazi パッケージ + xdg.configFile (config/yazi/ + プラグイン) |
 | `claude.nix` | home.file (config/claude/) |
 | `czg.nix` | importNpmLock (pkgs/czg/) — conventional commit TUI |
+| (`sketchybar.nix` から参照) | pkgs/btm-window/|
 | `cavaviz.nix` | Spotify ポップアップの背景と棒グラフを描くサウンドビジュアライザ (pkgs/cavaviz/ の CavaViz.app + cava の設定とシェーダー) |
 
 **config/ に設定ファイルを置くツール:**
