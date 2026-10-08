@@ -11,6 +11,9 @@
 # - SwiftTerm は Package.swift が swift-argument-parser などに依存するが、macOS の本体 (Sources/SwiftTerm) には不要なので、
 #   SwiftPM を通さず swiftc で直接ビルドする。ビルド情報の生成 (SwiftTermBuildInfoPlugin の代わり) は、同梱の
 #   生成ツールを自分でビルドして実行する。
+# - SwiftTerm のビルドは 1 分以上かかる (最適化が 1 コアで走り、その間ログも出ない)。main.swift を変えるたびに
+#   やり直さないよう、SwiftTerm は別の derivation (swiftterm-lib) にして、アプリ本体 (数秒) と分けている。
+#   SwiftTerm の rev を変えたとき以外は、swiftterm-lib は再ビルドされない。
 # - Swift の処理系は、nixpkgs のものではなく macOS 標準の /usr/bin/swiftc (Xcode Command Line Tools) を使う。
 #   Nix のサンドボックスが無効 (sandbox = false) なので、ビルド中でも使える (pkgs/cavaviz の codesign と同じ)。
 #   サンドボックスを有効にすると、このビルドは失敗する。
@@ -23,10 +26,51 @@ let
     rev = "15fed4fd7ca7b0a8c77dd380412b18a5ce8600b5";
     hash = "sha256-kaWDZDRfgcSNC7oOu/b94WhXyuORdNFGuwX1LXwoxlo=";
   };
+
+  version = "0-unstable-2026-10-05"; # SwiftTerm のコミット日
+
+  # 2 つのビルドで共通の準備。stdenv の設定を外し、swiftc に標準の SDK を選ばせる
+  swiftEnv = ''
+    unset SDKROOT DEVELOPER_DIR NIX_CFLAGS_COMPILE NIX_LDFLAGS NIX_CFLAGS_LINK
+    export HOME=$TMPDIR
+    swiftc="/usr/bin/swiftc -module-cache-path $TMPDIR/swift-module-cache"
+  '';
+
+  # SwiftTerm 本体を、静的ライブラリ (libSwiftTerm.a) と Swift のモジュール (SwiftTerm.swiftmodule) にする
+  swifttermLib = stdenvNoCC.mkDerivation {
+    pname = "swiftterm-lib";
+    inherit version;
+
+    dontUnpack = true;
+    dontFixup = true;
+
+    buildPhase = ''
+      runHook preBuild
+      ${swiftEnv}
+
+      # ビルド情報 (git の情報と terminfo の表) を生成する。ソースは git の管理外なので、コミットは環境変数で渡す
+      mkdir gen
+      $swiftc -O -parse-as-library ${swiftterm}/Sources/SwiftTermBuildInfoGenerator/*.swift -o geninfo
+      SWIFTTERM_BUILD_COMMIT=${swiftterm.rev} ./geninfo ${swiftterm} gen/SwiftTermBuildInfo.swift gen/SwiftTermTerminfo.swift
+
+      find ${swiftterm}/Sources/SwiftTerm -name '*.swift' > files.txt
+      ls gen/*.swift >> files.txt
+      $swiftc -O -wmo -swift-version 6 -module-name SwiftTerm -emit-module -emit-module-path SwiftTerm.swiftmodule \
+        -parse-as-library -emit-library -static -o libSwiftTerm.a @files.txt
+      runHook postBuild
+    '';
+
+    installPhase = ''
+      runHook preInstall
+      mkdir -p $out/lib
+      cp libSwiftTerm.a SwiftTerm.swiftmodule $out/lib/
+      runHook postInstall
+    '';
+  };
 in
 stdenvNoCC.mkDerivation {
   pname = "btm-window";
-  version = "0-unstable-2026-10-05"; # SwiftTerm のコミット日
+  inherit version;
 
   dontUnpack = true;
   # darwin の fixup は Mach-O を署名し直す。swiftc (ld) が付けた ad-hoc 署名のままでよい
@@ -34,27 +78,12 @@ stdenvNoCC.mkDerivation {
 
   buildPhase = ''
     runHook preBuild
-
-    unset SDKROOT DEVELOPER_DIR NIX_CFLAGS_COMPILE NIX_LDFLAGS NIX_CFLAGS_LINK
-    export HOME=$TMPDIR
-    swiftc="/usr/bin/swiftc -module-cache-path $TMPDIR/swift-module-cache"
-
-    # SwiftTerm のビルド情報 (git の情報と terminfo の表) を生成する。ソースは git の管理外なので、コミットは環境変数で渡す
-    mkdir gen
-    $swiftc -O -parse-as-library ${swiftterm}/Sources/SwiftTermBuildInfoGenerator/*.swift -o geninfo
-    SWIFTTERM_BUILD_COMMIT=${swiftterm.rev} ./geninfo ${swiftterm} gen/SwiftTermBuildInfo.swift gen/SwiftTermTerminfo.swift
-
-    # SwiftTerm 本体を静的ライブラリにする
-    find ${swiftterm}/Sources/SwiftTerm -name '*.swift' > files.txt
-    ls gen/*.swift >> files.txt
-    $swiftc -O -wmo -swift-version 6 -module-name SwiftTerm -emit-module -emit-module-path SwiftTerm.swiftmodule \
-      -parse-as-library -emit-library -static -o libSwiftTerm.a @files.txt
+    ${swiftEnv}
 
     substitute ${./main.swift} main.swift --replace-fail @btm@ ${bottom}/bin/btm
-    $swiftc -O -swift-version 6 -I . -L . -lSwiftTerm \
+    $swiftc -O -swift-version 6 -I ${swifttermLib}/lib -L ${swifttermLib}/lib -lSwiftTerm \
       -framework AppKit -framework Metal -framework MetalKit -framework QuartzCore \
       main.swift -o btm-window
-
     runHook postBuild
   '';
 
