@@ -647,37 +647,9 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	gear:set({ popup = { drawing = false } })
 end)
 
-local BTM_TITLE = "btm-monitor"
-local BTM_WORKSPACE = "A"
-local TOGGLE_BTM_COMMAND = string.format(
-	[[find_window() { aerospace list-windows --all --format '%%{window-id}|%%{window-title}|%%{app-pid}' | awk -F'|' -v t='%s' -v f="$1" '$2 == t { print $f; exit }'; }
-watch_return() {
-	pgrep -f "btm-return $1" >/dev/null && return
-	nohup sh -c 'while kill -0 "$1" 2>/dev/null; do sleep 0.05; done
-for _ in $(seq 1 20); do
-	if [ "$(aerospace list-workspaces --focused)" = "$2" ]; then aerospace workspace-back-and-forth; break; fi
-	sleep 0.05
-done' btm-return "$1" %s >/dev/null 2>&1 &
-}
-if [ "$(aerospace list-windows --focused --format '%%{window-title}')" = '%s' ]; then
-	pid="$(aerospace list-windows --focused --format '%%{app-pid}')"
-	watch_return "$pid"
-	pkill -x btm -P "$pid"
-else
-	id="$(find_window 1)"
-	if [ -z "$id" ]; then
-		nohup btm-window >/dev/null 2>&1 &
-		for _ in $(seq 1 100); do id="$(find_window 1)"; [ -n "$id" ] && break; sleep 0.05; done
-	fi
-	if [ -n "$id" ]; then
-		watch_return "$(find_window 3)"
-		aerospace focus --window-id "$id"
-	fi
-fi]],
-	BTM_TITLE,
-	BTM_WORKSPACE,
-	BTM_TITLE
-)
+-- btm の窓 (pkgs/btm-window) の開閉。起動中なら SIGUSR1 を送り、窓が最前面なら閉じ、そうでなければ前に出させる。
+-- 起動していなければ起動する。窓は AeroSpace の管理外で、今の workspace の上に重なる (workspace は切り替わらない)。
+local TOGGLE_BTM_COMMAND = "pkill -USR1 -x btm-window || { nohup btm-window >/dev/null 2>&1 & }"
 
 hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then

@@ -2,9 +2,18 @@ import AppKit
 import SwiftTerm
 
 // btm を SwiftTerm の端末ビュー (CoreGraphics 描画) に載せて表示する窓。
-// sketchybar の system item のクリックで開き、btm が終了すると窓 (アプリ) も終了する。
+// sketchybar の system item のクリックで開閉する。btm が終了する (q など) と、窓 (アプリ) も終了する。
 // 見た目 (フォント、色、背景の透過とぼかし、枠なし) は config/wezterm/wezterm.lua と同じ値にしている。
-// 窓の大きさは決めない。AeroSpace がタイル管理して、gap を含めた大きさにする。
+//
+// 窓は AeroSpace の管理外にして、今いる workspace の上に、画面いっぱい (AeroSpace の gap と同じ 4px の余白) で重ねる。
+// workspace を切り替えないので、開閉でちらつかない。管理外にする方法は pkgs/cavaviz と同じ (Window の accessibilitySubrole)。
+// AeroSpace の管理下だと、窓が閉じるたびに、AeroSpace がその窓の workspace へフォーカスを寄せ直し、
+// 元の workspace に戻した後でも、workspace が何度も切り替わった。
+//
+// 開閉は SIGUSR1 で受け付ける (config/sketchybar/items/system.lua): 窓が最前面なら閉じ、そうでなければ前面に出す。
+
+// 起動直後の SIGUSR1 で、既定の動作 (プロセスの終了) にならないよう、最初に無視する。受け付けるのは下の DispatchSource
+signal(SIGUSR1, SIG_IGN)
 
 // 背景のぼかし (wezterm の macos_window_background_blur) は、wezterm も使う非公開の CGS API で設定する
 @_silgen_name("CGSMainConnectionID") func CGSMainConnectionID() -> Int32
@@ -12,7 +21,6 @@ import SwiftTerm
 func CGSSetWindowBackgroundBlurRadius(_ connection: Int32, _ windowID: Int, _ radius: Int32) -> Int32
 
 enum Style {
-    // AeroSpace が、この窓を workspace A へ移すために見る固定のタイトル (modules/aerospace.nix)
     static let title = "btm-monitor"
     // wezterm.lua: config.font = "Moralerspace Neon HW" (PostScript 名で指定する)
     static let fontName = "MoralerspaceNeonHW-Regular"
@@ -20,6 +28,8 @@ enum Style {
     // wezterm.lua: window_background_opacity、macos_window_background_blur
     static let backgroundOpacity: CGFloat = 0.7
     static let blurRadius: Int32 = 20
+    // modules/aerospace.nix の gaps (outer) と同じ余白
+    static let margin: CGFloat = 4
     // wezterm.lua: config.colors (Iceberg Dark)
     static let foreground = "#c6c8d1"
     static let background = "#161821"
@@ -44,17 +54,23 @@ func nsColor(_ hex: String) -> NSColor {
     return NSColor(srgbRed: CGFloat(c.0) / 255, green: CGFloat(c.1) / 255, blue: CGFloat(c.2) / 255, alpha: 1)
 }
 
-// 枠なしの窓はキーボード入力を受けないので、受けるようにする
 final class Window: NSWindow {
+    // 枠なしの窓はキーボード入力を受けないので、受けるようにする
     override var canBecomeKey: Bool { true }
+    // 既定の AXStandardWindow だと AeroSpace が窓を管理対象にする。それ以外にして、管理外にする
+    override func accessibilitySubrole() -> NSAccessibility.Subrole? { .systemFloatingWindow }
 }
 
 @MainActor
 final class Host: NSObject, NSApplicationDelegate, LocalProcessTerminalViewDelegate {
+    var window: NSWindow?
+    var terminal: LocalProcessTerminalView?
+    var signalSource: DispatchSourceSignal?
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
-    // タイトルは AeroSpace の判定に使う固定値のままにする (btm からの変更は無視)
+    // タイトルは btm からの変更を無視して、固定のままにする
     func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
     func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
 
@@ -64,6 +80,30 @@ final class Host: NSObject, NSApplicationDelegate, LocalProcessTerminalViewDeleg
     func processFailedToStart(source: TerminalView, error: LocalProcessError) {
         FileHandle.standardError.write(Data("btm-window: btm を起動できません: \(error)\n".utf8))
         exit(1)
+    }
+
+    // マウスカーソルのある画面の、メニューバー (sketchybar の場所) と Dock を除いた範囲に、余白を空けて置く
+    func targetFrame() -> NSRect {
+        let mouse = NSEvent.mouseLocation
+        let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
+        return (screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800)).insetBy(dx: Style.margin, dy: Style.margin)
+    }
+
+    func show() {
+        guard let window else { return }
+        window.setFrame(targetFrame(), display: true)
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // 最前面で見えているなら閉じ、そうでなければ (他のアプリの後ろにあるなど) 前に出す
+    func toggle() {
+        if NSApp.isActive, window?.isKeyWindow == true {
+            terminal?.terminate()
+            NSApp.terminate(nil)
+        } else {
+            show()
+        }
     }
 }
 
@@ -82,14 +122,14 @@ func makeMenu() -> NSMenu {
 
 MainActor.assumeIsolated {
     let app = NSApplication.shared
-    // .regular にしないと、AeroSpace が窓をタイル管理せず floating にする (Dock にアイコンが出る。wezterm と同じ)
-    app.setActivationPolicy(.regular)
+    // Dock にアイコンを出さない (AeroSpace の管理外なので、.regular にする必要はない)
+    app.setActivationPolicy(.accessory)
     app.mainMenu = makeMenu()
     let host = Host()
     app.delegate = host
 
     let window = Window(
-        contentRect: NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1200, height: 800),
+        contentRect: .zero,
         styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
         backing: .buffered, defer: false)
     // wezterm.lua: window_decorations = "RESIZE" (タイトルバーを隠し、リサイズ枠だけ残す)
@@ -99,13 +139,15 @@ MainActor.assumeIsolated {
         window.standardWindowButton(button)?.isHidden = true
     }
     window.title = Style.title
+    // 開く・閉じるときのアニメーションは、ちらつきの元になるので切る
+    window.animationBehavior = .none
     // 背景を透過させるには、窓を不透明でなくして、背景色を clear にする
     window.isOpaque = false
     window.backgroundColor = .clear
     // 色空間を sRGB にすると、描画バッファが小さくなり、メモリが約 60MB 減る (既定は広色域)
     window.colorSpace = .sRGB
 
-    let terminal = LocalProcessTerminalView(frame: window.contentView?.bounds ?? .zero)
+    let terminal = LocalProcessTerminalView(frame: .zero)
     terminal.autoresizingMask = [.width, .height]
     terminal.processDelegate = host
     window.contentView = terminal
@@ -120,9 +162,17 @@ MainActor.assumeIsolated {
     terminal.installColors((Style.ansi + Style.brights).map(termColor))
     terminal.setCursorStyle(.steadyBar)
 
-    window.makeKeyAndOrderFront(nil)
+    host.window = window
+    host.terminal = terminal
+
+    // sketchybar のクリックは、起動中のこのアプリへ SIGUSR1 を送る
+    let source = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
+    source.setEventHandler { MainActor.assumeIsolated { host.toggle() } }
+    source.resume()
+    host.signalSource = source
+
+    host.show()
     _ = CGSSetWindowBackgroundBlurRadius(CGSMainConnectionID(), window.windowNumber, Style.blurRadius)
-    app.activate(ignoringOtherApps: true)
 
     var environment = Terminal.getEnvironmentVariables(termName: "xterm-256color")
     if btmPath.hasPrefix("@") {
