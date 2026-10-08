@@ -1,12 +1,16 @@
 #include "sketchybar.h"
 #include <CoreFoundation/CoreFoundation.h>
+#include <IOKit/IOBSD.h>
 #include <IOKit/IOKitLib.h>
 #include <mach/mach_host.h>
+#include <math.h>
 #include <net/if.h>
 #include <net/if_mib.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <sys/mount.h>
+#include <sys/statvfs.h>
 #include <sys/sysctl.h>
 #include <sys/time.h>
 
@@ -14,42 +18,35 @@
 // SketchyBar の system_stats イベントに環境変数として渡す。
 // 測定はカーネルの API を直接呼ぶだけで、プロセスを起動しない。
 // 描画や書式は Lua (items/system.lua) が決めるので、ここでは生の値だけを送る。
+//
+// 値の測り方は bottom (btm。pkgs/btm-window が表示する) に合わせて、popup の数字が btm と一致するようにしている
+// (btm が使う sysinfo クレートの macOS 実装と同じ式)。
 
 #define INTERVAL 1.0
 // タイマーの許容誤差 (秒)。割り込みをまとめて、省電力にする
 #define TOLERANCE 0.2
-// ディスクの空き容量を測るボリューム。APFS のコンテナ (ディスク全体) の空きが取れる
-#define DISK_PATH "/System/Volumes/Data"
-// ネットワークの interface の index の上限 (これより大きい index は数えない)
-#define MAX_IFACES 256
-// 数える interface (en*) の一覧を作り直す間隔 (秒)。新しく現れた interface は、最大でこの間隔だけ遅れて数え始める
-#define NET_REFRESH_INTERVAL 30.0
-// ストレージのドライバ (内蔵 SSD、外付けディスク、ディスクイメージ) の数の上限
-#define MAX_DRIVES 32
+// ディスクの空き容量と I/O を測るボリューム (btm の disk widget は "/" だけを表示する設定)。APFS のコンテナ (ディスク全体) の空きが取れる
+#define DISK_PATH "/"
+// CPU のコアの数の上限
+#define MAX_CPUS 256
 
 static mach_port_t host;
 static vm_size_t page_size;
 static uint64_t mem_total;
 
-static uint64_t cpu_prev_busy;
-static uint64_t cpu_prev_sys;
-static uint64_t cpu_prev_total;
+// コアごとの、前回の tick (busy は user + system + nice)。sysinfo と同じく i32 の tick を i64 で足す
+static int64_t cpu_prev_busy[MAX_CPUS];
+static int32_t cpu_prev_idle[MAX_CPUS];
+static bool cpu_has_prev;
 
-static uint64_t net_prev_rx[MAX_IFACES];
-static uint64_t net_prev_tx[MAX_IFACES];
-static bool net_has_prev[MAX_IFACES];
-static unsigned net_indexes[MAX_IFACES];
-static int net_index_count;
-static double net_indexes_at;
+// 全 interface の送受信バイト数の、前回の合計
+static uint64_t net_prev_rx;
+static uint64_t net_prev_tx;
 
-// ストレージのドライバごとの、前回の累計バイト数
-static struct {
-  uint64_t id;
-  uint64_t read;
-  uint64_t written;
-  bool seen;
-} disk_prev[MAX_DRIVES];
-static int disk_prev_count;
+// btm の disk I/O は、"/" のディスク (disk3s1s1 なら disk3) の親の Statistics を読む。前回の累計バイト数
+static bool io_has_prev;
+static uint64_t io_prev_read;
+static uint64_t io_prev_written;
 
 static double prev_time;
 
@@ -59,42 +56,38 @@ static double now(void) {
   return tv.tv_sec + tv.tv_usec / 1e6;
 }
 
-// 前回からの CPU 使用率 (0〜100)。全コアの tick の合計から、busy / total を出す。
-// usage は user + sys + nice の合計、sys はそのうちカーネルの処理 (system) の分。
-// どちらも全 CPU 時間 (idle を含む) で割るので、sys は usage 以下になる。
-static void cpu_usage(double *usage, double *sys) {
-  *usage = *sys = 0;
-
+// 前回からの CPU 使用率 (0〜100)。sysinfo の global_cpu_usage と同じく、コアごとの使用率
+// (busy / (busy + idle)。f32) を出して、その平均を取る。全コアの tick を合計して割るのとは、わずかに値が違う。
+static float cpu_usage(void) {
   natural_t count;
   processor_info_array_t info;
   mach_msg_type_number_t info_count;
   if (host_processor_info(host, PROCESSOR_CPU_LOAD_INFO, &count, &info,
                           &info_count) != KERN_SUCCESS)
-    return;
+    return 0;
 
   processor_cpu_load_info_t load = (processor_cpu_load_info_t)info;
-  uint64_t busy = 0, system_ticks = 0, total = 0;
-  for (natural_t i = 0; i < count; i++) {
-    uint64_t user = load[i].cpu_ticks[CPU_STATE_USER];
-    uint64_t system = load[i].cpu_ticks[CPU_STATE_SYSTEM];
-    uint64_t nice = load[i].cpu_ticks[CPU_STATE_NICE];
-    uint64_t idle = load[i].cpu_ticks[CPU_STATE_IDLE];
-    busy += user + system + nice;
-    system_ticks += system;
-    total += user + system + nice + idle;
+  float sum = 0;
+  natural_t used = count < MAX_CPUS ? count : MAX_CPUS;
+  for (natural_t i = 0; i < used; i++) {
+    int64_t busy = (int64_t)(int32_t)load[i].cpu_ticks[CPU_STATE_USER] +
+                   (int32_t)load[i].cpu_ticks[CPU_STATE_SYSTEM] +
+                   (int32_t)load[i].cpu_ticks[CPU_STATE_NICE];
+    int32_t idle = (int32_t)load[i].cpu_ticks[CPU_STATE_IDLE];
+    if (cpu_has_prev) {
+      int64_t in_use = busy - cpu_prev_busy[i];
+      int64_t total = in_use + ((int64_t)idle - cpu_prev_idle[i]);
+      float usage = (float)in_use / (float)total * 100.0f;
+      if (usage == usage) // NaN (total が 0) は 0 にする
+        sum += usage;
+    }
+    cpu_prev_busy[i] = busy;
+    cpu_prev_idle[i] = idle;
   }
+  cpu_has_prev = true;
   vm_deallocate(mach_task_self(), (vm_address_t)info,
                 info_count * sizeof(integer_t));
-
-  if (total > cpu_prev_total && busy >= cpu_prev_busy &&
-      system_ticks >= cpu_prev_sys) {
-    double elapsed = (double)(total - cpu_prev_total);
-    *usage = 100.0 * (busy - cpu_prev_busy) / elapsed;
-    *sys = 100.0 * (system_ticks - cpu_prev_sys) / elapsed;
-  }
-  cpu_prev_busy = busy;
-  cpu_prev_sys = system_ticks;
-  cpu_prev_total = total;
+  return sum / (float)count;
 }
 
 // アクティビティモニタの「使用メモリ」と同じ内訳: アプリ + 確保済み + 圧縮
@@ -126,72 +119,54 @@ static void swap_usage(uint64_t *used, uint64_t *total) {
   *used = *total = 0;
   if (sysctlbyname("vm.swapusage", &swap, &length, NULL, 0) != 0)
     return;
-  *used = swap.xsu_used;
+  *used = swap.xsu_total - swap.xsu_avail; // sysinfo の used_swap と同じ
   *total = swap.xsu_total;
 }
 
-// df と同じ値 (空きブロック数 x ブロックサイズ)。macOS の「消せるキャッシュ」は空きに含めない
+// btm の disk widget の Free / Total と同じ値 (statvfs の空きブロック数 x ブロックサイズ)。
+// macOS の「消せるキャッシュ」は空きに含めない
 static void disk_usage(uint64_t *free_bytes, uint64_t *total_bytes) {
-  struct statfs fs;
+  struct statvfs fs;
   *free_bytes = *total_bytes = 0;
-  if (statfs(DISK_PATH, &fs) != 0)
+  if (statvfs(DISK_PATH, &fs) != 0)
     return;
-  *free_bytes = (uint64_t)fs.f_bavail * fs.f_bsize;
-  *total_bytes = (uint64_t)fs.f_blocks * fs.f_bsize;
+  *free_bytes = (uint64_t)fs.f_bavail * fs.f_frsize;
+  *total_bytes = (uint64_t)fs.f_blocks * fs.f_frsize;
 }
 
-// 数える interface (en*) の index の一覧を作り直す。
-// VPN (utun) やブリッジは、同じ通信を二重に数えるので除く。稼働中かどうかは、測るときに見る。
-static void refresh_net_indexes(double current) {
-  net_indexes_at = current;
-  net_index_count = 0;
+// すべての interface (lo0 や VPN の utun も含む) の送受信バイト数の合計。btm (sysinfo) と同じ。
+// 1 つずつ sysctl (IFMIB) で読む。全 interface を一括で取る方法 (NET_RT_IFLIST2) は、interface が多いと
+// 重く (19 個で約 200 us。IFMIB は 1 つ約 0.5 us)、IFMIB の統計は 64 ビットなので折り返さない。
+static void network_totals(uint64_t *rx, uint64_t *tx) {
+  *rx = *tx = 0;
+
   struct if_nameindex *list = if_nameindex();
   if (!list)
     return;
   for (struct if_nameindex *p = list; p->if_index != 0; p++) {
-    if (p->if_index < MAX_IFACES && strncmp(p->if_name, "en", 2) == 0 &&
-        net_index_count < MAX_IFACES)
-      net_indexes[net_index_count++] = p->if_index;
+    struct ifmibdata data;
+    size_t length = sizeof(data);
+    int mib[6] = {CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_IFDATA,
+                  (int)p->if_index, IFDATA_GENERAL};
+    if (sysctl(mib, 6, &data, &length, NULL, 0) != 0)
+      continue;
+    *rx += data.ifmd_data.ifi_ibytes;
+    *tx += data.ifmd_data.ifi_obytes;
   }
   if_freenameindex(list);
 }
 
-// 稼働中の物理 interface (en*) の送受信バイト数の、前回からの増分を足す。
-// interface ごとに前回値を持ち、途中で現れた interface の累計値が急増分にならないようにする。
-// 1 つずつ sysctl (IFMIB) で読む。全 interface を一括で取る方法 (NET_RT_IFLIST2) は、interface が多いと
-// 重く (19 個で約 200 us。IFMIB は 1 つ約 0.5 us)、IFMIB の統計は 64 ビットなので折り返さない。
-static void network_delta(uint64_t *rx, uint64_t *tx) {
-  *rx = *tx = 0;
-
-  double current = now();
-  if (net_indexes_at == 0 || current - net_indexes_at >= NET_REFRESH_INTERVAL)
-    refresh_net_indexes(current);
-
-  for (int i = 0; i < net_index_count; i++) {
-    unsigned index = net_indexes[i];
-    struct ifmibdata data;
-    size_t length = sizeof(data);
-    int mib[6] = {CTL_NET, PF_LINK, NETLINK_GENERIC, IFMIB_IFDATA, (int)index,
-                  IFDATA_GENERAL};
-    // 取り外された interface や、index が別の interface に使い回されたものは、前回値を捨てる
-    if (sysctl(mib, 6, &data, &length, NULL, 0) != 0 ||
-        strncmp(data.ifmd_name, "en", 2) != 0 || !(data.ifmd_flags & IFF_UP)) {
-      net_has_prev[index] = false;
-      continue;
-    }
-
-    uint64_t in = data.ifmd_data.ifi_ibytes;
-    uint64_t out = data.ifmd_data.ifi_obytes;
-    if (net_has_prev[index]) {
-      if (in >= net_prev_rx[index])
-        *rx += in - net_prev_rx[index];
-      if (out >= net_prev_tx[index])
-        *tx += out - net_prev_tx[index];
-    }
-    net_prev_rx[index] = in;
-    net_prev_tx[index] = out;
-    net_has_prev[index] = true;
-  }
+// 前回からの、受信・送信の速度 (bit/s。小数点以下は切り捨て)。btm と同じく、合計 (bit) の増分を経過時間で割る。
+// 合計が減ったとき (interface が取り外されたときなど) は 0
+static void network_rate(double elapsed, uint64_t *rx, uint64_t *tx) {
+  uint64_t total_rx, total_tx;
+  network_totals(&total_rx, &total_tx);
+  total_rx *= 8;
+  total_tx *= 8;
+  *rx = total_rx > net_prev_rx ? (uint64_t)((total_rx - net_prev_rx) / elapsed) : 0;
+  *tx = total_tx > net_prev_tx ? (uint64_t)((total_tx - net_prev_tx) / elapsed) : 0;
+  net_prev_rx = total_rx;
+  net_prev_tx = total_tx;
 }
 
 static uint64_t cf_number(CFDictionaryRef dict, CFStringRef key) {
@@ -202,65 +177,77 @@ static uint64_t cf_number(CFDictionaryRef dict, CFStringRef key) {
   return value > 0 ? (uint64_t)value : 0;
 }
 
-// ストレージのドライバ (IOBlockStorageDriver) すべての、読み書きのバイト数の、前回からの増分を足す
-// (内蔵 SSD のほか、外付けディスクやディスクイメージも合計に入る)。
-// 値はデバイスに届いた量で、アプリの read / write の量ではない (ページキャッシュを通った分は含まない)。
-// ドライバごとに前回値を持ち、途中で現れたドライバの累計値が急増分にならないようにする。
-static void disk_io_delta(uint64_t *read, uint64_t *written) {
-  *read = *written = 0;
-
-  io_iterator_t iterator;
-  if (IOServiceGetMatchingServices(kIOMainPortDefault,
-                                   IOServiceMatching("IOBlockStorageDriver"),
-                                   &iterator) != KERN_SUCCESS)
-    return;
-
-  for (int i = 0; i < disk_prev_count; i++)
-    disk_prev[i].seen = false;
-
-  io_object_t driver;
-  while ((driver = IOIteratorNext(iterator))) {
-    uint64_t id;
-    CFDictionaryRef stats = IORegistryEntryCreateCFProperty(
-        driver, CFSTR("Statistics"), kCFAllocatorDefault, 0);
-    if (stats && IORegistryEntryGetRegistryEntryID(driver, &id) == KERN_SUCCESS) {
-      uint64_t in = cf_number(stats, CFSTR("Bytes (Read)"));
-      uint64_t out = cf_number(stats, CFSTR("Bytes (Write)"));
-      int slot = -1;
-      for (int i = 0; i < disk_prev_count; i++) {
-        if (disk_prev[i].id == id) {
-          slot = i;
-          break;
-        }
-      }
-      if (slot >= 0) {
-        if (in >= disk_prev[slot].read)
-          *read += in - disk_prev[slot].read;
-        if (out >= disk_prev[slot].written)
-          *written += out - disk_prev[slot].written;
-      } else if (disk_prev_count < MAX_DRIVES) {
-        slot = disk_prev_count++;
-        disk_prev[slot].id = id;
-      }
-      if (slot >= 0) {
-        disk_prev[slot].read = in;
-        disk_prev[slot].written = out;
-        disk_prev[slot].seen = true;
-      }
+// DISK_PATH の device (/dev/disk3s1s1) から、btm と同じく正規表現 disk\d+ で最初に合う部分 (disk3) を取り出す
+static bool root_disk_name(char *out, size_t size) {
+  struct statfs fs;
+  if (statfs(DISK_PATH, &fs) != 0)
+    return false;
+  const char *base = strrchr(fs.f_mntfromname, '/');
+  base = base ? base + 1 : fs.f_mntfromname;
+  for (const char *p = strstr(base, "disk"); p; p = strstr(p + 1, "disk")) {
+    const char *end = p + 4;
+    while (*end >= '0' && *end <= '9')
+      end++;
+    if (end > p + 4) {
+      size_t length = (size_t)(end - p);
+      if (length >= size)
+        return false;
+      memcpy(out, p, length);
+      out[length] = '\0';
+      return true;
     }
-    if (stats)
-      CFRelease(stats);
-    IOObjectRelease(driver);
   }
-  IOObjectRelease(iterator);
+  return false;
+}
 
-  // なくなったドライバ (取り外したディスクなど) の前回値を捨てる
-  int kept = 0;
-  for (int i = 0; i < disk_prev_count; i++) {
-    if (disk_prev[i].seen)
-      disk_prev[kept++] = disk_prev[i];
+// btm の disk I/O と同じ累計バイト数: DISK_PATH のディスク (IOMedia) の親 (APFS のコンテナ) の Statistics。
+// 値はデバイスに届いた量で、アプリの read / write の量ではない (ページキャッシュを通った分は含まない)。
+// 取れなかったときは false (btm は N/A と表示する)
+static bool disk_io_counters(uint64_t *read, uint64_t *written) {
+  char name[32];
+  if (!root_disk_name(name, sizeof(name)))
+    return false;
+
+  io_service_t media = IOServiceGetMatchingService(
+      kIOMainPortDefault, IOBSDNameMatching(kIOMainPortDefault, 0, name));
+  if (!media)
+    return false;
+
+  bool ok = false;
+  io_registry_entry_t parent;
+  if (IORegistryEntryGetParentEntry(media, kIOServicePlane, &parent) ==
+      KERN_SUCCESS) {
+    CFDictionaryRef stats = IORegistryEntryCreateCFProperty(
+        parent, CFSTR("Statistics"), kCFAllocatorDefault, 0);
+    if (stats) {
+      *read = cf_number(stats, CFSTR("Bytes (Read)"));
+      *written = cf_number(stats, CFSTR("Bytes (Write)"));
+      CFRelease(stats);
+      ok = true;
+    }
+    IOObjectRelease(parent);
   }
-  disk_prev_count = kept;
+  IOObjectRelease(media);
+  return ok;
+}
+
+// 前回からの、読み・書きの速度 (byte/s。btm と同じく四捨五入)。取れなかったときは -1。
+// 最初の測定は 0 (btm と同じ)
+static void disk_io_rate(double elapsed, long long *read, long long *written) {
+  uint64_t in, out;
+  if (!disk_io_counters(&in, &out)) {
+    io_has_prev = false;
+    *read = *written = -1;
+    return;
+  }
+  *read = *written = 0;
+  if (io_has_prev) {
+    *read = llround((in > io_prev_read ? in - io_prev_read : 0) / elapsed);
+    *written = llround((out > io_prev_written ? out - io_prev_written : 0) / elapsed);
+  }
+  io_prev_read = in;
+  io_prev_written = out;
+  io_has_prev = true;
 }
 
 static void sample(CFRunLoopTimerRef timer, void *info) {
@@ -270,30 +257,28 @@ static void sample(CFRunLoopTimerRef timer, void *info) {
   if (elapsed <= 0)
     elapsed = INTERVAL;
 
-  double cpu, cpu_sys;
-  cpu_usage(&cpu, &cpu_sys);
+  float cpu = cpu_usage();
   uint64_t mem_used = memory_used();
   uint64_t swap_used, swap_total;
   swap_usage(&swap_used, &swap_total);
   int pressure = memory_pressure();
   uint64_t rx, tx;
-  network_delta(&rx, &tx);
-  uint64_t disk_read, disk_written;
-  disk_io_delta(&disk_read, &disk_written);
+  network_rate(elapsed, &rx, &tx);
+  long long disk_read, disk_written;
+  disk_io_rate(elapsed, &disk_read, &disk_written);
   uint64_t disk_free, disk_total;
   disk_usage(&disk_free, &disk_total);
 
+  // CPU は f32 の値をそのまま (%.9g で桁を失わない) 送る。Lua で丸めるときに、btm と同じ値から丸める
   char message[640];
   snprintf(message, sizeof(message),
-           "--trigger system_stats CPU=%.1f CPU_SYS=%.1f RAM=%.1f "
+           "--trigger system_stats CPU=%.9g "
            "RAM_USED=%llu RAM_TOTAL=%llu SWAP_USED=%llu SWAP_TOTAL=%llu "
            "MEM_PRESSURE=%d "
-           "NET_RX=%.0f NET_TX=%.0f DISK_READ=%.0f DISK_WRITE=%.0f "
+           "NET_RX=%llu NET_TX=%llu DISK_READ=%lld DISK_WRITE=%lld "
            "DISK_FREE=%llu DISK_TOTAL=%llu",
-           cpu, cpu_sys, mem_total ? 100.0 * mem_used / mem_total : 0.0,
-           mem_used,
-           mem_total, swap_used, swap_total, pressure, rx / elapsed, tx / elapsed,
-           disk_read / elapsed, disk_written / elapsed, disk_free, disk_total);
+           (double)cpu, mem_used, mem_total, swap_used, swap_total, pressure,
+           rx, tx, disk_read, disk_written, disk_free, disk_total);
   sketchybar(message);
 }
 
@@ -304,12 +289,11 @@ int main(void) {
   sysctlbyname("hw.memsize", &mem_total, &length, NULL, 0);
 
   // 最初の測定は基準値を取るだけ (増分が要る CPU・ネットワーク・ディスク I/O は、2 回目から意味を持つ)
-  double cpu_first, cpu_sys_first;
-  cpu_usage(&cpu_first, &cpu_sys_first);
+  cpu_usage();
   uint64_t rx, tx;
-  network_delta(&rx, &tx);
-  uint64_t disk_read, disk_written;
-  disk_io_delta(&disk_read, &disk_written);
+  network_rate(INTERVAL, &rx, &tx);
+  long long disk_read, disk_written;
+  disk_io_rate(INTERVAL, &disk_read, &disk_written);
   prev_time = now();
 
   CFRunLoopTimerRef timer = CFRunLoopTimerCreate(

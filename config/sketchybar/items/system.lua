@@ -10,10 +10,11 @@ local popup_state = require("popup_state")
 -- ポップアップは横並び (horizontal) にして、中身の item をすべて width = 0 にする。横並びでは、width = 0 の item の
 -- 次が同じ x から始まるので、item が同じ位置に重なる (spotify.lua と同じ方法)。縦の位置は y_offset で決める
 -- (ポップアップの縦の中央からの距離。上が正)。縦並びだと、item は高さの分だけ順に積まれるので重ねられない。
+-- 数字は bottom (btm。pkgs/btm-window が表示する) と同じ値・同じ書式にしてある (値の測り方は helper/system.c)。
 -- 行 (LINES) は、見出しと、同じ行に描くグラフ (series) の組。layout で、行の作りを決める:
---   overlay: CPU と Sys。同じ位置に重ねる (数字は上下 2 段)。
+--   overlay: CPU。グラフを重ねる行 (複数あれば数字は上下 2 段。いまは CPU の 1 本だけ)。
 --   mirror:  Net。受信 (rx) を上半分に通常のグラフ、送信 (tx) を下半分に上下反転して描く。
---   text:    RAM (使用率とスワップ)、I/O、ディスクの空き。グラフにしない行 (数字だけ、または円グラフ)。
+--   text:    RAM、Swap、I/O、ディスクの空き。グラフにしない行 (数字だけ、または円グラフ)。
 
 -- アイコンのサイズ (pt)。sketchybar-app-font の :activity_monitor: は、字面がほぼ一辺 SIZE の正方形になる
 -- (CoreText で実測。20pt で 19.96 x 19.24)。箱の幅も SIZE にする。フォントやサイズを変えたら再測定が必要。
@@ -24,7 +25,7 @@ local GRAPH_WIDTH = 60
 local GRAPH_HEIGHT = 18
 local ROW_HEIGHT = 26
 local TITLE_WIDTH = 52
--- 数字の列の幅。グラフの幅 (60pt) が狭いので、RAM の行 (使用率と使用量 | Swap) の文字が重ならないよう広めにする
+-- 数字の列の幅
 local VALUE_WIDTH = 120
 local ROW_PADDING = 8
 local CONTENT_WIDTH = TITLE_WIDTH + GRAPH_WIDTH + VALUE_WIDTH
@@ -41,8 +42,9 @@ local LABEL_SPLIT = 6
 -- 行。上から順に並べる。height は偶数にする。
 --   graph の行 (overlay / mirror) は series にグラフを並べる。text の行は、数字だけ (または円グラフ) で、グラフを持たない。
 local LINES = {
-	{ key = "cpu", title = "CPU", height = ROW_HEIGHT, layout = "overlay", series = { "cpu", "cpu_sys" } },
+	{ key = "cpu", title = "CPU", height = ROW_HEIGHT, layout = "overlay", series = { "cpu" } },
 	{ key = "ram", height = ROW_HEIGHT, layout = "text" },
+	{ key = "swap", height = ROW_HEIGHT, layout = "text" },
 	{ key = "net", title = "Net", height = MIRROR_ROW_HEIGHT, layout = "mirror", series = { "rx", "tx" } },
 	{ key = "io", height = ROW_HEIGHT, layout = "text" },
 	{ key = "disk", height = ROW_HEIGHT, layout = "text" },
@@ -72,7 +74,7 @@ local DONUT_STROKE = DONUT_PX * 0.14
 local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/system"
 
 -- ネットワークのグラフは、履歴の最大値の RATE_SCALE_HEADROOM 倍を天井 (1) にして、0〜1 にそろえる。
--- 最大値で天井に張り付かないよう余裕を持たせる。下限は置かず、通信が 0 のときだけ RATE_SCALE_ZERO を使う (バイト/秒)。
+-- 最大値で天井に張り付かないよう余裕を持たせる。下限は置かず、通信が 0 のときだけ RATE_SCALE_ZERO を使う (ビット/秒)。
 -- bottom (btm) と同じ決め方 (src/canvas/widgets/network_graph.rs の adjust_network_data_point)。
 local RATE_SCALE_HEADROOM = 1.5
 local RATE_SCALE_ZERO = 1
@@ -121,39 +123,65 @@ local bracket = ui.add_bracket("system.bracket", { gear }, {
 -- bracket の幅と同じ
 local hit = ui.add_hit_layer_over("system.hit", BRACKET_WIDTH, BRACKET_WIDTH, { position = "e" })
 
--- 10 進接頭辞 (1 KB = 1000 B)。メモリ・スワップ・ネットワーク・ディスクで、単位をそろえる。
--- 100 以上は整数、それ未満は小数 1 桁で出す。
-local UNITS = { "B", "KB", "MB", "GB", "TB" }
+-- 数字の書式は btm (src/utils/data_units.rs、conversion.rs) と同じ。
+-- 10 進接頭辞 (1 KB = 1000 B) で、値は 1 回の割り算で出す (btm の get_decimal_bytes、get_unit_prefix)
+local DECIMAL_BYTES = { { 1e12, "TB" }, { 1e9, "GB" }, { 1e6, "MB" }, { 1e3, "KB" } }
+local DECIMAL_PREFIXES = { { 1e12, "T" }, { 1e9, "G" }, { 1e6, "M" }, { 1e3, "K" } }
 
-local function scale_bytes(bytes)
-	local unit = 1
-	while bytes >= 1000 and unit < #UNITS do
-		bytes = bytes / 1000
-		unit = unit + 1
+local function split_unit(value, units, base_unit)
+	for _, entry in ipairs(units) do
+		if value >= entry[1] then
+			return value / entry[1], entry[2]
+		end
 	end
-	return bytes, UNITS[unit]
+	return value, base_unit
 end
 
-local function format_bytes(bytes, per_second)
-	local value, unit = scale_bytes(bytes)
-	local suffix = per_second and "/s" or ""
-	if unit == "B" or value >= 100 then
-		return string.format("%.0f %s%s", value, unit, suffix)
-	end
-	return string.format("%.1f %s%s", value, unit, suffix)
+-- ネットワークの速度 (bit/s)。btm の RX / TX と同じ「12.3Mb/s」の形
+local function format_bit_rate(bits)
+	local value, prefix = split_unit(bits, DECIMAL_PREFIXES, "")
+	return string.format("%.1f%sb/s", value, prefix)
 end
 
--- df -H と同じ桁 (10 未満は小数 1 桁、それ以上は整数。四捨五入)。ディスクの容量用
+-- ディスク I/O の速度 (byte/s)。btm の dec_bytes_per_second_string と同じ (1 GB/s 以上だけ小数 1 桁)。
+-- 取れなかったとき (helper が負の値を送る) は、btm と同じ N/A
+local function format_byte_rate(bytes)
+	if bytes < 0 then
+		return "N/A"
+	end
+	local value, unit = split_unit(bytes, DECIMAL_BYTES, "B")
+	return string.format(bytes >= 1e9 and "%.1f%s/s" or "%.0f%s/s", value, unit)
+end
+
+-- ディスクの空き・総容量 (byte)。btm の disk widget と同じ「325GB」の形
 local function format_disk(bytes)
-	local value, unit = scale_bytes(bytes)
-	return string.format(value < 10 and "%.1f %s" or "%.0f %s", value, unit)
+	local value, unit = split_unit(bytes, DECIMAL_BYTES, "B")
+	return string.format("%.0f%s", value, unit)
+end
+
+-- メモリ・スワップ (byte)。btm の memory_legend_label と同じ「 45%   12.3GiB/16.0GiB」の形。
+-- 単位は総量で決め (2 進接頭辞。1 GiB = 1024^3 B)、使用量と総量を同じ単位で出す。
+-- 総量が 0 のとき (スワップが無いとき) は、btm と同じ文字列を出す
+local BINARY_UNITS = { { 1024 ^ 4, "TiB" }, { 1024 ^ 3, "GiB" }, { 1024 ^ 2, "MiB" }, { 1024, "KiB" } }
+
+local function format_memory(used, total)
+	if total <= 0 then
+		return "  0%   0.0B/0.0B"
+	end
+	local denominator, unit = 1, "B"
+	for _, entry in ipairs(BINARY_UNITS) do
+		if total >= entry[1] then
+			denominator, unit = entry[1], entry[2]
+			break
+		end
+	end
+	return string.format("%3.0f%%   %.1f%s/%.1f%s", used / total * 100, used / denominator, unit, total / denominator, unit)
 end
 
 -- グラフ (series) の定義。どの行のどこに置くかは LINES が決める。
 --   point(env): グラフに積む値 (そのまま履歴に入る。0〜1 にする割り算は scale で行う)
 --   scale(): 履歴全体を割る値 (固定なら 1)
 --   text(env): 右の数字
---   color(env): グラフと数字の色 (省略すると既定)
 --   flip: 上下反転して描く (mirror の下半分)
 local function fixed()
 	return 1
@@ -179,8 +207,6 @@ local function rate_scale(group)
 	end
 end
 
-local SYS_COLOR = 0xccffb454 -- 重ねたグラフ (Sys) の色。CPU の白と見分ける
-
 ROWS = {
 	{
 		name = "cpu",
@@ -193,20 +219,6 @@ ROWS = {
 		end,
 	},
 	{
-		-- CPU のうち、カーネルの処理 (sys) の分。合計と同じ全 CPU 時間に対する割合なので、CPU の行以下になる
-		name = "cpu_sys",
-		point = function(env)
-			return tonumber(env.CPU_SYS) / 100
-		end,
-		scale = fixed,
-		text = function(env)
-			return string.format("Sys %.0f%%", tonumber(env.CPU_SYS))
-		end,
-		color = function()
-			return SYS_COLOR
-		end,
-	},
-	{
 		name = "rx",
 		group = "net",
 		point = function(env)
@@ -214,7 +226,7 @@ ROWS = {
 		end,
 		scale = rate_scale("net"),
 		text = function(env)
-			return "\u{2193} " .. format_bytes(tonumber(env.NET_RX), true) -- 下向きの矢印: 受信
+			return "\u{2193} " .. format_bit_rate(tonumber(env.NET_RX)) -- 下向きの矢印: 受信
 		end,
 	},
 	{
@@ -226,7 +238,7 @@ ROWS = {
 		end,
 		scale = rate_scale("net"),
 		text = function(env)
-			return "\u{2191} " .. format_bytes(tonumber(env.NET_TX), true) -- 上向きの矢印: 送信
+			return "\u{2191} " .. format_bit_rate(tonumber(env.NET_TX)) -- 上向きの矢印: 送信
 		end,
 	},
 }
@@ -288,7 +300,7 @@ for _, line in ipairs(LINES) do
 		local y, label_y, graph_height
 		if overlay then
 			y = line.center
-			label_y = i == 1 and LABEL_SPLIT or -LABEL_SPLIT
+			label_y = #line.series == 1 and 0 or (i == 1 and LABEL_SPLIT or -LABEL_SPLIT)
 			graph_height = GRAPH_HEIGHT
 		else
 			y = line.center + (i == 1 and MIRROR_HALF // 2 or -(MIRROR_HALF // 2)) - MIRROR_LANE_SHIFT
@@ -353,51 +365,34 @@ local popup_open = false
 -- ディスクの行: 見出し | 円グラフ (空きの割合) | 空き / 総容量。
 -- 円グラフの画像は、空きの割合 (整数 %) ごとに 1 枚、magick で描いて cache に置く。
 -- 画像の位置は背景の左端からの距離 (image.padding_left) で決まるので、真ん中の列 (グラフの幅) の中央に置く。
--- メモリの行: 見出し | 使用率と使用量 | スワップ。グラフにしない (使用率は 7 割台で平らに張り付き、スワップはほぼ 0 なので、
--- 形が情報にならない。読みたいのは、足りているか)。
--- 使用率と使用量の色は、メモリ圧力 (normal / warn / critical) で変える。スワップは、使い始めたら (足りていない合図) 色を変える。
+-- メモリとスワップの行: 見出し | 使用率と使用量 / 総量 (btm の RAM、SWP と同じ書式)。グラフにしない (使用率は 7 割台で平らに
+-- 張り付き、スワップはほぼ 0 なので、形が情報にならない。読みたいのは、足りているか)。
+-- メモリの色は、メモリ圧力 (normal / warn / critical) で変える。スワップは、使い始めたら (足りていない合図) 色を変える。
 local PRESSURE_COLORS = { [1] = colors.white, [2] = 0xffffb454, [4] = 0xffff5555 }
 local SWAP_USED_COLOR = colors.swap.alert | 0xff000000
 
-local ram = sbar.add("item", "system.ram", {
-	position = "popup.system",
-	width = 0,
-	y_offset = line_of.ram.center,
-	padding_left = 0,
-	padding_right = 0,
-	icon = icon_props("RAM"),
-	label = {
-		string = "",
-		font = ui.popup_font(12.0, "tnum"),
-		width = GRAPH_WIDTH,
-		align = "left",
+-- 数字は、右の列 (グラフの幅 + 数字の幅) の右端にそろえる (I/O、ディスクの行と同じ)
+local function memory_item(name, title, line)
+	return sbar.add("item", "system." .. name, {
+		position = "popup.system",
+		width = 0,
+		y_offset = line.center,
 		padding_left = 0,
 		padding_right = 0,
-	},
-})
+		icon = icon_props(title),
+		label = {
+			string = "",
+			font = ui.popup_font(12.0, "tnum"),
+			width = GRAPH_WIDTH + VALUE_WIDTH,
+			align = "right",
+			padding_left = 8,
+			padding_right = 0,
+		},
+	})
+end
 
-local swap = sbar.add("item", "system.swap", {
-	position = "popup.system",
-	width = 0,
-	y_offset = line_of.ram.center,
-	padding_left = 0,
-	padding_right = 0,
-	icon = {
-		string = "",
-		width = TITLE_WIDTH + GRAPH_WIDTH,
-		padding_left = 0,
-		padding_right = 0,
-	},
-	label = {
-		string = "",
-		font = ui.popup_font(12.0, "tnum"),
-		color = colors.dim,
-		width = VALUE_WIDTH,
-		align = "right",
-		padding_left = 8,
-		padding_right = 0,
-	},
-})
+local ram = memory_item("ram", "RAM", line_of.ram)
+local swap = memory_item("swap", "Swap", line_of.swap)
 
 -- ディスク I/O の行: 見出し | 読み / 書きの速度 (数字だけ)。
 -- I/O は、平常時の KB/s の揺れに、数百 MB/s のバーストが散発的に混ざるので、グラフにしても形が情報にならない。
@@ -557,27 +552,20 @@ local function render()
 			points[i] = row.flip and 1 - v or v
 		end
 		points[GRAPH_WIDTH] = points[1]
-		local props = { label = { string = row.text(last_env) } }
-		if row.color then
-			-- グラフの色を、数字にも付ける (不透明にして読みやすくする)
-			local color = row.color(last_env)
-			props.graph = { color = color, fill_color = (color & 0x00ffffff) | 0x33000000 }
-			props.label.color = color | 0xff000000
-		end
-		row.item:set(props)
+		row.item:set({ label = { string = row.text(last_env) } })
 		row.item:push(points)
 	end
 
 	ram:set({
 		label = {
-			string = string.format("%.0f%%  %s", tonumber(last_env.RAM), format_bytes(tonumber(last_env.RAM_USED))),
+			string = format_memory(tonumber(last_env.RAM_USED), tonumber(last_env.RAM_TOTAL)),
 			color = PRESSURE_COLORS[tonumber(last_env.MEM_PRESSURE)] or colors.white,
 		},
 	})
 	local swap_used = tonumber(last_env.SWAP_USED)
 	swap:set({
 		label = {
-			string = "Swap " .. format_bytes(swap_used),
+			string = format_memory(swap_used, tonumber(last_env.SWAP_TOTAL)),
 			color = swap_used > 0 and SWAP_USED_COLOR or colors.dim,
 		},
 	})
@@ -586,8 +574,8 @@ local function render()
 		label = {
 			string = string.format(
 				"R %s    W %s",
-				format_bytes(tonumber(last_env.DISK_READ), true),
-				format_bytes(tonumber(last_env.DISK_WRITE), true)
+				format_byte_rate(tonumber(last_env.DISK_READ)),
+				format_byte_rate(tonumber(last_env.DISK_WRITE))
 			),
 		},
 	})
