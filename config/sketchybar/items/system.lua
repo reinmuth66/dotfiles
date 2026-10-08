@@ -10,7 +10,7 @@ local popup_state = require("popup_state")
 -- ポップアップは横並び (horizontal) にして、中身の item をすべて width = 0 にする。横並びでは、width = 0 の item の
 -- 次が同じ x から始まるので、item が同じ位置に重なる (spotify.lua と同じ方法)。縦の位置は y_offset で決める
 -- (ポップアップの縦の中央からの距離。上が正)。縦並びだと、item は高さの分だけ順に積まれるので重ねられない。
--- 数字は bottom (btm。pkgs/btm-window が表示する) と同じ値・同じ書式にしてある (値の測り方は helper/system.c)。
+-- 数字は bottom (btm) と同じ値・同じ書式にしてある (値の測り方は helper/system.c。pkgs/system-monitor の窓も同じ数字を出す)。
 -- 行 (LINES) は、見出しと、同じ行に描くグラフ (series) の組。layout で、行の作りを決める:
 --   overlay: CPU。グラフを重ねる行 (複数あれば数字は上下 2 段。いまは CPU の 1 本だけ)。
 --   mirror:  Net。受信 (rx) を上半分に通常のグラフ、送信 (tx) を下半分に上下反転して描く。
@@ -635,13 +635,14 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	gear:set({ popup = { drawing = false } })
 end)
 
--- btm の窓 (pkgs/btm-window) の開閉。起動中なら SIGUSR1 を送り、窓が最前面なら閉じ、そうでなければ前に出させる。
--- 起動していなければ起動する。窓は AeroSpace の管理外で、今の workspace の上に重なる (workspace は切り替わらない)。
-local TOGGLE_BTM_COMMAND = "pkill -USR1 -x btm-window || { nohup btm-window >/dev/null 2>&1 & }"
+-- システムの状態の窓 (pkgs/system-monitor。btm の画面の再現) の開閉。起動中なら終了させ、起動していなければ起動する。
+-- 窓は開いている間だけ動く (グラフの履歴は、helper が常に貯めていて、窓は開いた時にそれを読む)。
+-- 窓は AeroSpace の管理外で、今の workspace の上に重なる (workspace は切り替わらない)。窓の中で q か Esc でも閉じる。
+local TOGGLE_WINDOW_COMMAND = "pkill -x system-monitor || { nohup system-monitor >/dev/null 2>&1 & }"
 
 hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
-		sbar.exec(TOGGLE_BTM_COMMAND)
+		sbar.exec(TOGGLE_WINDOW_COMMAND)
 	elseif env.BUTTON == "right" then
 		-- ポップアップが開いていないときは、ピン留めしない。外すのはいつでもできる
 		if pinned then
