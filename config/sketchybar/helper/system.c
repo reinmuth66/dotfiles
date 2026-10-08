@@ -1,5 +1,4 @@
 #include "sketchybar.h"
-#include "history.h"
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOBSD.h>
 #include <IOKit/IOKitLib.h>
@@ -7,27 +6,21 @@
 #include <math.h>
 #include <net/if.h>
 #include <net/if_mib.h>
-#include <fcntl.h>
-#include <pwd.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <sys/mount.h>
 #include <sys/statvfs.h>
 #include <sys/sysctl.h>
-#include <sys/stat.h>
 #include <sys/time.h>
-#include <unistd.h>
 
 // CPU・メモリ・スワップ・ネットワーク・ディスクの使用状況と I/Oを一定間隔で測り、
 // SketchyBar の system_stats イベントに環境変数として渡す。
 // 測定はカーネルの API を直接呼ぶだけで、プロセスを起動しない。
 // 描画や書式は Lua (items/system.lua) が決めるので、ここでは生の値だけを送る。
 //
-// 値の測り方は bottom (btm) に合わせて、popup の数字が btm と一致するようにしている
+// 値の測り方は bottom (btm。pkgs/btm-window が表示する) に合わせて、popup の数字が btm と一致するようにしている
 // (btm が使う sysinfo クレートの macOS 実装と同じ式)。
-// 同じ値を、履歴のファイルにも書く (history.h)。pkgs/system-monitor は、これを読んでグラフの履歴を描く。
 
 #define INTERVAL 1.0
 // タイマーの許容誤差 (秒)。割り込みをまとめて、省電力にする
@@ -45,15 +38,10 @@ static uint64_t mem_total;
 static int64_t cpu_prev_busy[MAX_CPUS];
 static int32_t cpu_prev_idle[MAX_CPUS];
 static bool cpu_has_prev;
-// 直近の測定のコアごとの使用率 (履歴に書く)
-static float cpu_core_usage[MAX_CPUS];
-static natural_t cpu_core_count;
 
-// 全 interface の送受信の累計 (bit) の、前回の合計と、直近の合計
+// 全 interface の送受信バイト数の、前回の合計
 static uint64_t net_prev_rx;
 static uint64_t net_prev_tx;
-static uint64_t net_total_rx;
-static uint64_t net_total_tx;
 
 // btm の disk I/O は、"/" のディスク (disk3s1s1 なら disk3) の親の Statistics を読む。前回の累計バイト数
 static bool io_has_prev;
@@ -81,7 +69,6 @@ static float cpu_usage(void) {
   processor_cpu_load_info_t load = (processor_cpu_load_info_t)info;
   float sum = 0;
   natural_t used = count < MAX_CPUS ? count : MAX_CPUS;
-  cpu_core_count = used;
   for (natural_t i = 0; i < used; i++) {
     int64_t busy = (int64_t)(int32_t)load[i].cpu_ticks[CPU_STATE_USER] +
                    (int32_t)load[i].cpu_ticks[CPU_STATE_SYSTEM] +
@@ -91,10 +78,8 @@ static float cpu_usage(void) {
       int64_t in_use = busy - cpu_prev_busy[i];
       int64_t total = in_use + ((int64_t)idle - cpu_prev_idle[i]);
       float usage = (float)in_use / (float)total * 100.0f;
-      if (usage != usage) // NaN (total が 0) は 0 にする
-        usage = 0;
-      sum += usage;
-      cpu_core_usage[i] = usage;
+      if (usage == usage) // NaN (total が 0) は 0 にする
+        sum += usage;
     }
     cpu_prev_busy[i] = busy;
     cpu_prev_idle[i] = idle;
@@ -140,15 +125,13 @@ static void swap_usage(uint64_t *used, uint64_t *total) {
 
 // btm の disk widget の Free / Total と同じ値 (statvfs の空きブロック数 x ブロックサイズ)。
 // macOS の「消せるキャッシュ」は空きに含めない
-// 使用量 (Used) は、btm と同じく総量 - f_bfree x f_frsize
-static void disk_usage(uint64_t *free_bytes, uint64_t *used_bytes, uint64_t *total_bytes) {
+static void disk_usage(uint64_t *free_bytes, uint64_t *total_bytes) {
   struct statvfs fs;
-  *free_bytes = *used_bytes = *total_bytes = 0;
+  *free_bytes = *total_bytes = 0;
   if (statvfs(DISK_PATH, &fs) != 0)
     return;
   *free_bytes = (uint64_t)fs.f_bavail * fs.f_frsize;
   *total_bytes = (uint64_t)fs.f_blocks * fs.f_frsize;
-  *used_bytes = *total_bytes - (uint64_t)fs.f_bfree * fs.f_frsize;
 }
 
 // すべての interface (lo0 や VPN の utun も含む) の送受信バイト数の合計。btm (sysinfo) と同じ。
@@ -182,8 +165,8 @@ static void network_rate(double elapsed, uint64_t *rx, uint64_t *tx) {
   total_tx *= 8;
   *rx = total_rx > net_prev_rx ? (uint64_t)((total_rx - net_prev_rx) / elapsed) : 0;
   *tx = total_tx > net_prev_tx ? (uint64_t)((total_tx - net_prev_tx) / elapsed) : 0;
-  net_prev_rx = net_total_rx = total_rx;
-  net_prev_tx = net_total_tx = total_tx;
+  net_prev_rx = total_rx;
+  net_prev_tx = total_tx;
 }
 
 static uint64_t cf_number(CFDictionaryRef dict, CFStringRef key) {
@@ -267,62 +250,6 @@ static void disk_io_rate(double elapsed, long long *read, long long *written) {
   io_has_prev = true;
 }
 
-// 履歴のファイル (history.h)。~/Library/Caches/sketchybar/system/history.bin を mmap する。
-// 開けなかったときは、履歴を書かない (popup のイベントは、これとは関係なく送る)
-static struct history_header *history;
-static struct history_sample *history_samples;
-
-static void make_directory(const char *path) { mkdir(path, 0755); }
-
-static void history_open(void) {
-  const char *home = getenv("HOME");
-  if (!home) {
-    struct passwd *entry = getpwuid(getuid());
-    home = entry ? entry->pw_dir : NULL;
-  }
-  if (!home)
-    return;
-
-  char path[1024];
-  snprintf(path, sizeof(path), "%s/Library/Caches/sketchybar", home);
-  make_directory(path);
-  snprintf(path, sizeof(path), "%s/Library/Caches/sketchybar/system", home);
-  make_directory(path);
-  snprintf(path, sizeof(path), "%s/Library/Caches/sketchybar/system/history.bin", home);
-
-  size_t size = sizeof(struct history_header) +
-                HISTORY_CAPACITY * sizeof(struct history_sample);
-  int fd = open(path, O_RDWR | O_CREAT, 0644);
-  if (fd < 0)
-    return;
-  // 同じファイルを使い回す (読んでいる側の mmap が、helper の再起動後も有効なまま)。空から始める
-  if (ftruncate(fd, (off_t)size) != 0) {
-    close(fd);
-    return;
-  }
-  void *map = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-  close(fd);
-  if (map == MAP_FAILED)
-    return;
-
-  struct history_header *header = map;
-  __atomic_store_n(&header->count, 0, __ATOMIC_RELEASE);
-  header->magic = HISTORY_MAGIC;
-  header->version = HISTORY_VERSION;
-  header->capacity = HISTORY_CAPACITY;
-  header->sample_size = sizeof(struct history_sample);
-  history = header;
-  history_samples = (struct history_sample *)((char *)map + sizeof(*header));
-}
-
-static void history_write(const struct history_sample *sample) {
-  if (!history)
-    return;
-  uint64_t count = __atomic_load_n(&history->count, __ATOMIC_RELAXED);
-  history_samples[count % HISTORY_CAPACITY] = *sample;
-  __atomic_store_n(&history->count, count + 1, __ATOMIC_RELEASE);
-}
-
 static void sample(CFRunLoopTimerRef timer, void *info) {
   double current = now();
   double elapsed = current - prev_time;
@@ -339,30 +266,8 @@ static void sample(CFRunLoopTimerRef timer, void *info) {
   network_rate(elapsed, &rx, &tx);
   long long disk_read, disk_written;
   disk_io_rate(elapsed, &disk_read, &disk_written);
-  uint64_t disk_free, disk_used, disk_total;
-  disk_usage(&disk_free, &disk_used, &disk_total);
-
-  struct history_sample record;
-  memset(&record, 0, sizeof(record));
-  record.time = current;
-  record.cpu = (double)cpu;
-  record.core_count = cpu_core_count < HISTORY_MAX_CORES ? cpu_core_count : HISTORY_MAX_CORES;
-  for (uint32_t i = 0; i < record.core_count; i++)
-    record.cores[i] = (double)cpu_core_usage[i];
-  record.ram_used = mem_used;
-  record.ram_total = mem_total;
-  record.swap_used = swap_used;
-  record.swap_total = swap_total;
-  record.net_rx = rx;
-  record.net_tx = tx;
-  record.net_total_rx = net_total_rx;
-  record.net_total_tx = net_total_tx;
-  record.disk_read = disk_read;
-  record.disk_written = disk_written;
-  record.disk_free = disk_free;
-  record.disk_used = disk_used;
-  record.disk_total = disk_total;
-  history_write(&record);
+  uint64_t disk_free, disk_total;
+  disk_usage(&disk_free, &disk_total);
 
   // CPU は f32 の値をそのまま (%.9g で桁を失わない) 送る。Lua で丸めるときに、btm と同じ値から丸める
   char message[640];
@@ -390,7 +295,6 @@ int main(void) {
   long long disk_read, disk_written;
   disk_io_rate(INTERVAL, &disk_read, &disk_written);
   prev_time = now();
-  history_open();
 
   CFRunLoopTimerRef timer = CFRunLoopTimerCreate(
       kCFAllocatorDefault, CFAbsoluteTimeGetCurrent() + INTERVAL, INTERVAL, 0,
