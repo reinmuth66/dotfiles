@@ -21,8 +21,8 @@ local POPUP_HEIGHT = 32
 -- item 同士の間と右端は、その分を引く。
 local POPUP_MARGIN = 8
 local LABEL_SLACK = 1
--- アイコン (歯車) とポップアップの間隔 (pt)
-local POPUP_GAP = 6
+-- アイコン (歯車の円) とポップアップの見た目の間隔 (pt)。spacer は 幅 + 1 pt 描かれる (ui.add_spacer) ので、幅は 1 引く
+local POPUP_GAP = 4
 
 -- helper が送るイベント。helper が起動するより先に登録しておく (未登録のイベントは --trigger できない)
 sbar.add("event", "system_stats")
@@ -86,7 +86,7 @@ end
 -- ポップアップは既定でバーの下端から下に出る。y_offset を負にして上へ戻し、バーの縦の中央に置く
 -- (上端が (バーの高さ - POPUP_HEIGHT) / 2 になる)。ポップアップの枠線 (border_width) の分だけ中身が下にずれる
 -- (実機で、枠線 1 のとき中身の上端が 5 pt、枠線 0 のとき 4 pt) ので、その分も上げる。
-ui.add_spacer("e", POPUP_GAP)
+ui.add_spacer("e", POPUP_GAP - 1)
 local anchor = ui.add_item("system.anchor", "e", {
 	width = 1,
 	padding_left = 0,
