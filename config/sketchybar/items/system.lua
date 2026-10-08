@@ -14,6 +14,13 @@ local SIZE = 20
 
 -- ポップアップの高さ (pt)。バー (ui.bar_height) の中に収める。
 local POPUP_HEIGHT = 32
+-- ポップアップの余白 (pt)。上下・左右・item 同士の見た目の余白をこの値にそろえる (ui.bracket_padding と同じ 8)。
+-- 縦は 中身の字面の高さ (GLYPH_HEIGHT。tallest は CPU・Disk のアイコンで実測 13.5〜14.5 に y_offset 1 を足して 15)
+-- を POPUP_HEIGHT の縦中央に置くので、(32 - 15) / 2 = 8.5 になる (整数に丸めると 8 と 9)。
+-- 横は item の padding で作る。label は固定幅で、字面の右に約 1 pt の余りがある (実測。"07%" は 24 の箱に字面 23.0) ので、
+-- item 同士の間と右端は、その分を引く。
+local POPUP_MARGIN = 8
+local LABEL_SLACK = 1
 -- アイコン (歯車) とポップアップの間隔 (pt)
 local POPUP_GAP = 6
 
@@ -90,8 +97,14 @@ local anchor = ui.add_item("system.anchor", "e", {
 		align = "left",
 		horizontal = true,
 		height = POPUP_HEIGHT,
-		y_offset = -(ui.bar_height + POPUP_HEIGHT) / 2 - colors.popup.border_width,
-		background = colors.popup,
+		y_offset = -(ui.bar_height + POPUP_HEIGHT) / 2 - colors.bracket.border_width,
+		-- 背景は他の bracket (colors.bracket) と同じ色・枠線・角の丸み。高さは popup.height で決まる
+		background = {
+			color = colors.bracket.color,
+			border_color = colors.bracket.border_color,
+			border_width = colors.bracket.border_width,
+			corner_radius = colors.bracket.corner_radius,
+		},
 	},
 })
 
@@ -103,17 +116,39 @@ local anchor = ui.add_item("system.anchor", "e", {
 local PERCENT_WIDTH_BY_DIGITS = { [2] = 27, [3] = 34 }
 local DISK_WIDTH = 89
 
-local function add_stat(name, icon, width)
+-- アイコンの箱の幅 (padding を含む全幅)。字面は advance (10.8) より広く、箱の外にはみ出すと数字に重なる
+-- (wifi.lua、bluetooth.lua と同じ)。字面は箱の左端から描かれるので、字面の幅 (実測。CTLineGetImageBounds、
+-- Hack Nerd Font Bold 18pt。CPU 13.5、RAM 18.7、Disk 14.5) に、字面の右端と数字の間の余白 3.9 を足して切り上げた値にする。
+-- 3.9 は battery.lua の見た目の余白 (advance 10.8 - 字面の右端 9.9 + icon の padding_right 3) と同じ。
+-- フォントやサイズを変えたら再測定が必要。
+local CPU_ICON_WIDTH = 18
+local RAM_ICON_WIDTH = 23
+local DISK_ICON_WIDTH = 19
+
+-- padding_left / padding_right は item の外側の余白。左端の item だけ左に POPUP_MARGIN、右端の item だけ右に
+-- POPUP_MARGIN - LABEL_SLACK、間も POPUP_MARGIN - LABEL_SLACK にして、見た目をそろえる。
+local function add_stat(name, icon, icon_width, width, padding_left, padding_right)
 	return sbar.add("item", "system." .. name, {
 		position = "popup.system.anchor",
-		icon = { string = icon, font = { size = 18.0 }, y_offset = 1, padding_left = 0, padding_right = 3 },
+		padding_left = padding_left,
+		padding_right = padding_right,
+		icon = {
+			string = icon,
+			font = { size = 18.0 },
+			y_offset = 1,
+			width = icon_width,
+			align = "left",
+			padding_left = 0,
+			padding_right = 0,
+		},
 		label = { string = "", width = width, padding_left = 3, padding_right = 0 },
 	})
 end
 
-local cpu_item = add_stat("cpu", "\u{f035b}", PERCENT_WIDTH_BY_DIGITS[2])
-local ram_item = add_stat("ram", "\u{efc5}", PERCENT_WIDTH_BY_DIGITS[2])
-local disk_item = add_stat("disk", "\u{f0c7}", DISK_WIDTH)
+local EDGE_PADDING = POPUP_MARGIN - LABEL_SLACK
+local cpu_item = add_stat("cpu", "\u{f035b}", CPU_ICON_WIDTH, PERCENT_WIDTH_BY_DIGITS[2], POPUP_MARGIN, EDGE_PADDING)
+local ram_item = add_stat("ram", "\u{efc5}", RAM_ICON_WIDTH, PERCENT_WIDTH_BY_DIGITS[2], 0, EDGE_PADDING)
+local disk_item = add_stat("disk", "\u{f0c7}", DISK_ICON_WIDTH, DISK_WIDTH, 0, EDGE_PADDING)
 
 -- 0 埋めした整数の % と、その桁数に応じた label の幅
 local function percent_label(value)
