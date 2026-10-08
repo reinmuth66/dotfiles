@@ -40,6 +40,7 @@ let
 
   clockHelper = mkHelper "clock";
   systemHelper = mkHelper "system";
+  btmWindow = pkgs.callPackage ../pkgs/btm-window { };
 in
 {
   programs.sketchybar = {
@@ -56,7 +57,7 @@ in
     };
 
     sbarLuaPackage = pkgs.sbarlua;
-    extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick pkgs.bottom ]; # imagemagick: spotify の色の抽出、bottom: system item の btm の窓
+    extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick btmWindow ]; # imagemagick: spotify の色の抽出、btmWindow: system item の btm の窓
   };
 
   launchd.agents.sketchybar-clock-helper = mkHelperAgent "clock" clockHelper;

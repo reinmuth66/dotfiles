@@ -63,7 +63,6 @@ local process_icons = {
 	claude = wezterm.nerdfonts.md_chat,
 	gh = wezterm.nerdfonts.dev_github_badge,
 	git = wezterm.nerdfonts.dev_git,
-	-- issues-todo = wezterm.nerdfonts.md_calendar_check,
 	lazygit = wezterm.nerdfonts.dev_git,
 	lua = wezterm.nerdfonts.seti_lua,
 	nvim = wezterm.nerdfonts.custom_vim,
@@ -132,12 +131,6 @@ wezterm.on("gui-startup", function(cmd)
 	local _, _, window = wezterm.mux.spawn_window(cmd or {})
 	window:gui_window():maximize()
 end)
-
-if os.getenv("BTM_WINDOW") then
-	wezterm.on("format-window-title", function()
-		return "btm-monitor"
-	end)
-end
 
 ----------------------------------------------------
 -- keybinds

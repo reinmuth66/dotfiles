@@ -666,7 +666,7 @@ if [ "$(aerospace list-windows --focused --format '%%{window-title}')" = '%s' ];
 else
 	id="$(find_window 1)"
 	if [ -z "$id" ]; then
-		BTM_WINDOW=1 nohup wezterm --config hide_tab_bar_if_only_one_tab=true start --always-new-process -- btm >/dev/null 2>&1 &
+		nohup btm-window >/dev/null 2>&1 &
 		for _ in $(seq 1 100); do id="$(find_window 1)"; [ -n "$id" ] && break; sleep 0.05; done
 	fi
 	if [ -n "$id" ]; then
