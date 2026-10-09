@@ -240,13 +240,13 @@ hit:subscribe("mouse.entered", function()
 end)
 
 -- 右クリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない。
--- もう一度右クリックすると外す。ピン留め中は bracket の枠線が colors.bracket.pinned_border_color になる (spotify.lua と同じ)。
+-- もう一度右クリックすると外す。ピン留め中は bracket の枠線が colors.pinned_border になる (spotify.lua と同じ)。
 local pinned = false
 
 -- ピン留めの状態を変え、bracket の枠線の色で示す
 local function set_pinned(value)
 	pinned = value
-	bracket:set({ background = { border_color = value and colors.bracket.pinned_border_color or colors.bracket.border_color } })
+	bracket:set({ background = { border_color = value and colors.pinned_border or colors.bracket.border_color } })
 end
 
 -- バーの外へ出たときは mouse.exited.global でも閉じる。ピン留め中は閉じない

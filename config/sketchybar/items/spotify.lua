@@ -564,7 +564,7 @@ end
 
 local fading_out = false -- 閉じるアニメーションの途中 (close_popup が重ねて呼ばれても、やり直さない)
 -- 右クリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない (close_popup)。
--- もう一度右クリックすると外す。ピン留め中は bracket の枠線が colors.bracket.pinned_border_color になる。曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
+-- もう一度右クリックすると外す。ピン留め中は bracket の枠線が colors.pinned_border になる。曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
 local pinned = false
 
 -- Spotify が最前面のとき、bracket の枠線を太く明るくして、画像の周りにリングを作る (items/system.lua の pill と同じ配色)。
@@ -577,7 +577,7 @@ local ring_active = false
 local function update_border()
 	local color = colors.bracket.border_color
 	if pinned then
-		color = colors.bracket.pinned_border_color
+		color = colors.pinned_border
 	elseif ring_active then
 		color = RING_COLOR
 	end

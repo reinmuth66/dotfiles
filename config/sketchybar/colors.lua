@@ -11,6 +11,7 @@ return {
 	transparent = 0x00000000,
 	light_gray = light_gray,
 	dim = dim,
+	pinned_border = light_gray, -- ピン留め中の bracket の枠線 (space.bg_focused と同じ)
 
 	space = {
 		fg = dim,
@@ -21,7 +22,6 @@ return {
 	bracket = {
 		color = 0x66000000,
 		border_color = 0x44ffffff,
-		pinned_border_color = light_gray, -- ピン留め中の枠線 (space.bg_focused と同じ)
 		border_width = 1,
 		corner_radius = 5,
 		height = 34,
