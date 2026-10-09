@@ -30,8 +30,17 @@ local colors = require("colors")
 local palette = require("palette")
 
 local SIZE = 24 -- 表示サイズ (pt)。アイコンのフォントサイズも同じ値にする (このフォントでは字面が一辺 SIZE の正方形になる)
-local ART_PX = SIZE * 4 -- キャッシュする画像の一辺 (px)
-local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/spotify"
+-- キャッシュする画像の一辺 (px)。表示サイズ SIZE とは独立の固定値で、scale (SIZE / ART_PX) で SIZE に縮める。
+-- Retina (2 倍) なら SIZE が 48 まで足りる。変えるときは、キャッシュ (CACHE_DIR) を消すこと (古い解像度の画像が残るため)。
+local ART_PX = 96
+local HOME = os.getenv("HOME")
+local CACHE_ROOT = HOME .. "/Library/Caches/sketchybar"
+local CACHE_DIR = CACHE_ROOT .. "/spotify"
+
+-- Spotify に AppleScript を送るコマンド。未起動の Spotify を osascript が起動してしまわないよう、先に pgrep で確認する。
+local function spotify_script(script)
+	return string.format([[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to %s' 2>/dev/null]], script)
+end
 
 -- ポップアップの配置 (pt)。見た目は実機で確認して調整する。
 -- 左から 余白 | 文字の領域 (TEXT_WIDTH) | 余白 の順に並べる。
@@ -66,16 +75,16 @@ local VIZ_BAR_LEFT = VIZ_SIDE_MARGIN
 local VIZ_WIDTH = POPUP_BG_WIDTH - VIZ_BAR_LEFT - POPUP_BORDER - VIZ_SIDE_MARGIN
 local VIZ_Y = VIZ_MARGIN
 local VIZ_HEIGHT = POPUP_BG_HEIGHT - 2 * VIZ_MARGIN
-local VIZ_APP = os.getenv("HOME") .. "/Applications/Home Manager Apps/CavaViz.app"
-local VIZ_CONFIG_HOME = os.getenv("HOME") .. "/.config/cavaviz"
+local VIZ_APP = HOME .. "/Applications/Home Manager Apps/CavaViz.app"
+local VIZ_CONFIG_HOME = HOME .. "/.config/cavaviz"
 local VIZ_TEMPLATE = VIZ_CONFIG_HOME .. "/config.template"
-local VIZ_RUNTIME_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/cavaviz"
+local VIZ_RUNTIME_DIR = CACHE_ROOT .. "/cavaviz"
 local VIZ_CONFIG = VIZ_RUNTIME_DIR .. "/config"
 local VIZ_LOG = VIZ_RUNTIME_DIR .. "/stderr.log"
 local VIZ_SLOT_RETRIES = 20 -- ポップアップが描かれて、空きの位置が取れるまで待つ回数
 local VIZ_SLOT_INTERVAL = 0.05 -- その間隔 (秒)
 local VIZ_KILL_AGAIN = 0.6 -- 起動の直後に止めたとき、遅れて起動した窓を止め直すまでの秒数 (open は約 0.3 秒かかる)
-local VIZ_CONTROL = os.getenv("HOME") .. "/Library/Caches/sketchybar/cavaviz/control"
+local VIZ_CONTROL = VIZ_RUNTIME_DIR .. "/control"
 -- 再生位置 (0〜1) を 10 進数で書くファイル。制御ファイルは最後の指示しか持たないので別にしてある (sdl-progress.patch)。
 local VIZ_PROGRESS = VIZ_RUNTIME_DIR .. "/progress"
 -- 音声の収録を入り切りするファイル。"on" か "off" を書く。"off" の間は cava の tap がなく、収録のインジケーターも消える (tap-gate.patch)。
@@ -91,6 +100,15 @@ local VIZ_HIDDEN_POS = -3000 -- 準備ができるまで窓を置いておく画
 -- (指示のファイルへの書き込みと、窓の不透明度の反映) より後にする。それまでは、窓は不透明なポップアップの背景に隠れている
 -- (配色は不透明なので、窓と背景が重なっていても見た目は変わらない)。
 local VIZ_HANDOVER_DELAY = 0.1
+
+-- cava に渡すファイル (制御、進捗、音声) へ、同期的に書く (シェルの起動を待たない)
+local function write_file(path, text)
+	local f = io.open(path, "w")
+	if f then
+		f:write(text)
+		f:close()
+	end
+end
 
 -- bracket は円にする。幅を高さ (colors.bracket.height) と同じにし、角の半径は短辺の半分以上にする
 -- (背景の描画側で短辺の半分に丸められる)。左右の padding は、円の中に画像が同心で収まる値。
@@ -438,18 +456,14 @@ local SNAP_BACK = 1.5 -- 実際の位置が表示より後ろへこの秒数以�
 
 -- 再生位置 (0〜1) を、cava に渡す進捗のファイルに書く。cava は更新を見て、再生済みの棒の範囲を変える。
 -- 位置が分からないとき (shown が nil、曲の長さが 0) は 0 を書く (前の曲の位置を残さない)。
--- cava の窓が出ていないときは、読む相手がいないので、ファイルだけが更新される。同期的に書く (シェルの起動を待たない)。
+-- cava の窓が出ていないときは、読む相手がいないので、ファイルだけが更新される。
 -- ディレクトリは、読み込み時に作る (VIZ_RUNTIME_DIR)。
 local function write_progress()
 	local progress = 0
 	if shown ~= nil and duration > 0 then
 		progress = math.min(1, shown / duration)
 	end
-	local f = io.open(VIZ_PROGRESS, "w")
-	if f then
-		f:write(string.format("%.4f", progress))
-		f:close()
-	end
+	write_file(VIZ_PROGRESS, string.format("%.4f", progress))
 end
 
 -- 実際の位置 (秒、小数) に合わせる。duration は秒 (nil なら前の値のまま)。
@@ -477,9 +491,8 @@ local function step_time()
 	end
 end
 
--- 状態と位置と曲の長さ (ミリ秒) をタブ区切りで返す。未起動の Spotify を起動しないよう pgrep で確認する。
-local POSITION_COMMAND =
-	[[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to (player state as text) & tab & (player position as text) & tab & (duration of current track as text)' 2>/dev/null]]
+-- 状態と位置と曲の長さ (ミリ秒) をタブ区切りで返す。
+local POSITION_COMMAND = spotify_script("(player state as text) & tab & (player position as text) & tab & (duration of current track as text)")
 
 -- ロケールによっては、位置の小数点がカンマになる
 local function parse_position(text)
@@ -757,11 +770,12 @@ local function viz_look()
 end
 
 -- 設定のひな形の @X@ などを置き換える sed の引数
-local function viz_sed_args(x, y)
+-- 窓の位置は、起動のたびに画面外に置く (VIZ_HIDDEN_POS)。実際の位置は、準備ができてから制御ファイルで指示する。
+local function viz_sed_args()
 	return string.format(
 		"-e 's/@X@/%d/' -e 's/@Y@/%d/' -e 's/@W@/%d/' -e 's/@H@/%d/' -e 's/@FG@/%s/' -e 's/@PLAYED@/%s/' -e 's/@BG@/%s/' -e 's/@BORDER@/%s/'",
-		x,
-		y,
+		VIZ_HIDDEN_POS,
+		VIZ_HIDDEN_POS,
 		POPUP_BG_WIDTH,
 		POPUP_BG_HEIGHT,
 		viz.fg,
@@ -809,20 +823,17 @@ local function viz_find_slot(id, found, n)
 end
 
 -- 設定のひな形に位置 (画面外) を入れて書き出し、制御ファイルの初期値 (hide) を書いて、cava を起動する。
+-- 書き出し先のディレクトリは、読み込み時に作ってある (VIZ_RUNTIME_DIR)。
 -- 制御ファイル ("show X Y" か "hide") は、起動後も窓の表示、移動、非表示の指示に使う。
 local VIZ_START = [[
-mkdir -p %q && sed %s %q > %q \
+sed %s %q > %q \
 	&& printf %%s %q > %q \
 	&& open -n -a %q --env XDG_CONFIG_HOME=%q --env CAVAVIZ_CONTROL=%q --env CAVAVIZ_PROGRESS=%q --env CAVAVIZ_AUDIO=%q --env CAVAVIZ_READY_BIN="$(command -v sketchybar)" --env CAVAVIZ_READY_EVENT=%s --env CAVAVIZ_READY_ID=%d --stderr %q --args -p %q
 ]]
 
--- 音声の収録を入り切りする。cava は 100ms ごとに見て、tap を作る / 解放する。同期的に書く (シェルの起動を待たない)。
+-- 音声の収録を入り切りする。cava は 100ms ごとに見て、tap を作る / 解放する。
 local function write_audio(on)
-	local f = io.open(VIZ_AUDIO, "w")
-	if f then
-		f:write(on and "on" or "off")
-		f:close()
-	end
+	write_file(VIZ_AUDIO, on and "on" or "off")
 end
 
 local function viz_launch(id)
@@ -831,8 +842,7 @@ local function viz_launch(id)
 	sbar.exec(
 		string.format(
 			VIZ_START,
-			VIZ_RUNTIME_DIR,
-			viz_sed_args(VIZ_HIDDEN_POS, VIZ_HIDDEN_POS),
+			viz_sed_args(),
 			VIZ_TEMPLATE,
 			VIZ_CONFIG,
 			"hide",
@@ -866,7 +876,7 @@ local function viz_apply_color()
 	viz.applied = viz_look()
 	local tmp = VIZ_CONFIG .. ".tmp"
 	sbar.exec(
-		string.format(VIZ_RECOLOR, viz_sed_args(VIZ_HIDDEN_POS, VIZ_HIDDEN_POS), VIZ_TEMPLATE, tmp, tmp, VIZ_CONFIG)
+		string.format(VIZ_RECOLOR, viz_sed_args(), VIZ_TEMPLATE, tmp, tmp, VIZ_CONFIG)
 	)
 end
 
@@ -931,11 +941,7 @@ end
 -- (ポップアップは先に消える)。制御ファイルへの書き込みは Lua で同期的に行い (シェルの起動を待たない)、
 -- cava は書き込みで即座に起きて窓を隠す (消えるまで約 0.02 秒)。
 local function viz_hide_now()
-	local f = io.open(VIZ_CONTROL, "w")
-	if f then
-		f:write("hide")
-		f:close()
-	end
+	write_file(VIZ_CONTROL, "hide")
 end
 
 viz_stop = function()
@@ -1065,10 +1071,9 @@ local function show_icon()
 	anchor:set({ popup = { drawing = false } })
 end
 
--- アルバム画像のキャッシュ。1 枚の画像につき、アイコン用の画像 (ART_PX) と、
--- 色の頻度表 ("個数,R,G,B;..."。palette.lua が配色を決める) の 2 ファイルを、画像の ID (artwork url の末尾) で持つ。
--- ファイル名にサイズ (px) を含めるのは、サイズを変えたとき、古い解像度の画像が残ると、表示サイズが設定から
--- ずれるため (表示サイズ = 画像の実ピクセル * scale)。
+-- アルバム画像のキャッシュ。1 枚の画像につき、アイコン用の画像 (<ID>.jpg。一辺 ART_PX) と、
+-- 色の頻度表 (<ID>.colors。"個数,R,G,B;..."。palette.lua が配色を決める) の 2 ファイルを、画像の ID (artwork url の末尾) で持つ。
+-- 画像の大きさ (ART_PX) は固定なので、ファイル名には含めない (表示サイズ = 画像の実ピクセル * scale)。
 -- 流れは、曲 ID -> 画像の ID と url (osascript。一度引いた曲は覚えておく) -> キャッシュの確認 (Lua) ->
 -- なければ取得 (シェル)。確認を Lua で行うので、キャッシュにある画像では、取得のためのシェルを起動しない。
 -- 取得は画像の ID ごとに 1 本だけ走らせる (同じアルバムの曲を続けて切り替えると、同じ画像の取得が重なる。
@@ -1077,9 +1082,7 @@ end
 local COLOR_SWATCHES = 32 -- 頻度表の色数 (palette.lua の入力)
 local COLOR_SAMPLE_PX = 48 -- 頻度表を数えるときの画像の一辺 (px)
 
--- 未起動の Spotify を osascript が起動してしまわないよう、先に pgrep で確認する。
-local ARTWORK_URL_COMMAND =
-	[[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to get artwork url of current track' 2>/dev/null]]
+local ARTWORK_URL_COMMAND = spotify_script("get artwork url of current track")
 
 -- 画像の ID (key) と url から、2 つのファイルを作る。curl か magick が失敗したら (pipefail)、何も置かない。
 local function download_command(key, url)
@@ -1096,8 +1099,8 @@ curl -sfL --max-time 10 %q \
       -resize %dx%d -colors %d -depth 8 -format %%c histogram:info:- \
   | sed -nE 's/^ *([0-9]+): *\( *([0-9]+), *([0-9]+), *([0-9]+).*/\1,\2,\3,\4/p' | paste -sd';' - > "$tmp.colors"
 if [ $? -eq 0 ] && [ -s "$tmp.small" ]; then
-  [ -s "$tmp.colors" ] && mv -f "$tmp.colors" "$dir/$key.colors32"
-  mv -f "$tmp.small" "$dir/$key.%d.jpg"
+  [ -s "$tmp.colors" ] && mv -f "$tmp.colors" "$dir/$key.colors"
+  mv -f "$tmp.small" "$dir/$key.jpg"
 fi
 rm -f "$tmp.small" "$tmp.colors"
 ]],
@@ -1108,16 +1111,15 @@ rm -f "$tmp.small" "$tmp.colors"
 		ART_PX,
 		COLOR_SAMPLE_PX,
 		COLOR_SAMPLE_PX,
-		COLOR_SWATCHES,
-		ART_PX
+		COLOR_SWATCHES
 	)
 end
 
 local function artwork_files(key)
 	local base = CACHE_DIR .. "/" .. key
 	return {
-		small = string.format("%s.%d.jpg", base, ART_PX),
-		colors = base .. ".colors32",
+		small = base .. ".jpg",
+		colors = base .. ".colors",
 	}
 end
 
@@ -1247,7 +1249,7 @@ local function load_artwork(track_id, attempt)
 	end)
 end
 
--- meta は { title, artist, album }、timing は { position, duration } (どちらも秒)。
+-- meta は { title, artist }、timing は { position, duration } (どちらも秒)。
 -- 取れなかったときは nil で、ポップアップ (曲情報、再生位置) はそのまま。
 local function apply(state, track_id, meta, timing)
 	local playing = state == "Playing"
@@ -1290,7 +1292,6 @@ spotify:subscribe("spotify_change", function(env)
 	apply(info["Player State"], info["Track ID"], {
 		title = info["Name"],
 		artist = info["Artist"],
-		album = info["Album"],
 	}, timing)
 end)
 
@@ -1305,8 +1306,8 @@ spotify:subscribe("routine", function()
 	if not showing_art then
 		return
 	end
-	sbar.exec("pgrep -x Spotify >/dev/null && echo running", function(out)
-		if type(out) == "string" and out:find("running", 1, true) then
+	sbar.exec("pgrep -x Spotify", function(out)
+		if type(out) == "string" and out:find("%d") then
 			return
 		end
 		apply(nil)
@@ -1327,17 +1328,14 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, close_popup)
 -- 操作: 左クリックで再生/一時停止、左ダブルクリックで Spotify のウィンドウを表示、
 -- 右クリックでポップアップのピン留め (もう一度で外す)、上スクロールで前の曲、下スクロールで次の曲。
 -- 表示は上の分散通知で追従するので、ここでは Spotify に命令を送るだけにする。
--- 未起動の Spotify を起動してしまわないよう、pgrep で確認してから送る。
 local function spotify_command(command)
-	sbar.exec(
-		string.format([[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to %s']], command)
-	)
+	sbar.exec(spotify_script(command))
 end
 
 -- ウィンドウの表示は open で行う。-g -j の自動起動で隠れているときも前面に出て、
 -- ウィンドウを閉じただけのときも開き直す。名前 (open -a Spotify) ではなく
 -- Home Manager Apps のパスで指定する (名前だと更新用の一時コピーに解決されることがある)。
-local SPOTIFY_APP = os.getenv("HOME") .. "/Applications/Home Manager Apps/Spotify.app"
+local SPOTIFY_APP = HOME .. "/Applications/Home Manager Apps/Spotify.app"
 
 -- ダブルクリックの検出。SketchyBar にはダブルクリックのイベントがなく、クリックが 2 回届くだけなので、
 -- 1 回目のクリックの再生/一時停止を DOUBLE_CLICK_INTERVAL 秒だけ待ち、その間に 2 回目が来たらダブルクリックとして
@@ -1383,9 +1381,8 @@ end)
 
 -- トラックパッドは 1 回のスワイプで多数のイベントが出る (慣性スクロール含む) ので、
 -- 一度反応したら SCROLL_COOLDOWN 秒は無視して、1 スワイプで 1 曲だけ動かす。
--- SCROLL_DELTA の符号は上スクロールが正の想定。逆なら SCROLL_UP_SIGN を -1 にする。
+-- SCROLL_DELTA の符号は、上スクロールが正。
 local SCROLL_COOLDOWN = 1.0
-local SCROLL_UP_SIGN = 1
 local PREVIOUS_REFRESH_DELAY = 0.4 -- 「前の曲」の命令から、再生位置を取り直すまでの秒数
 local scroll_locked = false
 
@@ -1398,7 +1395,7 @@ hit:subscribe("mouse.scrolled", function(env)
 	sbar.delay(SCROLL_COOLDOWN, function()
 		scroll_locked = false
 	end)
-	local previous = delta * SCROLL_UP_SIGN > 0
+	local previous = delta > 0
 	spotify_command(previous and "previous track" or "next track")
 	if previous then
 		-- 曲の途中なら、Spotify は同じ曲の先頭に戻す (シーク)。シークでは分散通知が来ないので、
@@ -1410,22 +1407,21 @@ hit:subscribe("mouse.scrolled", function(env)
 end)
 
 -- 起動時 (再読み込み含む) に既に再生中でも拾えるよう、現在の状態を一度だけ取得する
-local INITIAL_STATES = { playing = "Playing", paused = "Paused" }
 
 -- 曲名などに "|" が含まれうるので、区切りにはタブを使う
 sbar.exec(
-	[[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to (player state as text) & tab & (id of current track) & tab & (name of current track) & tab & (artist of current track) & tab & (album of current track) & tab & (player position as text) & tab & (duration of current track as text)' 2>/dev/null]],
+	spotify_script("(player state as text) & tab & (id of current track) & tab & (name of current track) & tab & (artist of current track) & tab & (player position as text) & tab & (duration of current track as text)"),
 	function(out)
 		if type(out) ~= "string" then
 			return
 		end
-		local state, track_id, title, artist, album, position, duration =
-			out:match("^(%a+)\t(%S+)\t([^\t]*)\t([^\t]*)\t([^\t]*)\t([%d.,]+)\t(%d+)")
-		if INITIAL_STATES[state] then
+		local state, track_id, title, artist, position, duration =
+			out:match("^(%a+)\t(%S+)\t([^\t]*)\t([^\t]*)\t([%d.,]+)\t(%d+)")
+		if state == "playing" or state == "paused" then
 			position = parse_position(position)
 			duration = tonumber(duration) / 1000
 			local timing = position and duration > 0 and { position = position, duration = duration } or nil
-			apply(INITIAL_STATES[state], track_id, { title = title, artist = artist, album = album }, timing)
+			apply(state == "playing" and "Playing" or "Paused", track_id, { title = title, artist = artist }, timing)
 		end
 	end
 )
