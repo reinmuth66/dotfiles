@@ -5,7 +5,7 @@
 // ポップアップの背景は透明にしてあり、文字は、SketchyBar がこの窓の上に描く。
 // 窓のうち、角の外は透明 (アルファ 0)。窓は premultiplied alpha で合成されるので、色にもアルファを掛ける。
 // 再生位置は、棒の色で示す。棒の領域の左端から再生位置 (viz_progress) までの棒は再生済みの色で明るく、
-// それより右は未再生の色で薄く描く。
+// それより右は未再生の色で描く (2 色の明るさは config/sketchybar/palette.lua が決める)。
 
 in vec2 fragCoord;
 out vec4 fragColor;
@@ -26,8 +26,6 @@ uniform vec3 gradient_colors[8]; // [0] 未再生の棒、[1] 背景、[2] 枠�
 const vec4 VIZ = vec4(10.0, 4.0, 212.0, 26.0); // 棒グラフの領域: x, y, 幅, 高さ
 const float RADIUS = 5.0; // ポップアップの角の半径
 const float BORDER = 1.0; // 枠の太さ (図形の内側に引く)
-const float BAR_ALPHA = 0.5; // 未再生の棒の不透明度 (背景に混ぜる割合)
-const float PLAYED_ALPHA = 0.6; // 再生済みの棒の不透明度。文字 (明るい色) が棒に埋もれないよう、未再生 (BAR_ALPHA) より少し濃い程度にする
 const float MIN_BAR = 2.0; // 棒の最小の高さ (pt)。曲の静かな部分でも、棒の色で再生位置が見えるようにする
 
 void main() {
@@ -65,8 +63,8 @@ void main() {
         // 再生済みの範囲は、棒の領域の左端から再生位置まで。棒の途中でも切り替わる (境界は 1px でぼかす)
         float played = clamp((viz_progress * VIZ.z - v.x) / px + 0.5, 0.0, 1.0);
         vec3 paint = mix(bar_color, played_color, played);
-        float alpha = mix(BAR_ALPHA, PLAYED_ALPHA, played);
-        color = mix(color, paint, across * cover * alpha);
+        // 棒は不透明で描く。未再生と再生済みの色は、背景と文字に対する明るさを palette.lua が決めている
+        color = mix(color, paint, across * cover);
     }
 
     fragColor = vec4(color * shape, shape);

@@ -734,7 +734,7 @@ viz = {
 	ready = false,
 	on_ready = nil,
 	fg = palette.default.viz,
-	played = hex(palette.default.accent),
+	played = palette.default.played,
 	bg = hex(palette.default.bg),
 	border = hex(palette.default.border),
 	applied = nil,
@@ -1015,7 +1015,7 @@ local function apply_palette(p)
 	rows.title.item:set({ label = { color = p.text, shadow = { color = shadow_color } } })
 	rows.artist.item:set({ label = { color = p.subtext, shadow = { color = shadow_color } } })
 	viz.fg = p.viz
-	viz.played = hex(p.accent)
+	viz.played = p.played
 	viz.bg = hex(p.bg)
 	viz.border = hex(p.border)
 	viz_apply_color()
