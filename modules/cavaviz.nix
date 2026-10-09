@@ -5,7 +5,7 @@
 # 文字やカバー画像、再生位置のバーだけを、この窓の上に描かせる (別の窓の前後は window level でしか決まらず、
 # 1 つの窓の中の背景と文字の間には入れないため)。
 # 起動と停止、窓の位置合わせ、背景の受け渡しは config/sketchybar/items/spotify.lua が行う。
-# ポップアップはバーの高さの中に収まる横長 (192 x 34 pt)。棒の幅は、領域の幅と棒の数 (bars) で決まる。
+# ポップアップはバーの高さの中に収まる横長 (233 x 34 pt)。棒の幅は、領域の幅と棒の数 (bars) で決まる。
 # .app の作り方と、音声取得の許可については pkgs/cavaviz/default.nix を参照。
 let
   cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
@@ -30,7 +30,7 @@ let
       bars = 32;
       lower_cutoff_freq = 40;
       higher_cutoff_freq = 12000;
-      # 棒は、棒を描く領域の幅 (popup.frag の VIZ の幅 = spotify.lua の VIZ_WIDTH = 171) の両端に、最初の棒の左端と
+      # 棒は、棒を描く領域の幅 (popup.frag の VIZ の幅 = spotify.lua の VIZ_WIDTH = 212) の両端に、最初の棒の左端と
       # 最後の棒の右端が合うように並ぶ。棒の幅は (領域の幅 - (bars - 1) × bar_spacing) / bars になる (bar_width は使われない)。
       # cava は、bars × bar_width + (bars - 1) × bar_spacing が窓の幅 (ポップアップの幅) を超えると、
       # "window is too narrow" で終了する。

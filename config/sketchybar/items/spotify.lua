@@ -38,9 +38,11 @@ local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/spotify"
 -- 縦は、曲名 (上) + アーティスト (下)。
 -- y_offset は、ポップアップの縦の中央からの距離 (上が正)。
 -- ポップアップはバーの高さの中に収め、bracket (colors.bracket.height) と同じ高さにする。
--- 幅は 192 pt (POPUP_BG_WIDTH): 2 * POPUP_PADDING + TEXT_WIDTH + 右の枠。
+-- 幅は 233 pt (POPUP_BG_WIDTH): 2 * POPUP_PADDING + TEXT_WIDTH + 右の枠。
+-- items/system.lua のポップアップの幅 (実測で 233 pt。CPU 60 + RAM 57 + Disk 115 + 右の枠 1) にそろえてある。
+-- system 側の幅を変えたら、ここも合わせる (CPU・RAM が 3 桁のときは、system のほうが 1 項目につき 7 pt 広くなる)。
 local POPUP_PADDING = 10
-local TEXT_WIDTH = 171
+local TEXT_WIDTH = 212
 local POPUP_BORDER = colors.popup.border_width
 local POPUP_HEIGHT = colors.bracket.height - 2 * POPUP_BORDER -- 中身の高さ (偶数にする)
 -- Spotify の bracket とポップアップの間隔 (pt)
@@ -208,6 +210,12 @@ local ROWS = {
 	{ key = "artist", size = 8.0, y_offset = -3 },
 }
 
+-- 文字の影は、ポップアップの背景色 (palette の bg) に、この不透明度 (0〜255) を付けた色にする。
+-- 文字は背景と反対の明るさ (dark の背景なら明るい文字、light の背景なら暗い文字) なので、影は文字の縁を
+-- 背景に近い色でなじませ、棒グラフとの境目を作る。黒に固定すると、light の背景で暗い文字が太く汚れて見える。
+local TEXT_SHADOW_ALPHA = 0xb0
+local TEXT_SHADOW_COLOR = TEXT_SHADOW_ALPHA * 0x1000000 + palette.default.bg % 0x1000000 -- 初期値 (apply_palette が配色ごとに更新する)
+
 local rows = {}
 for _, row in ipairs(ROWS) do
 	rows[row.key] = {
@@ -225,6 +233,8 @@ for _, row in ipairs(ROWS) do
 				color = row.color,
 				padding_left = 0,
 				padding_right = 0,
+				-- 棒グラフの上に文字が載るので、影を付けて輪郭を出す
+				shadow = { drawing = true, color = TEXT_SHADOW_COLOR, distance = 1 },
 			},
 		}),
 	}
@@ -1000,9 +1010,10 @@ viz_stop()
 -- 棒、背景、枠の色は、cava が動いていれば SIGUSR2 で即座に変わる (止まっていれば、次の起動で入る)。
 local function apply_palette(p)
 	current_palette = p
+	local shadow_color = with_alpha(p.bg, TEXT_SHADOW_ALPHA)
 	anchor:set({ popup = { background = popup_background(p) } })
-	rows.title.item:set({ label = { color = p.text } })
-	rows.artist.item:set({ label = { color = p.subtext } })
+	rows.title.item:set({ label = { color = p.text, shadow = { color = shadow_color } } })
+	rows.artist.item:set({ label = { color = p.subtext, shadow = { color = shadow_color } } })
 	viz.fg = p.viz
 	viz.played = hex(p.accent)
 	viz.bg = hex(p.bg)

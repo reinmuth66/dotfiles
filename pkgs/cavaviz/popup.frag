@@ -23,7 +23,7 @@ uniform vec3 gradient_colors[8]; // [0] 未再生の棒、[1] 背景、[2] 枠�
 
 // 窓の左上を原点とする、下向きが正の値 (pt)。config/sketchybar/items/spotify.lua の VIZ_* と、
 // config/sketchybar/colors.lua の popup (角の半径と枠の太さ) に合わせる。
-const vec4 VIZ = vec4(10.0, 4.0, 171.0, 26.0); // 棒グラフの領域: x, y, 幅, 高さ
+const vec4 VIZ = vec4(10.0, 4.0, 212.0, 26.0); // 棒グラフの領域: x, y, 幅, 高さ
 const float RADIUS = 5.0; // ポップアップの角の半径
 const float BORDER = 1.0; // 枠の太さ (図形の内側に引く)
 const float BAR_ALPHA = 0.5; // 未再生の棒の不透明度 (背景に混ぜる割合)
