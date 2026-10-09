@@ -39,7 +39,7 @@ let
       # 固定の感度にする。autosens は起動直後に感度を 0 から上げるので、棒が約 0.8 秒かけて伸びてしまう。
       # 感度は、Spotify の再生音で、最大の棒の 99 パーセンタイルが 0.9 になる値 (曲や音量で変わる)。
       autosens = 0;
-      sensitivity = 3000;
+      sensitivity = 3500;
     };
     input = {
       method = "coreaudio";
