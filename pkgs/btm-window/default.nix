@@ -23,11 +23,9 @@ let
   swiftterm = fetchFromGitHub {
     owner = "migueldeicaza";
     repo = "SwiftTerm";
-    rev = "15fed4fd7ca7b0a8c77dd380412b18a5ce8600b5";
+    rev = "15fed4fd7ca7b0a8c77dd380412b18a5ce8600b5"; # 2026-10-05 のコミット
     hash = "sha256-kaWDZDRfgcSNC7oOu/b94WhXyuORdNFGuwX1LXwoxlo=";
   };
-
-  version = "0-unstable-2026-10-05"; # SwiftTerm のコミット日
 
   # 2 つのビルドで共通の準備。stdenv の設定を外し、swiftc に標準の SDK を選ばせる
   swiftEnv = ''
@@ -38,8 +36,7 @@ let
 
   # SwiftTerm 本体を、静的ライブラリ (libSwiftTerm.a) と Swift のモジュール (SwiftTerm.swiftmodule) にする
   swifttermLib = stdenvNoCC.mkDerivation {
-    pname = "swiftterm-lib";
-    inherit version;
+    name = "swiftterm-lib";
 
     dontUnpack = true;
     dontFixup = true;
@@ -53,10 +50,9 @@ let
       $swiftc -O -parse-as-library ${swiftterm}/Sources/SwiftTermBuildInfoGenerator/*.swift -o geninfo
       SWIFTTERM_BUILD_COMMIT=${swiftterm.rev} ./geninfo ${swiftterm} gen/SwiftTermBuildInfo.swift gen/SwiftTermTerminfo.swift
 
-      find ${swiftterm}/Sources/SwiftTerm -name '*.swift' > files.txt
-      ls gen/*.swift >> files.txt
       $swiftc -O -wmo -swift-version 6 -module-name SwiftTerm -emit-module -emit-module-path SwiftTerm.swiftmodule \
-        -parse-as-library -emit-library -static -o libSwiftTerm.a @files.txt
+        -parse-as-library -emit-library -static -o libSwiftTerm.a \
+        $(find ${swiftterm}/Sources/SwiftTerm -name '*.swift') gen/*.swift
       runHook postBuild
     '';
 
@@ -69,8 +65,7 @@ let
   };
 in
 stdenvNoCC.mkDerivation {
-  pname = "btm-window";
-  inherit version;
+  name = "btm-window";
 
   dontUnpack = true;
   # darwin の fixup は Mach-O を署名し直す。swiftc (ld) が付けた ad-hoc 署名のままでよい
