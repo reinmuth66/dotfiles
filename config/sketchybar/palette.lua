@@ -1,6 +1,6 @@
 -- アルバム画像の代表色から、Spotify のポップアップの配色を決める。
--- 入力は ImageMagick の色の頻度表を "個数,R,G,B;個数,R,G,B;..." にした文字列 (items/spotify.lua の FETCH_ARTWORK)。
--- 画像から次の 3 つを取り、反映先を分ける (再生バーは背景から離れた色、棒グラフは背景に近い色相)。
+-- 入力は ImageMagick の色の頻度表を "個数,R,G,B;個数,R,G,B;..." にした文字列 (items/spotify.lua の download_command)。
+-- 画像から次の 3 つを取り、反映先を分ける (背景は hue、棒グラフは背景から離れた accent の色相)。
 --   hue    : 背景の色相。有彩色の色相を、彩度 x 明るさ x 占有率で重み付けして円周上で平均する (最大の 1 色だけに引きずられない)。
 --            補色どうしが混ざって平均が定まらないときは、有彩色のうち占有率が最大の色の色相にする
 --   avg    : 画像全体の平均色 (頻度表の加重平均)。背景の彩度と明るさ (知覚輝度) の目安。
@@ -12,7 +12,7 @@
 --            小さな領域の色 (MIN_SHARE 未満) は拾わず、彩度は上限で抑える。候補がなければ hue で作った色にする
 -- 反映先:
 --   bg      : hue の色相で、avg の彩度と明るさから作る (ポップアップの背景。透過させない)
---   text, subtext, track : bg と同じ色相で、dark なら明るく、light なら暗く作る。bg とのコントラストが足りなければ補正する
+--   text, subtext : bg と同じ色相で、dark なら明るく、light なら暗く作る。bg とのコントラストが足りなければ補正する
 --   border  : accent と同じ色相の、彩度の低い色
 --   viz, played : 棒グラフの未再生と再生済みの色。色相は accent と同じ (背景と同系統でなくてよい。再生済みと未再生で色相をそろえ、
 --            1 本の棒として見せる)。明るさは、背景と文字の色から決める (bar_luminances)。
@@ -37,7 +37,7 @@ local ACCENT_WEIGHT_LIGHTNESS = 0.2
 local ACCENT_WEIGHT_POPULATION = 0.4
 local ACCENT_TARGET_SATURATION = 1.0 -- 鮮やかな色が高得点になる
 local ACCENT_TARGET_LIGHTNESS = 0.5 -- 中間調 (HSL の L)。白っぽい色や黒っぽい色を避ける。実際の明るさは bar_luminances が決める
-local ACCENT_MIN_HUE_GAP = 0.15 -- 再生バーの色は、まず背景の色相からこれ以上 (0.15 = 54 度) 離れた色から選ぶ
+local ACCENT_MIN_HUE_GAP = 0.15 -- 棒グラフの色は、まず背景の色相からこれ以上 (0.15 = 54 度) 離れた色から選ぶ
 local MIN_SHARE = 0.02 -- アクセントにする色の占有率の下限 (小さな差し色を拾わない)
 local ACCENT_MAX_SATURATION = 0.7 -- アクセント (棒グラフ) の彩度の上限 (派手になりすぎないように)
 local ACCENT_FALLBACK_SATURATION = 0.5 -- 候補がなく、背景の色相で作るアクセントの彩度
@@ -45,10 +45,8 @@ local HUE_MIN_CONCENTRATION = 0.3 -- 色相の平均の信頼度 (0〜1) の下�
 local BG_ALPHA = 0xff -- 背景の不透明度 (透過させない)
 local BORDER_ALPHA = 0xff -- 枠線の不透明度 (透過させない)
 local BORDER_SATURATION = 0.22 -- 枠線 (アクセントより控えめにする)
-local ACCENT_CONTRAST = 4.5 -- アクセントと背景のコントラスト比の下限
 local TEXT_CONTRAST = 7 -- 曲名とアーティストの文字と背景のコントラスト比の下限
-local SUBTEXT_CONTRAST = 4.5 -- アルバム名と時刻の文字
-local TRACK_CONTRAST = 1.5 -- 再生位置のバーの、進んでいない部分
+local SUBTEXT_CONTRAST = 4.5 -- アーティストの文字
 -- 再生済みの棒と文字のコントラスト比の下限 (棒の上に文字が重なるので、文字が埋もれない範囲で棒を明るくする)
 local PLAYED_TEXT_CONTRAST = 4.5
 local PLAYED_SUBTEXT_CONTRAST = 3
@@ -61,7 +59,7 @@ local BAR_MIN_STEP = 1.5 -- 背景と再生済みの棒の最小のコントラ�
 -- 背景の明るさに合わせた設定。dark と light のどちらにするかは、画像の平均色の明るさに近いほう (中間の明るさの背景は、
 -- アクセントの色が出ないので、どちらかに寄せる)。
 --   bg_*  : 背景の彩度 (平均色の彩度 x saturation_scale を min〜max に収める) と、相対輝度 (平均色の輝度 x luminance_scale を同様に収める)
---   text, subtext, track : 背景と同じ色相で作る色 (HSV の S と V)。コントラストが足りなければ補正される
+--   text, subtext : 背景と同じ色相で作る色 (HSV の S と V)。コントラストが足りなければ補正される
 --   border_value : 枠線の明るさ (HSV の V)
 local THEMES = {
 	dark = {
@@ -69,7 +67,6 @@ local THEMES = {
 		bg_luminance = { scale = 0.25, min = 0.012, max = 0.06 },
 		text = { s = 0.12, v = 0.96 },
 		subtext = { s = 0.15, v = 0.70 }, -- colors の既定は無彩色の 0xaaaaaa
-		track = { s = 0.3, v = 0.3 },
 		border_value = 0.42,
 	},
 	light = {
@@ -77,7 +74,6 @@ local THEMES = {
 		bg_luminance = { scale = 1, min = 0.6, max = 0.85 },
 		text = { s = 0.3, v = 0.1 },
 		subtext = { s = 0.25, v = 0.3 },
-		track = { s = 0.2, v = 0.72 },
 		border_value = 0.62,
 	},
 }
@@ -337,10 +333,8 @@ end
 M.default = {
 	bg = 0xff000000,
 	border = 0xff444444,
-	accent = colors.white,
 	text = colors.white,
 	subtext = 0xffaaaaaa,
-	track = 0xff444444,
 	viz = "#2e2e2e",
 	played = "#5c5c5c",
 }
@@ -364,7 +358,7 @@ function M.from_histogram(histogram)
 		< math.abs(lightness(theme_luminance(THEMES.dark)) - target)
 	local theme = light and THEMES.light or THEMES.dark
 	local hue = pick_hue(swatches)
-	-- 再生バーの色: 背景の色相から離れた色 (ACCENT_MIN_HUE_GAP 以上) を優先する。なければ制限なしで選ぶ。
+	-- 棒グラフの色: 背景の色相から離れた色 (ACCENT_MIN_HUE_GAP 以上) を優先する。なければ制限なしで選ぶ。
 	local refs = hue and { { h = hue } } or {}
 	local accent = pick_accent(swatches, refs, ACCENT_MIN_HUE_GAP) or pick_accent(swatches, refs, nil)
 	if not accent and not hue then
@@ -380,14 +374,12 @@ function M.from_histogram(histogram)
 	local bg_s = clamp(avg.s * theme.bg_saturation.scale, theme.bg_saturation.min, theme.bg_saturation.max)
 	local bg_lum = theme_luminance(theme)
 	local bg = at_luminance(hue, bg_s, bg_lum)
-	local a = fit_contrast(accent, bg, ACCENT_CONTRAST, light)
-	-- 背景と同じ色相で、文字と再生バーの進んでいない部分を作る (背景とのコントラストを確保する)
+	-- 背景と同じ色相で、文字を作る (背景とのコントラストを確保する)
 	local function tint(spec, ratio)
 		return fit_contrast({ h = hue, s = spec.s, v = spec.v }, bg, ratio, light)
 	end
 	local border = { hsv_to_rgb(accent.h, math.min(accent.s, BORDER_SATURATION), theme.border_value) }
-	local text, subtext, track =
-		tint(theme.text, TEXT_CONTRAST), tint(theme.subtext, SUBTEXT_CONTRAST), tint(theme.track, TRACK_CONTRAST)
+	local text, subtext = tint(theme.text, TEXT_CONTRAST), tint(theme.subtext, SUBTEXT_CONTRAST)
 	-- 棒グラフ: accent の色相と彩度で、明るさは文字と背景から決める
 	local unplayed_lum, played_lum = bar_luminances(bg, text, subtext, light)
 	local played_s = clamp(accent.s, PLAYED_MIN_SATURATION, ACCENT_MAX_SATURATION)
@@ -396,10 +388,8 @@ function M.from_histogram(histogram)
 	return {
 		bg = argb(BG_ALPHA, bg[1], bg[2], bg[3]),
 		border = argb(BORDER_ALPHA, border[1], border[2], border[3]),
-		accent = argb(0xff, a[1], a[2], a[3]),
 		text = argb(0xff, text[1], text[2], text[3]),
 		subtext = argb(0xff, subtext[1], subtext[2], subtext[3]),
-		track = argb(0xff, track[1], track[2], track[3]),
 		viz = hex(unplayed),
 		played = hex(played),
 	}
