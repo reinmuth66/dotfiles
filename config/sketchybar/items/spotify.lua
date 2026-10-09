@@ -10,7 +10,7 @@
 -- 回転は background.image.rotation を使う (SketchyBar#815 のパッチが前提、pkgs/sketchybar/)。
 -- 操作: 左クリックで再生/一時停止、上スクロールで前の曲、下スクロールで次の曲。
 -- マウスを乗せると、曲名・アーティストをポップアップで表示する (表示のみで、ボタンは持たない)。
--- ポップアップはバーの高さの中に収め、Spotify の bracket の左隣に、左へ伸ばして出す (左にある他の item は覆う)。
+-- ポップアップはバーの高さの中に収め、Spotify の bracket の右隣に、右へ伸ばして出す (右にある他の item は覆う)。
 -- 曲名とアーティストの 2 行の後ろに、再生中の音に合わせて動く棒グラフを出す。棒グラフは cava の SDL の窓が、
 -- ポップアップの背景と枠と一緒に描く。窓はポップアップ全体に重ねて、ポップアップの下 (window level 100。
 -- ポップアップは 101) に敷く。ポップアップ自身の背景は、窓が出ている間透明にして、文字が棒グラフの上に描かれるようにする。
@@ -106,11 +106,11 @@ local PLAYING_COLOR = 0x00000000
 local FADE_FRAMES = 12 -- 再生/一時停止の切り替えにかけるフレーム数 (60 フレームで 1 秒)
 
 -- ノッチとの間隔は spacer で作る (補正の内訳は ui.add_notch_spacer)。ノッチに最も近い位置に置くので、spotify より先に追加する。
-ui.add_notch_spacer("q", "spotify.notch_gap")
+ui.add_notch_spacer("e", "spotify.notch_gap")
 
--- ノッチの左隣 (position "q") に置く。常に表示する。曲がない間 (未起動・停止中) は Spotify のアイコン、再生中・一時停止中は
+-- ノッチの右隣 (position "e") に置く。常に表示する。曲がない間 (未起動・停止中) は Spotify のアイコン、再生中・一時停止中は
 -- アルバム画像を出す。初期状態はアイコン側 (画像と覆いは非表示)。
-local spotify = ui.add_item("spotify", "q", {
+local spotify = ui.add_item("spotify", "e", {
 	width = SIZE,
 	update_freq = 5, -- 画像を出している間の、Spotify 終了の確認 (routine) に使う
 	-- icon.width は padding を含む箱の全幅 (SketchyBar v2.24.0 の text.c で確認)。
@@ -157,25 +157,25 @@ local bracket = ui.add_bracket("spotify.bracket", { spotify }, {
 }, BRACKET_PADDING)
 
 -- bracket の範囲 (spotify の幅 + 左右の padding) 全体でマウス操作を受ける
-local hit = ui.add_hit_layer("spotify.hit", SIZE, BRACKET_PADDING, { position = "q" })
+local hit = ui.add_hit_layer("spotify.hit", SIZE, BRACKET_PADDING, { position = "e" })
 
--- ポップアップは、バーの中の、bracket の左隣に出す (バーの下には出さない)。bracket や画像に被らないよう、
--- ポップアップの持ち主は、bracket の左に置いた空の item (anchor) にする。align = "right" は持ち主の右端にそろい、
--- ポップアップは左へ伸びる (左にある他の item は覆う)。items/system.lua のポップアップと同じ作り。
+-- ポップアップは、バーの中の、bracket の右隣に出す (バーの下には出さない)。bracket や画像に被らないよう、
+-- ポップアップの持ち主は、bracket の右に置いた空の item (anchor) にする。align = "left" は持ち主の左端にそろい、
+-- ポップアップは右へ伸びる (右にある他の item は覆う)。items/system.lua のポップアップと同じ作り。
 -- ポップアップは既定でバーの下端から下に出る。y_offset を負にして上へ戻し、バーの縦の中央に置く
 -- (上端が (バーの高さ - POPUP_HEIGHT) / 2 になる)。枠線 (border_width) の分だけ中身が下にずれるので、その分も上げる。
--- hit の padding_left (-2 * BRACKET_PADDING) の分、hit の次の item は bracket の左端より内側 (画像の位置) から始まる
--- (実測。これがないと、ポップアップの右端が bracket に 6 pt 入り込む)。その分も spacer に足して、bracket の左端から
+-- hit の padding_right (-2 * BRACKET_PADDING) の分、hit の次の item は bracket の右端より内側 (画像の位置) から始まる
+-- (左右反転した q 側での実測。これがないと、ポップアップが bracket に 6 pt 入り込む)。その分も spacer に足して、bracket の右端から
 -- POPUP_GAP だけ離す。
-ui.add_spacer("q", POPUP_GAP - 1 + 2 * BRACKET_PADDING)
-local anchor = ui.add_item("spotify.anchor", "q", {
+ui.add_spacer("e", POPUP_GAP - 1 + 2 * BRACKET_PADDING)
+local anchor = ui.add_item("spotify.anchor", "e", {
 	width = 1,
 	padding_left = 0,
 	padding_right = 0,
 	icon = { drawing = false },
 	label = { drawing = false },
 	popup = {
-		align = "right",
+		align = "left",
 		horizontal = true,
 		height = POPUP_HEIGHT,
 		y_offset = -(ui.bar_height + POPUP_HEIGHT) / 2 - POPUP_BORDER,

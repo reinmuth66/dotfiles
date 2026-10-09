@@ -27,9 +27,9 @@ local POPUP_GAP = 4
 -- helper が送るイベント。helper が起動するより先に登録しておく (未登録のイベントは --trigger できない)
 sbar.add("event", "system_stats")
 
--- ノッチの右隣 (position "e") に置く。ノッチとの間隔は spacer で作る (ui.add_notch_spacer)。
+-- ノッチの左隣 (position "q") に置く。ノッチとの間隔は spacer で作る (ui.add_notch_spacer)。
 -- ノッチに最も近い位置に置くので、gear より先に追加する。
-ui.add_notch_spacer("e", "system.notch_gap")
+ui.add_notch_spacer("q", "system.notch_gap")
 
 -- bracket は円にする。幅を高さ (colors.bracket.height) と同じにし、角の半径は短辺の半分にする。
 -- 円の中にアイコンが同心で収まるよう、アイコンの左右に余白 (ICON_PADDING) を取る。
@@ -45,7 +45,7 @@ local ICON_PADDING = (PILL_SIZE - SIZE) / 2
 -- item の背景 (pill) は icon.width の箱と同じ大きさ (PILL_SIZE) になり、bracket の範囲との隙間は item の padding
 -- (PILL_MARGIN。ui.add_bracket の padding で設定する) で作る。item の幅 + padding は bracket の幅 (円の直径) と同じ。
 -- icon.width は padding を含む箱の全幅 (spotify.lua)。
-local gear = ui.add_item("system", "e", {
+local gear = ui.add_item("system", "q", {
 	icon = {
 		string = ":activity_monitor:",
 		font = "sketchybar-app-font:Regular:" .. SIZE .. ".0",
@@ -70,7 +70,7 @@ local bracket = ui.add_bracket("system.bracket", { gear }, {
 
 -- bracket 全体でマウス操作を受ける (ui.add_hit_layer_over)。item の幅は自動なので、配置が進む幅 (chain) は
 -- bracket の幅と同じ
-local hit = ui.add_hit_layer_over("system.hit", BRACKET_WIDTH, BRACKET_WIDTH, { position = "e" })
+local hit = ui.add_hit_layer_over("system.hit", BRACKET_WIDTH, BRACKET_WIDTH, { position = "q" })
 
 -- 数字の書式は btm (src/utils/data_units.rs、conversion.rs) と同じ。
 -- 10 進接頭辞 (1 KB = 1000 B) で、値は 1 回の割り算で出す (btm の get_decimal_bytes、get_unit_prefix)
@@ -91,20 +91,20 @@ local function format_disk(bytes)
 	return string.format("%.0f%s", value, unit)
 end
 
--- ポップアップは、バーの中の、アイコンの右隣に出す (バーの下には出さない)。アイコンや隣の item に被らないよう、
--- ポップアップの持ち主は、アイコンの右に置いた空の item (anchor) にする。align = "left" は持ち主の左端にそろう。
+-- ポップアップは、バーの中の、アイコンの左隣に、左へ伸ばして出す (バーの下には出さない)。アイコンや隣の item に被らないよう、
+-- ポップアップの持ち主は、アイコンの左に置いた空の item (anchor) にする。align = "right" は持ち主の右端にそろう。
 -- ポップアップは既定でバーの下端から下に出る。y_offset を負にして上へ戻し、バーの縦の中央に置く
 -- (上端が (バーの高さ - POPUP_HEIGHT) / 2 になる)。ポップアップの枠線 (border_width) の分だけ中身が下にずれる
 -- (実機で、枠線 1 のとき中身の上端が 5 pt、枠線 0 のとき 4 pt) ので、その分も上げる。
-ui.add_spacer("e", POPUP_GAP - 1)
-local anchor = ui.add_item("system.anchor", "e", {
+ui.add_spacer("q", POPUP_GAP - 1)
+local anchor = ui.add_item("system.anchor", "q", {
 	width = 1,
 	padding_left = 0,
 	padding_right = 0,
 	icon = { drawing = false },
 	label = { drawing = false },
 	popup = {
-		align = "left",
+		align = "right",
 		horizontal = true,
 		height = POPUP_HEIGHT,
 		y_offset = -(ui.bar_height + POPUP_HEIGHT) / 2 - colors.bracket.border_width,
