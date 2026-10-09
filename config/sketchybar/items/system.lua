@@ -31,19 +31,22 @@ sbar.add("event", "system_stats")
 -- ノッチに最も近い位置に置くので、gear より先に追加する。
 ui.add_notch_spacer("q", "system.notch_gap")
 
--- bracket は円にする。幅を高さ (colors.bracket.height) と同じにし、角の半径は短辺の半分にする。
+-- bracket は、高さが colors.bracket.height で、角の半径は高さの半分にする。
 -- 円の中にアイコンが同心で収まるよう、アイコンの左右に余白 (ICON_PADDING) を取る。
-local BRACKET_WIDTH = colors.bracket.height
--- pill (btm の窓の状態を示す円の背景。set_btm_state の付近を参照) は、bracket の円と同心にして、
--- 縁との隙間を上下左右とも PILL_MARGIN にする (aerospace の pill、spotify の画像と同じ 5 pt)。
+-- pill (btm の窓の状態を示す円の背景。set_btm_state の付近を参照) は、bracket と同心にして、
+-- 縁との隙間を上下 PILL_MARGIN にする (aerospace の pill、spotify の画像と同じ 5 pt)。
+-- 左右は SIDE_EXTRA だけ広げる (幅は高さより 2 * SIDE_EXTRA 広く、横長の丸みになる)。
 local PILL_MARGIN = 5
-local PILL_SIZE = BRACKET_WIDTH - 2 * PILL_MARGIN
+local SIDE_EXTRA = 1
+local SIDE_MARGIN = PILL_MARGIN + SIDE_EXTRA
+local PILL_SIZE = colors.bracket.height - 2 * PILL_MARGIN
+local BRACKET_WIDTH = PILL_SIZE + 2 * SIDE_MARGIN
 local ICON_PADDING = (PILL_SIZE - SIZE) / 2
 
 -- item の width は指定しない。width を指定した item の後は、配置が width の分しか進まず、bracket の padding が
 -- 数えられないので、隣の item が padding の分だけ重なる (ui.add_hit_layer の説明)。幅は icon.width で決める。
 -- item の背景 (pill) は icon.width の箱と同じ大きさ (PILL_SIZE) になり、bracket の範囲との隙間は item の padding
--- (PILL_MARGIN。ui.add_bracket の padding で設定する) で作る。item の幅 + padding は bracket の幅 (円の直径) と同じ。
+-- (上下は PILL_MARGIN、左右は SIDE_MARGIN。左右は ui.add_bracket の padding で設定する) で作る。item の幅 + padding は bracket の幅と同じ。
 -- icon.width は padding を含む箱の全幅 (spotify.lua)。
 local gear = ui.add_item("system", "q", {
 	icon = {
@@ -66,7 +69,7 @@ local gear = ui.add_item("system", "q", {
 
 local bracket = ui.add_bracket("system.bracket", { gear }, {
 	background = { corner_radius = colors.bracket.height / 2 },
-}, PILL_MARGIN)
+}, SIDE_MARGIN)
 
 -- bracket 全体でマウス操作を受ける (ui.add_hit_layer_over)。item の幅は自動なので、配置が進む幅 (chain) は
 -- bracket の幅と同じ

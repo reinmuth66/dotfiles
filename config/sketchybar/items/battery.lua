@@ -5,11 +5,25 @@ local ui = require("ui")
 -- フォントやサイズを変えたら再測定が必要。
 local GLYPH_HEIGHT = 15
 
+-- label の幅は、"100%" が収まる 34px に常に固定する (add_item の label.width)。
+-- 桁数や先頭の文字 ("1" "5" のとき文字列幅が 1px 狭くなる) で幅が変わると、左隣の item がずれる。
+-- 左隣の network が動くと、Spotify のポップアップとの隙間 (items/spotify.lua) も変わるため、桁数にかかわらず固定する。
+-- 実測値 (Hack Nerd Font Bold 13pt): label の固定幅は内側の padding を含み、文字幅 + padding_left(3) で
+-- "45%" が 27px、"100%" が 34px。1桁は "05%" のように 0 埋めして2桁として扱う。
+-- フォントやサイズ、label の padding を変えたら再測定が必要。
+--
+-- 数字の位置は、label の左揃え (align = "left") と padding_left (px、整数) で決める。
+-- 字面は label の左端 + padding_left から描かれ、padding_left を変えても label の幅 (34) と item の幅は変わらない
+-- (実機で確認)。sketchybar の label には x_offset がない。
+-- 3桁 ("100%") は幅いっぱいなので 3。2桁 ("45%") は余りの 7px を左右に分けると、左に 3.5px 足す位置 (6.5) が中央で、
+-- 整数の 6 か 7 から選ぶ。大きくすると右へ、小さくすると左へ動く。
+local LABEL_PADDING_LEFT = { [2] = 8, [3] = 3 }
+
 local battery = ui.add_item("battery", "right", {
 	update_freq = 120,
 	-- 余白は bracket の padding で決めるため、左端(icon)と右端(label)の内側の padding は 0 にする
 	icon = { font = { size = 18.0 }, y_offset = 1, padding_left = 0, padding_right = 3 },
-	label = { padding_left = 3, padding_right = 0 },
+	label = { padding_left = LABEL_PADDING_LEFT[2], padding_right = 0, width = 34, align = "left" },
 })
 
 ui.add_bracket("battery.bracket", { battery }, nil, ui.vertical_margin(GLYPH_HEIGHT))
@@ -30,13 +44,6 @@ local icons = {
 }
 
 local CHARGING_ICON = "󰂄"
-
--- 先頭が "1" "5" のときだけ文字列幅が 1px 狭くなり、左隣のアイテムがずれるため、桁数ごとに幅を固定する。
--- 実測値 (Hack Nerd Font Bold 13pt): label の固定幅は内側の padding を含む。
--- 文字幅 + padding_left(3) で、"45%"/"100%" の順に 27/34px。
--- 1桁は "05%" のように 0 埋めして2桁として扱うので、1桁用の幅は持たない。
--- フォントやサイズ、label の padding を変えたら再測定が必要。
-local LABEL_WIDTH_BY_DIGITS = { [2] = 27, [3] = 34 }
 
 local function icon_for(charge, charging)
 	if charging then
@@ -64,7 +71,7 @@ local function update()
 		local text = string.format("%02d%%", charge)
 		battery:set({
 			icon = icon_for(charge, charging),
-			label = { string = text, width = LABEL_WIDTH_BY_DIGITS[#text - 1] },
+			label = { string = text, padding_left = LABEL_PADDING_LEFT[#text - 1] },
 		})
 	end)
 end

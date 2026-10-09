@@ -33,20 +33,22 @@ local BAR = {
 -- (sketchybarの実機検証で確認した挙動)。outline側はNUB.gapをそのまま使う。
 
 -- batteryと同じく、1桁は"05%"のように0埋めして2桁として扱う。
--- central/peripheralのうち桁数が大きい方に合わせて、ラベル幅を2段(2桁/3桁)で共有する。
--- 100%のときだけ幅が変わり、他のレベルでは変わらない。
--- 各値は実機で"45%"/"100%"をwidth=1(意図的に不足させる)に設定し、
+-- ラベル幅は"100%"が収まる3桁用に常に固定する(central/peripheralで共有)。
+-- 幅が桁数で変わると左隣のitemが動き、右隣のSpotifyのポップアップとの隙間(items/spotify.lua)が
+-- 変わるため、桁数にかかわらず固定する。
+-- 値は実機で"45%"/"100%"をwidth=1(意図的に不足させる)に設定し、
 -- bounding_rectsのsize(sketchybarが自動的に上書きして広げた実際の幅)を
 -- 確認して実測した値(label内側のpadding左右4pxずつを含む)から、
 -- add_labelでpadding_rightを0にした分の4pxを引いている。
 -- LABEL.font_sizeを変更した場合は再測定が必要。
--- ラベルはalign="right"なので、幅を増やした分はバーとテキストの間隔になる。
+-- ラベルはalign="right"なので、2桁のときに余る分はバーとテキストの間隔になる。
+--
+-- 数字の位置は、右揃えのまま label.padding_right (px、整数) で動かす。大きくすると左へ、小さく(負に)すると右へ動く。
+-- padding_right を変えても label の幅は変わない(実機で確認)。sketchybar の label には x_offset がない。
+-- 桁数ごとに指定する(キーは桁数)。3桁("100%")は幅いっぱいなので、0 から大きくはできない。
+local LABEL_PADDING_RIGHT = { [2] = 2, [3] = 0 }
 local LABEL_GAP_EXTRA = 1
-local LABEL_WIDTH_BY_DIGITS = {
-	[2] = 25 + LABEL_GAP_EXTRA, -- "45%"実測28px - padding_right 4px + 余裕1px
-	[3] = 32 + LABEL_GAP_EXTRA, -- "100%"実測35px - padding_right 4px + 余裕1px
-}
-local MAX_LABEL_WIDTH = LABEL_WIDTH_BY_DIGITS[3]
+local LABEL_WIDTH = 32 + LABEL_GAP_EXTRA -- "100%"実測35px - padding_right 4px + 余裕1px
 
 -- LABEL.font_size(9→11pt)に比例させた見積もり値。フォント実寸の目視確認が
 -- できていないため、上下2段が重ならないか実機で要確認。
@@ -132,8 +134,7 @@ end
 -- peripheralのlabel/nub/outlineを差し込むことで、peripheral側は
 -- 「centralグループの合計幅(group_offset)ぶんpadding_rightを引くだけ」で
 -- centralの真下に重なる。
--- ラベル幅が桁数によって変わるようになったため、group_offset以下の値は
--- 毎回layout_for()で計算し直す必要がある(以前のような不変の定数ではない)。
+-- group_offset以下の値はラベル幅(LABEL_WIDTH)から導く。
 local function layout_for(label_width)
 	local group_offset = label_width + NUB.width + BAR.width
 	local peripheral_outline_padding_right = NUB.gap - group_offset
@@ -152,15 +153,14 @@ local function layout_for(label_width)
 	}
 end
 
--- データ取得前の初期状態は、最も広い(3桁)レイアウトを仮定しておく。
-local initial_layout = layout_for(MAX_LABEL_WIDTH)
+local initial_layout = layout_for(LABEL_WIDTH)
 
-local central_label = add_label("central", MAX_LABEL_WIDTH, LABEL.central_padding_right, ROW_OFFSET)
+local central_label = add_label("central", LABEL_WIDTH, LABEL.central_padding_right, ROW_OFFSET)
 local central_nub = add_nub("central_nub", NUB.gap, ROW_OFFSET)
 local central_outline = add_outline("central_outline", NUB.gap, ROW_OFFSET)
 
 local peripheral_label =
-	add_label("peripheral", MAX_LABEL_WIDTH, LABEL.central_padding_right - initial_layout.group_offset, -ROW_OFFSET)
+	add_label("peripheral", LABEL_WIDTH, LABEL.central_padding_right - initial_layout.group_offset, -ROW_OFFSET)
 local peripheral_nub = add_nub("peripheral_nub", NUB.gap - initial_layout.group_offset, -ROW_OFFSET)
 local peripheral_outline =
 	add_outline("peripheral_outline", initial_layout.peripheral_outline_padding_right, -ROW_OFFSET)
@@ -181,7 +181,7 @@ local GAP_SETTLE_DELAY = 0.3 -- レイアウト反映を待つ秒数
 
 ui.add_bracket("zmk_battery.bracket", { "/zmk_battery\\..*/" })
 
--- bracket全体でクリックを受ける透明なitem。位置と幅は、表示内容(桁数・塗りバーの幅)に
+-- bracket全体でクリックを受ける透明なitem。位置と幅は、表示内容(塗りバーの幅)に
 -- 応じてapply_hit()が毎回set()し直す。bracketより後に作ること(メンバーに含めない)。
 local hit = ui.add_hit_layer_over("zmk_battery.hit", 0, 0, { drawing = false })
 
@@ -230,16 +230,7 @@ local function fill_width_for(level)
 	return trunc(inner_width * clamped_level / 100)
 end
 
--- 1桁は0埋めして2桁として扱うので、返すのは2か3のみ(100%のときだけ3)。
--- levelがnil(値が一度も取れていない/非表示)の場合は最小の2を返し、共有幅を無駄に広げないようにする。
-local function digit_count(level)
-	if level ~= nil and level >= 100 then
-		return 3
-	end
-	return 2
-end
-
--- central/peripheralの桁数のうち大きい方に合わせて共有レイアウトを適用する。
+-- central/peripheralで共有するレイアウトを適用する。
 -- centralラベルはwidthのみ(padding_rightは外部アイテムとの間隔なので不変)、
 -- peripheral側はlabel/nub/outlineのpadding_right(いずれもgroup_offset依存)を
 -- 都度書き換える。central_nub/central_outlineはcentral_labelのwidth変化に
@@ -262,7 +253,7 @@ end
 -- 値が最新でないとき(state.currentがfalse)は、スナップショットに残っている
 -- 最後のレベルのまま暗い色にする。
 -- levelがnil(一度も値が取れていない)ときは、塗りバーを空にしてラベルを"--%"にする
--- ("--%"は"05%"と同じ3文字なので、2桁用の幅に収まる)。
+-- ("--%"は"05%"と同じ3文字なので、固定幅に収まる)。
 -- fill_padding_right_forには「fill_widthを受け取ってpadding_rightを返す関数」を渡す
 -- (central/peripheralで塗りバーの位置計算だけが異なるため)。
 local function apply_group(group, state, fill_padding_right_for, label_width)
@@ -280,7 +271,10 @@ local function apply_group(group, state, fill_padding_right_for, label_width)
 	})
 	-- 1桁のときだけ0埋めして、9%と10%で幅が変わらないようにする(batteryと同じ)
 	local text = state.level and string.format("%02d%%", trunc(state.level)) or "--%"
-	group.label:set({ drawing = true, label = { string = text, color = color } })
+	group.label:set({
+		drawing = true,
+		label = { string = text, color = color, padding_right = LABEL_PADDING_RIGHT[#text - 1] },
+	})
 
 	-- hit layerの位置計算に使う、このグループがsketchybarの配置を進める幅
 	-- (width指定のitemはwidthの分だけ進む。ui.hit_layer_geometry)。
@@ -326,7 +320,7 @@ local last_chain_width, last_bracket_width
 
 -- 左隣との隙間を、測定を待たずに保つ。
 -- 隣のitemの位置は、このbracketの中でsketchybarが配置を進めた幅(chain_width)と、
--- bracketの背景の幅(bracket_width)の差で決まる。バーや桁数が変わると両者は別々に変わるので、
+-- bracketの背景の幅(bracket_width)の差で決まる。バーが変わると両者は別々に変わるので、
 -- 隙間は「chain_widthの増分 - bracket_widthの増分」だけ変わる(実機で確認。fillを1px細くすると
 -- 左隣が1px右へずれる)。同じだけspacerのpadding_rightを動かせば隙間は変わらない。
 -- settle_gapの測り直しだけに頼ると、その間(GAP_SETTLE_DELAY)は左隣の位置がずれたままになる。
@@ -357,7 +351,7 @@ end
 
 local function update()
 	local cmd = "jq -r '.devices[0] as $d | if $d == null then empty else "
-		.. "$d.batteryParts[] | [.id, (.levelPercent | tostring), (.valueStatus // \"unavailable\")] | @tsv end' "
+		.. '$d.batteryParts[] | [.id, (.levelPercent | tostring), (.valueStatus // "unavailable")] | @tsv end\' '
 		.. '"'
 		.. snapshot_path
 		.. '" 2>/dev/null'
@@ -379,7 +373,6 @@ local function update()
 
 		local central_state = state_from(central_fields)
 		local peripheral_state = state_from(peripheral_fields)
-		local digits = math.max(digit_count(central_state.level), digit_count(peripheral_state.level))
 
 		-- 以降のsetを1つのメッセージにまとめる。別々に送ると、sketchybarがその間の
 		-- 中途半端なレイアウトを1フレーム描画し、左隣のitemが一瞬ずれる(実機で確認。
@@ -387,7 +380,7 @@ local function update()
 		-- バッチの中では問い合わせられないので、spacerの現在値は先に取っておく。
 		local gap_padding_right = sbar.query(gap_spacer.name).geometry.padding_right
 		sbar.begin_config()
-		local layout = apply_shared_layout(LABEL_WIDTH_BY_DIGITS[digits])
+		local layout = apply_shared_layout(LABEL_WIDTH)
 
 		-- peripheral_fillの計算がcentral_fillのpadding_rightに依存するため、
 		-- 必ずcentralを先に処理する(centralは常に表示する)

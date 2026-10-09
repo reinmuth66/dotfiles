@@ -38,11 +38,12 @@ local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/spotify"
 -- 縦は、曲名 (上) + アーティスト (下)。
 -- y_offset は、ポップアップの縦の中央からの距離 (上が正)。
 -- ポップアップはバーの高さの中に収め、bracket (colors.bracket.height) と同じ高さにする。
--- 幅は 233 pt (POPUP_BG_WIDTH): 2 * POPUP_PADDING + TEXT_WIDTH + 右の枠。
--- items/system.lua のポップアップの幅 (実測で 233 pt。CPU 60 + RAM 57 + Disk 115 + 右の枠 1) にそろえてある。
--- system 側の幅を変えたら、ここも合わせる (CPU・RAM が 3 桁のときは、system のほうが 1 項目につき 7 pt 広くなる)。
+-- 幅は 235 pt (POPUP_BG_WIDTH): 2 * POPUP_PADDING + TEXT_WIDTH + 右の枠。
+-- 右隣の network bracket との隙間を、他の bracket 間と同じ 7 pt にするための幅。network の左端は battery と zmk_battery の
+-- ラベル幅 (どちらも常に 3 桁用の幅で固定) だけで決まり 1243 pt になるので、ポップアップの右端 (開始 + 235) との差が 7 pt になる。
+-- items/system.lua のポップアップの幅 (実測で 233 pt。CPU 60 + RAM 57 + Disk 115 + 右の枠 1) とは 2 pt 違う。
 local POPUP_PADDING = 6
-local TEXT_WIDTH = 220 -- POPUP_BG_WIDTH を 233 に保つ値 (POPUP_PADDING を変えたら合わせる)
+local TEXT_WIDTH = 222 -- POPUP_BG_WIDTH を 235 に保つ値 (POPUP_PADDING を変えたら合わせる)
 local POPUP_BORDER = colors.popup.border_width
 local POPUP_HEIGHT = colors.bracket.height - 2 * POPUP_BORDER -- 中身の高さ (偶数にする)
 -- Spotify の bracket とポップアップの間隔 (pt)
