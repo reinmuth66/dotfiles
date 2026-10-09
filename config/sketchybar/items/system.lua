@@ -166,6 +166,35 @@ local function percent_label(value)
 	return { string = text, width = PERCENT_WIDTH_BY_DIGITS[#text - 1] }
 end
 
+-- メモリ圧力 (カーネルの kern.memorystatus_vm_pressure_level。helper/system.c の MEM_PRESSURE) と、その表示色。
+-- 1: normal、2: warn、4: critical。値が取れないとき (nil) は normal の色にする。
+local PRESSURE_COLORS = {
+	[1] = colors.status.normal,
+	[2] = colors.status.warn,
+	[4] = colors.status.critical,
+}
+
+-- 使用率 (%) の閾値。瞬間値で判定する (平滑化はしない)。以上で warn、critical の色にする。
+--   CPU : warn は Apple のサポート記事 (継続的に 70% 超は高負荷) による。critical の 90% は目安。
+--   Disk: 空き 20% 以下で warn、10% 以下で critical (macOS の「空きを 10〜20% 保つ」目安と、Zabbix の既定 90%)。
+local CPU_THRESHOLDS = { warn = 70, critical = 90 }
+local DISK_THRESHOLDS = { warn = 80, critical = 90 }
+
+local function threshold_color(value, thresholds)
+	if value >= thresholds.critical then
+		return colors.status.critical
+	elseif value >= thresholds.warn then
+		return colors.status.warn
+	end
+	return colors.status.normal
+end
+
+-- アイコンと label の色をそろえて、item の設定にする
+local function colored(label, color)
+	label.color = color
+	return { icon = { color = color }, label = label }
+end
+
 local last_env
 local popup_open = false
 
@@ -184,9 +213,13 @@ local function render()
 	end
 
 	local ram_percent = ram_total > 0 and ram_used / ram_total * 100 or 0
-	cpu_item:set({ label = percent_label(cpu) })
-	ram_item:set({ label = percent_label(ram_percent) })
-	disk_item:set({ label = { string = string.format("%s/%s", format_disk(disk_total - disk_free), format_disk(disk_total)) } })
+	local disk_percent = disk_total > 0 and (disk_total - disk_free) / disk_total * 100 or 0
+	cpu_item:set(colored(percent_label(cpu), threshold_color(cpu, CPU_THRESHOLDS)))
+	ram_item:set(colored(percent_label(ram_percent), PRESSURE_COLORS[tonumber(env.MEM_PRESSURE)] or colors.status.normal))
+	disk_item:set(colored(
+		{ string = string.format("%s/%s", format_disk(disk_total - disk_free), format_disk(disk_total)) },
+		threshold_color(disk_percent, DISK_THRESHOLDS)
+	))
 end
 
 gear:subscribe("system_stats", function(env)

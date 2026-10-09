@@ -38,7 +38,10 @@ return {
 		bracket_bg = black,
 	},
 
-	swap = {
-		alert = 0xaaff0000,
+	-- 使用状況の警告色 (system のポップアップの CPU、RAM、Disk)
+	status = {
+		normal = white,
+		warn = 0xffffb454,
+		critical = 0xffff5555,
 	},
 }
