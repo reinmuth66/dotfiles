@@ -1,0 +1,233 @@
+--- a/input/coreaudio_tap.m
++++ b/input/coreaudio_tap.m
+@@ -47,6 +47,7 @@
+     bool io_proc_created;
+     bool aggregate_created;
+     bool tap_created;
++    bool format_locked; // cava was already told the format: a later open must give the same one
+ };
+ 
+ static CFStringRef cfstring_from_cstr(const char *value) {
+@@ -287,18 +288,80 @@
+     state->interleaved_buffer_size = 0;
+ }
+ 
+-void *input_coreaudio_tap(void *data) {
+-    struct tap_state state;
+-    memset(&state, 0, sizeof(state));
+-    state.audio = (struct audio_data *)data;
++// Audio gate. $CAVAVIZ_AUDIO is a file that holds "on" or "off". While it says "off" there is no tap at all, so
++// the system does not record audio (the recording indicator is off) and the bars fall to zero. It is checked
++// every 100 ms. Without the variable, or with a missing file, the tap is always on, as in plain cava.
++// Starting with "off" must not touch the audio hardware either, so the format that cava needs at start-up is
++// taken from the default output device (a stereo float tap at its sample rate, which is what the tap gives).
++static bool gate_wants_on(void) {
++    const char *path = getenv("CAVAVIZ_AUDIO");
++    if (path == NULL) {
++        return true;
++    }
++    FILE *f = fopen(path, "r");
++    if (f == NULL) {
++        return true;
++    }
++    char word[8] = "";
++    if (fscanf(f, "%7s", word) != 1) {
++        word[0] = '\0';
++    }
++    fclose(f);
++    return strcmp(word, "off") != 0;
++}
+ 
++static void set_default_format(struct audio_data *audio) {
++    audio->rate = 48000;
++    AudioObjectPropertyAddress address = {
++        kAudioHardwarePropertyDefaultOutputDevice,
++        kAudioObjectPropertyScopeGlobal,
++        kAudioObjectPropertyElementMain,
++    };
++    AudioObjectID device = kAudioObjectUnknown;
++    UInt32 size = sizeof(device);
++    Float64 rate = 0;
++    if (AudioObjectGetPropertyData(kAudioObjectSystemObject, &address, 0, NULL, &size, &device) ==
++            noErr &&
++        device != kAudioObjectUnknown && get_device_nominal_rate(device, &rate) == noErr &&
++        rate > 0) {
++        audio->rate = (unsigned int)rate;
++    }
++    audio->channels = 2;
++    audio->format = 32;
++    audio->IEEE_FLOAT = 1;
++}
++
++// Read the format of the tap into audio. After the first open cava has built its filters for that format, so a
++// later open must give the same channels and sample format; the sample rate is left as it was.
++static bool tap_setup_format(struct tap_state *state) {
++    struct audio_data *audio = state->audio;
++    __typeof__(audio->rate) rate = audio->rate;
++    __typeof__(audio->channels) channels = audio->channels;
++    __typeof__(audio->format) format = audio->format;
++    __typeof__(audio->IEEE_FLOAT) ieee = audio->IEEE_FLOAT;
++
++    bool ok = setup_audio_format_from_device(state);
++    if (ok && state->format_locked) {
++        bool same = audio->channels == channels && audio->format == format && audio->IEEE_FLOAT == ieee;
++        audio->rate = rate;
++        if (!same) {
++            audio->channels = channels;
++            audio->format = format;
++            audio->IEEE_FLOAT = ieee;
++            fprintf(stderr, "Error: the tap format changed since start-up; the tap stays off\n");
++            ok = false;
++        }
++    }
++    return ok;
++}
++
++// Create the tap, the aggregate device and the IO proc, and start the IO. On failure everything is released.
++static bool tap_open(struct tap_state *state) {
+     @autoreleasepool {
+-        CATapDescription *tap = build_tap_description(state.audio->source);
++        CATapDescription *tap = build_tap_description(state->audio->source);
+         if (tap == nil) {
+             fprintf(stderr, "Error: failed to build CoreAudio tap description\n");
+-            signal_threadparams(state.audio);
+-            signal_terminate(state.audio);
+-            return NULL;
++            return false;
+         }
+ 
+         tap.privateTap = YES;
+@@ -313,14 +376,12 @@
+             tap.UUID = tap_uuid;
+         }
+ 
+-        OSStatus status = AudioHardwareCreateProcessTap(tap, &state.tap_id);
++        OSStatus status = AudioHardwareCreateProcessTap(tap, &state->tap_id);
+         if (status != noErr) {
+             fprintf(stderr, "Error: AudioHardwareCreateProcessTap failed (status %d)\n", (int)status);
+-            signal_threadparams(state.audio);
+-            signal_terminate(state.audio);
+-            return NULL;
++            return false;
+         }
+-        state.tap_created = true;
++        state->tap_created = true;
+ 
+         NSString *tap_uid = [tap_uuid UUIDString];
+         NSString *aggregate_uid = [NSString stringWithFormat:@"cava.coreaudio.tap.%d", getpid()];
+@@ -357,7 +418,7 @@
+             CFDictionaryCreate(kCFAllocatorDefault, aggregate_keys, aggregate_vals, 5,
+                                &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+ 
+-        status = AudioHardwareCreateAggregateDevice(aggregate_desc, &state.aggregate_device_id);
++        status = AudioHardwareCreateAggregateDevice(aggregate_desc, &state->aggregate_device_id);
+ 
+         CFRelease(aggregate_desc);
+         CFRelease(tap_list);
+@@ -375,51 +436,79 @@
+         if (status != noErr) {
+             fprintf(stderr, "Error: AudioHardwareCreateAggregateDevice failed (status %d)\n",
+                     (int)status);
+-            cleanup_tap_state(&state);
+-            signal_threadparams(state.audio);
+-            signal_terminate(state.audio);
+-            return NULL;
++            cleanup_tap_state(state);
++            return false;
+         }
+-        state.aggregate_created = true;
++        state->aggregate_created = true;
+ 
+-        if (!setup_audio_format_from_device(&state)) {
++        if (!tap_setup_format(state)) {
+             fprintf(stderr, "Error: failed to query aggregate tap stream format\n");
+-            cleanup_tap_state(&state);
+-            signal_threadparams(state.audio);
+-            signal_terminate(state.audio);
+-            return NULL;
++            cleanup_tap_state(state);
++            return false;
+         }
+ 
+-        status = AudioDeviceCreateIOProcID(state.aggregate_device_id, tap_io_proc, &state,
+-                                           &state.io_proc_id);
++        status = AudioDeviceCreateIOProcID(state->aggregate_device_id, tap_io_proc, state,
++                                           &state->io_proc_id);
+         if (status != noErr) {
+             fprintf(stderr, "Error: AudioDeviceCreateIOProcID failed (status %d)\n", (int)status);
+-            cleanup_tap_state(&state);
+-            signal_threadparams(state.audio);
+-            signal_terminate(state.audio);
+-            return NULL;
++            cleanup_tap_state(state);
++            return false;
+         }
+-        state.io_proc_created = true;
++        state->io_proc_created = true;
+ 
+-        status = AudioDeviceStart(state.aggregate_device_id, state.io_proc_id);
++        status = AudioDeviceStart(state->aggregate_device_id, state->io_proc_id);
+         if (status != noErr) {
+             fprintf(stderr, "Error: AudioDeviceStart failed (status %d)\n", (int)status);
+-            cleanup_tap_state(&state);
++            cleanup_tap_state(state);
++            return false;
++        }
++        state->io_running = true;
++
++        return true;
++    }
++}
++
++void *input_coreaudio_tap(void *data) {
++    struct tap_state state;
++    memset(&state, 0, sizeof(state));
++    state.audio = (struct audio_data *)data;
++
++    bool gated = getenv("CAVAVIZ_AUDIO") != NULL;
++    bool on = gate_wants_on();
++
++    if (on) {
++        if (!tap_open(&state)) {
+             signal_threadparams(state.audio);
+             signal_terminate(state.audio);
+             return NULL;
+         }
+-        state.io_running = true;
++    } else {
++        set_default_format(state.audio);
++    }
++    state.format_locked = true;
++    signal_threadparams(state.audio);
+ 
+-        signal_threadparams(state.audio);
+-
+-        while (state.audio->terminate != 1) {
+-            usleep(100000);
++    while (state.audio->terminate != 1) {
++        usleep(100000);
++        if (!gated) {
++            continue;
+         }
+-
+-        cleanup_tap_state(&state);
+-        return NULL;
++        bool wanted = gate_wants_on();
++        if (wanted == on) {
++            continue;
++        }
++        on = wanted;
++        if (on) {
++            // On failure the tap stays off until the next change of the file.
++            tap_open(&state);
++        } else {
++            cleanup_tap_state(&state);
++            reset_output_buffers(state.audio);
++        }
+     }
++
++    cleanup_tap_state(&state);
++    return NULL;
+ }
+ 
+ #endif

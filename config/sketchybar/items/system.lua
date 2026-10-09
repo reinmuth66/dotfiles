@@ -1,6 +1,5 @@
 local colors = require("colors")
 local ui = require("ui")
-local popup_state = require("popup_state")
 
 -- アクティビティモニターのアイコンの item。ホバーで、次の 1 行のポップアップを開く。
 --   (CPU アイコン) x%  (RAM アイコン) x%  (Disk アイコン) 使用量/総容量
@@ -203,7 +202,6 @@ hit:subscribe("mouse.entered", function()
 		return
 	end
 	popup_open = true
-	popup_state.system_open = true
 	render()
 	anchor:set({ popup = { drawing = true } })
 end)
@@ -225,7 +223,6 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 		return
 	end
 	popup_open = false
-	popup_state.system_open = false
 	anchor:set({ popup = { drawing = false } })
 end)
 

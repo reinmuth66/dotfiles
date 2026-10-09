@@ -1,0 +1,77 @@
+--- a/output/sdl_glsl.c
++++ b/output/sdl_glsl.c
+@@ -63,6 +63,7 @@
+ GLint uniform_previous_bars;
+ GLint uniform_bars_count;
+ GLint uniform_time;
++GLint uniform_viz_progress;
+ GLint uniform_input_texture;
+ GLuint fbo;
+ GLuint texture;
+@@ -232,6 +233,7 @@
+     uniform_previous_bars = glGetUniformLocation(shading_program, "previous_bars");
+     uniform_bars_count = glGetUniformLocation(shading_program, "bars_count");
+     uniform_time = glGetUniformLocation(shading_program, "shader_time");
++    uniform_viz_progress = glGetUniformLocation(shading_program, "viz_progress");
+     uniform_input_texture = glGetUniformLocation(shading_program, "inputTexture");
+ 
+     if (uniform_input_texture != -1) {
+@@ -349,9 +351,41 @@
+         viz_ready_pid = 0;
+     }
+ }
++
++// The playback progress (0..1) is kept in its own file, $CAVAVIZ_PROGRESS, as one decimal number, because the
++// control file holds only the last command (a "progress" written right after a "show" would hide the "show").
++// The file is checked once per frame (when its mtime changed) and is exposed to the shader as
++//   uniform float viz_progress;
++// A change draws once even if the bars are not moving (silence), so the colours follow the playback position.
++static float viz_progress = 0.0f;
++static int viz_progress_dirty = 0;
++static struct timespec viz_progress_mtime;
+ 
++static void viz_poll_progress(void) {
++    const char *path = getenv("CAVAVIZ_PROGRESS");
++    struct stat st;
++    if (path == NULL || stat(path, &st) != 0)
++        return;
++    if (st.st_mtimespec.tv_sec == viz_progress_mtime.tv_sec &&
++        st.st_mtimespec.tv_nsec == viz_progress_mtime.tv_nsec)
++        return;
++    viz_progress_mtime = st.st_mtimespec;
++
++    FILE *f = fopen(path, "r");
++    if (f == NULL)
++        return;
++    double value = 0;
++    int n = fscanf(f, "%lf", &value);
++    fclose(f);
++    if (n != 1)
++        return;
++    viz_progress = (float)(value < 0 ? 0 : (value > 1 ? 1 : value));
++    viz_progress_dirty = 1;
++}
++
+ static void viz_poll_control(void) {
+     viz_signal_ready();
++    viz_poll_progress();
+     const char *path = getenv("CAVAVIZ_CONTROL");
+     struct stat st;
+     if (path == NULL || stat(path, &st) != 0)
+@@ -422,9 +456,16 @@
+     viz_poll_control();
+     if (viz_hidden)
+         re_paint = continuous_rendering = 0;
++    else if (viz_progress_dirty)
++        re_paint = 1;
+ #endif
+ 
+     if (re_paint || continuous_rendering) {
++#ifdef __APPLE__
++        viz_progress_dirty = 0;
++        if (uniform_viz_progress != -1)
++            glUniform1f(uniform_viz_progress, viz_progress);
++#endif
+         if (uniform_input_texture != -1) {
+             glActiveTexture(GL_TEXTURE0);
+             glBindTexture(GL_TEXTURE_2D, texture);

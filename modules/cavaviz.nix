@@ -5,6 +5,7 @@
 # 文字やカバー画像、再生位置のバーだけを、この窓の上に描かせる (別の窓の前後は window level でしか決まらず、
 # 1 つの窓の中の背景と文字の間には入れないため)。
 # 起動と停止、窓の位置合わせ、背景の受け渡しは config/sketchybar/items/spotify.lua が行う。
+# ポップアップはバーの高さの中に収まる横長 (192 x 34 pt)。棒の幅は、領域の幅と棒の数 (bars) で決まる。
 # .app の作り方と、音声取得の許可については pkgs/cavaviz/default.nix を参照。
 let
   cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
@@ -59,8 +60,8 @@ let
     color = {
       background = "'#111111'"; # popup.frag では使わない
       foreground = "'#ffffff'"; # 同上
-      # popup.frag は、色をグラデーションの 3 色で受け取る。@FG@ (棒)、@BG@ (ポップアップの背景)、@BORDER@ (枠) は、
-      # spotify.lua が、アルバム画像から決めた配色に置き換える。
+      # popup.frag は、色をグラデーションの 4 色で受け取る。@FG@ (未再生の棒)、@BG@ (ポップアップの背景)、@BORDER@ (枠)、
+      # @PLAYED@ (再生済みの棒) は、spotify.lua が、アルバム画像から決めた配色に置き換える。
       # foreground / background ではなくグラデーションで指定するのは、SIGUSR2 で読み直されるのが、
       # グラデーションの色 (有無と色数も) だけで、foreground / background は読み直されないため。
       # 動いている間の変更は、設定を書き直して cava に SIGUSR2 を送る (窓も音声の取得も作り直さない)。
@@ -68,6 +69,7 @@ let
       gradient_color_1 = "'@FG@'";
       gradient_color_2 = "'@BG@'";
       gradient_color_3 = "'@BORDER@'";
+      gradient_color_4 = "'@PLAYED@'";
     };
     smoothing = {
       # 10 以下は、音が切れたときの落下の緩和が無効になり、棒が瞬時に落ちる

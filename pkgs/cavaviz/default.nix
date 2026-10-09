@@ -14,6 +14,15 @@
 # - sdl-fractional-position.patch: 窓の位置の指示 ("show X Y") で小数を受け付け、NSWindow の setFrameOrigin で
 #   置く。SDL_SetWindowPosition は整数 pt しか指定できないが、SketchyBar のポップアップは半ポイント位置に
 #   描かれることがあり (中央揃えで、項目の位置が x.5 のとき)、窓に描く背景と枠がずれて見えるため。
+# - sdl-progress.patch: 再生位置 (0〜1) をシェーダーの uniform float viz_progress に渡す。値は $CAVAVIZ_PROGRESS の
+#   ファイルに 10 進数で書き、cava は毎フレーム、更新時刻が変わったときだけ読む。制御ファイルは最後の指示しか
+#   持たない ("show" の直後に書くと "show" が消える) ので、別のファイルにしてある。値が変わると、棒が動いて
+#   いなくても (無音) 1 回描き直す。シェーダーは、再生済みの棒と未再生の棒の色を分ける (popup.frag)。
+# - tap-gate.patch: 音声取得 (tap) を、起動したまま入り切りできるようにする。$CAVAVIZ_AUDIO のファイルに
+#   "on" か "off" を書くと、cava は 100ms 以内に tap を作る / 解放する。"off" の間は tap がないので、システムは
+#   音声を収録せず (収録のインジケーターが消える)、棒は 0 に落ちる。"off" で起動したときは、ハードウェアに触れずに、
+#   既定の出力デバイスのサンプルレートと、ステレオ・32bit float の形式で始める (tap の形式と同じ)。
+#   一時停止中も窓 (棒の色で示す再生位置) を出したいが、収録は止めたいため。
 # - sdl-ax-subrole.patch: 窓のアクセシビリティの subrole を AXSystemFloatingWindow にする。既定の
 #   AXStandardWindow だと、AeroSpace が窓を管理対象にして、終了時に workspace の先頭のウィンドウへ
 #   フォーカスを移してしまう (複数ウィンドウのアプリで、作業中のウィンドウが勝手に切り替わる)。
@@ -41,6 +50,8 @@ let
       ./sdl-ax-subrole.patch
       ./sdl-highdpi.patch
       ./sdl-fractional-position.patch
+      ./sdl-progress.patch
+      ./tap-gate.patch
     ];
     # パッチが objc_msgSend を使うので、Objective-C のランタイムをリンクする
     env = (old.env or { }) // {
