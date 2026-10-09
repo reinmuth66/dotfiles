@@ -103,6 +103,10 @@ function M.add_spacer(position, width, name)
 	})
 end
 
+-- 内蔵ディスプレイのノッチの幅 (pt)。bar.lua の notch_width と items/wallpaper.lua に使う。
+-- NSScreen の frame 幅 - auxiliaryTopLeftArea 幅 - auxiliaryTopRightArea 幅 (1710 - 751 - 750) で実測した。
+M.notch_width = 209
+
 -- バーの高さ。bar.lua の height に使う (ノッチとの間隔もここから決める)。
 M.bar_height = 40
 
