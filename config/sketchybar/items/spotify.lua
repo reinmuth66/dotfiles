@@ -1337,8 +1337,16 @@ local SPOTIFY_APP = os.getenv("HOME") .. "/Applications/Home Manager Apps/Spotif
 -- ダブルクリックの検出。SketchyBar にはダブルクリックのイベントがなく、クリックが 2 回届くだけなので、
 -- 1 回目のクリックの再生/一時停止を DOUBLE_CLICK_INTERVAL 秒だけ待ち、その間に 2 回目が来たらダブルクリックとして
 -- Spotify のウィンドウの表示にする (再生/一時停止は行わない)。そのため、再生/一時停止はクリックからこの秒数だけ遅れる。
+-- すでに Spotify 専用の workspace にいるときは、表示ではなく、直前にいた workspace へ戻る (aerospace workspace-back-and-forth)。
 -- macOS の既定のダブルクリックの間隔は約 0.5 秒だが、再生/一時停止の遅れを抑えるため短くしてある。
 local DOUBLE_CLICK_INTERVAL = 0.3
+-- Spotify 専用の workspace (modules/aerospace.nix の on-window-detected で Spotify を移す先)
+local SPOTIFY_WORKSPACE = "F"
+local DOUBLE_CLICK_COMMAND = string.format(
+	'[ "$(aerospace list-workspaces --focused)" = %q ] && aerospace workspace-back-and-forth || open %q',
+	SPOTIFY_WORKSPACE,
+	SPOTIFY_APP
+)
 local click_id = 0
 local click_pending = false
 
@@ -1346,7 +1354,7 @@ hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
 		if click_pending then
 			click_pending = false
-			sbar.exec(string.format("open %q", SPOTIFY_APP))
+			sbar.exec(DOUBLE_CLICK_COMMAND)
 			return
 		end
 		click_pending = true
