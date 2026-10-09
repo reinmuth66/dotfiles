@@ -23,47 +23,25 @@ local PILL_MARGIN_Y = PILL_GAP / 2
 -- pill の高さは bracket の高さと上下の余白から決まる。
 local PILL_HEIGHT = colors.bracket.height - 2 * PILL_MARGIN_Y
 
-local function app_name_from_line(line)
-	local fields = {}
-	for field in line:gmatch("([^|]+)") do
-		table.insert(fields, field)
-	end
-	local app = fields[2]
-	if app == nil then
-		return nil
-	end
-	return app:match("^%s*(.-)%s*$")
-end
-
 local function refresh_space(sid, is_focused)
 	local space = spaces[sid]
 	if space == nil then
 		return
 	end
 
-	sbar.exec("aerospace list-windows --workspace " .. sid, function(windows)
-		local apps = {}
-		if windows ~= nil then
-			for line in windows:gmatch("[^\r\n]+") do
-				local app = app_name_from_line(line)
-				if app ~= nil and app ~= "" then
-					table.insert(apps, app)
-				end
-			end
+	sbar.exec("aerospace list-windows --workspace " .. sid .. " --format '%{app-name}'", function(windows)
+		local strip = {}
+		for app in (windows or ""):gmatch("[^\r\n]+") do
+			table.insert(strip, icons.app(app))
 		end
 
-		if #apps == 0 then
+		if #strip == 0 then
 			space:set({
 				drawing = is_focused == true,
 				icon = { padding_right = PILL_PADDING },
 				label = { string = "", padding_left = 0, padding_right = 0 },
 			})
 			return
-		end
-
-		local strip = {}
-		for _, app in ipairs(apps) do
-			table.insert(strip, icons.app(app))
 		end
 
 		space:set({
