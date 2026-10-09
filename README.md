@@ -57,6 +57,12 @@ git -C ~/dotfiles add .
 nh darwin switch ~/dotfiles
 ```
 
+### `.DS_Store` の削除
+
+```bash
+sudo fd -H -I -t f -g ".DS_Store" / -X rm 2>/dev/null
+```
+
 ### Homebrew cask を更新する
 
 大半のアプリはアプリ自身が自動更新する。手動で全 cask を更新する場合:
