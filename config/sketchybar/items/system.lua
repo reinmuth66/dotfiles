@@ -34,7 +34,7 @@ ui.add_notch_spacer("q", "system.notch_gap")
 -- bracket は円にする。幅を高さ (colors.bracket.height) と同じにし、角の半径は短辺の半分にする。
 -- 円の中にアイコンが同心で収まるよう、アイコンの左右に余白 (ICON_PADDING) を取る。
 local BRACKET_WIDTH = colors.bracket.height
--- pill (btm の窓の状態を示す円の背景。BTM_BACKGROUND_COLOR の付近を参照) は、bracket の円と同心にして、
+-- pill (btm の窓の状態を示す円の背景。set_btm_state の付近を参照) は、bracket の円と同心にして、
 -- 縁との隙間を上下左右とも PILL_MARGIN にする (aerospace の pill、spotify の画像と同じ 5 pt)。
 local PILL_MARGIN = 5
 local PILL_SIZE = BRACKET_WIDTH - 2 * PILL_MARGIN
@@ -209,12 +209,11 @@ end)
 -- 右クリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない。
 -- もう一度右クリックすると外す。ピン留め中は bracket の枠線が白くなる (spotify.lua と同じ)。
 local pinned = false
-local PINNED_BORDER_COLOR = 0xffffffff -- ピン留め中の bracket の枠線の色 (普段は colors.bracket.border_color)
 
 -- ピン留めの状態を変え、bracket の枠線の色で示す
 local function set_pinned(value)
 	pinned = value
-	bracket:set({ background = { border_color = value and PINNED_BORDER_COLOR or colors.bracket.border_color } })
+	bracket:set({ background = { border_color = value and colors.bracket.pinned_border_color or colors.bracket.border_color } })
 end
 
 -- バーの外へ出たときは mouse.exited.global でも閉じる。ピン留め中は閉じない
@@ -233,17 +232,16 @@ local TOGGLE_BTM_COMMAND = "pkill -USR1 -x btm-window || { nohup btm-window >/de
 -- btm の窓の状態を、bracket の中の pill (gear の背景) の色で示す。bracket の背景は変えない。
 --   最前面: aerospace の workspace (items/aerospace.lua の highlight) と同じく色を反転する。
 --           pill を colors.space.bg_focused に、アイコンを colors.space.fg_focused にする。
---   起動中だが最前面ではない: pill を反転の色を薄くした色 (BTM_BACKGROUND_COLOR) に、アイコンを colors.space.fg_focused にする。
+--   起動中だが最前面ではない: pill を反転の色を薄くした色 (colors.space.bg_inactive) に、アイコンを colors.space.fg_focused にする。
 --   起動していない: pill は描かず、アイコンは普段の色。
 -- 窓が最前面になる・外れる・閉じるのは、どれも front_app_switched (INFO は前面になったアプリ名) で分かる。
 -- 最前面でないときだけ、起動しているかを pgrep で調べる。
 local BTM_APP_NAME = "btm-window"
-local BTM_BACKGROUND_COLOR = 0x44dddddd -- 起動中だが最前面ではない窓の、pill の色
 
 local function set_btm_state(state)
 	local pill_color = {
 		front = colors.space.bg_focused,
-		background = BTM_BACKGROUND_COLOR,
+		background = colors.space.bg_inactive,
 	}
 	local color = pill_color[state]
 	gear:set({

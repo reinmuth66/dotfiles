@@ -52,9 +52,6 @@ local MAX_LABEL_WIDTH = LABEL_WIDTH_BY_DIGITS[3]
 -- できていないため、上下2段が重ならないか実機で要確認。
 local ROW_OFFSET = 7
 
--- 未接続のときの色。spotifyの未起動アイコンと同じ濃さ(0x99、約60%)の白。
-local DIM_COLOR = 0x99ffffff
-
 sbar.add("event", "zmk_battery_update")
 
 local function add_label(name, width, padding_right, row_offset)
@@ -100,7 +97,7 @@ local function add_outline(name, padding_right, row_offset)
 		icon = { drawing = false },
 		label = { drawing = false },
 		background = {
-			color = 0x00000000,
+			color = colors.transparent,
 			border_color = colors.white,
 			border_width = BAR.border_width,
 			corner_radius = BAR.corner_radius,
@@ -269,7 +266,7 @@ end
 -- fill_padding_right_forには「fill_widthを受け取ってpadding_rightを返す関数」を渡す
 -- (central/peripheralで塗りバーの位置計算だけが異なるため)。
 local function apply_group(group, state, fill_padding_right_for, label_width)
-	local color = state.current and colors.white or DIM_COLOR
+	local color = state.current and colors.white or colors.dim
 	local fill_width = state.level and fill_width_for(state.level) or 0
 	local fill_padding_right = fill_padding_right_for(fill_width)
 

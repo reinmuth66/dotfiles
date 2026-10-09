@@ -103,8 +103,8 @@ local TICK = 1 -- 表示の秒を 1 周で 1 つ進めるので、1 秒にする
 local ROTATION_STEP = -360 * TICK / ROTATION_PERIOD
 
 -- 画像に重ねる覆いの色 (ARGB)。alpha が 0x00 で透明、0xff で真っ黒
-local PAUSED_COLOR = 0x99000000
-local PLAYING_COLOR = 0x00000000
+local PAUSED_COLOR = colors.spotify.overlay_paused
+local PLAYING_COLOR = colors.transparent
 local FADE_FRAMES = 12 -- 再生/一時停止の切り替えにかけるフレーム数 (60 フレームで 1 秒)
 
 -- ノッチとの間隔は spacer で作る (補正の内訳は ui.add_notch_spacer)。ノッチに最も近い位置に置くので、spotify より先に追加する。
@@ -123,7 +123,7 @@ local spotify = ui.add_item("spotify", "e", {
 	icon = {
 		string = ":spotify:",
 		font = "sketchybar-app-font:Regular:" .. SIZE .. ".0",
-		color = 0x99ffffff, -- 起動していないことが分かるよう、少し薄くする
+		color = colors.dim, -- 起動していないことが分かるよう、少し薄くする
 		width = SIZE,
 		align = "left",
 		padding_left = 0, -- 字面は箱と同じ大きさなので、余白はいらない
@@ -145,7 +145,7 @@ local spotify = ui.add_item("spotify", "e", {
 	},
 	background = {
 		drawing = true,
-		color = 0x00000000,
+		color = colors.transparent,
 		image = {
 			drawing = false,
 			scale = SIZE / ART_PX,
@@ -155,7 +155,7 @@ local spotify = ui.add_item("spotify", "e", {
 })
 
 local bracket = ui.add_bracket("spotify.bracket", { spotify }, {
-	background = { color = 0xff000000, corner_radius = colors.bracket.height / 2 },
+	background = { color = colors.spotify.bracket_bg, corner_radius = colors.bracket.height / 2 },
 }, BRACKET_PADDING)
 
 -- bracket の範囲 (spotify の幅 + 左右の padding) 全体でマウス操作を受ける
@@ -181,7 +181,13 @@ local anchor = ui.add_item("spotify.anchor", "e", {
 		horizontal = true,
 		height = POPUP_HEIGHT,
 		y_offset = -(ui.bar_height + POPUP_HEIGHT) / 2 - POPUP_BORDER,
-		background = colors.popup,
+		-- 起動直後の初期値。画像が読めたら apply_palette が配色ごとに上書きする
+		background = {
+			color = palette.default.bg,
+			border_color = palette.default.border,
+			border_width = colors.popup.border_width,
+			corner_radius = colors.popup.corner_radius,
+		},
 	},
 })
 
@@ -253,7 +259,7 @@ sbar.add("item", "spotify.viz", {
 	padding_right = 0,
 	icon = { drawing = false },
 	label = { drawing = false },
-	background = { drawing = true, color = 0x00000000 },
+	background = { drawing = true, color = colors.transparent },
 })
 
 add_popup_spacer("spotify.pad.right", POPUP_PADDING)
@@ -560,7 +566,6 @@ local fading_out = false -- 閉じるアニメーションの途中 (close_popup
 -- 右クリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない (close_popup)。
 -- もう一度右クリックすると外す。ピン留め中は bracket の枠線が白くなる。曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
 local pinned = false
-local PINNED_BORDER_COLOR = 0xffffffff -- ピン留め中の bracket の枠線の色 (普段は colors.bracket.border_color)
 
 -- Spotify が最前面のとき、bracket の枠線を太く明るくして、画像の周りにリングを作る (items/system.lua の pill と同じ配色)。
 -- bracket の背景は黒のままなので、リングと画像の間には、黒い隙間 (BRACKET_PADDING - RING_WIDTH) ができる。
@@ -572,7 +577,7 @@ local ring_active = false
 local function update_border()
 	local color = colors.bracket.border_color
 	if pinned then
-		color = PINNED_BORDER_COLOR
+		color = colors.bracket.pinned_border_color
 	elseif ring_active then
 		color = RING_COLOR
 	end

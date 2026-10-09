@@ -157,7 +157,7 @@ end
 function M.add_hit_layer_over(name, chain_width, bracket_width, props)
 	local layer = M.hit_layer_geometry(chain_width, bracket_width)
 	layer.label = { drawing = false }
-	layer.background = { drawing = true, color = 0x00000000 }
+	layer.background = { drawing = true, color = colors.transparent }
 	local position = props and props.position or "right"
 	if position == "e" then
 		-- "e" (ノッチの右) は左から右へ並ぶので、戻す向きと進める向きが逆になる
@@ -191,7 +191,7 @@ end
 function M.add_hit_region(name, chain_width, from, to, props)
 	local layer = M.hit_region_geometry(chain_width, from, to)
 	layer.label = { drawing = false }
-	layer.background = { drawing = true, color = 0x00000000 }
+	layer.background = { drawing = true, color = colors.transparent }
 	return M.add_item(name, "right", merge(layer, props))
 end
 
