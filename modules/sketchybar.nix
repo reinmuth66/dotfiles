@@ -5,8 +5,7 @@ let
   mkHelper =
     name:
     pkgs.stdenv.mkDerivation {
-      pname = "sketchybar-${name}-helper";
-      version = "0-unstable";
+      name = "sketchybar-${name}-helper";
 
       src = ../config/sketchybar/helper;
 
@@ -14,7 +13,7 @@ let
 
       buildPhase = ''
         runHook preBuild
-        $CC -std=c99 -O2 ${name}.c -framework CoreFoundation -framework IOKit -o ${name}-helper
+        $CC -std=c99 -O2 ${name}.c -framework CoreFoundation -o ${name}-helper
         runHook postBuild
       '';
 
