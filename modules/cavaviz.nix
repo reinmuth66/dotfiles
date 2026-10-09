@@ -30,7 +30,7 @@ let
       bars = 32;
       lower_cutoff_freq = 40;
       higher_cutoff_freq = 12000;
-      # 棒は、棒を描く領域の幅 (popup.frag の VIZ の幅 = spotify.lua の VIZ_WIDTH = 212) の両端に、最初の棒の左端と
+      # 棒は、棒を描く領域の幅 (popup.frag の VIZ の幅 = spotify.lua の VIZ_WIDTH = 220) の両端に、最初の棒の左端と
       # 最後の棒の右端が合うように並ぶ。棒の幅は (領域の幅 - (bars - 1) × bar_spacing) / bars になる (bar_width は使われない)。
       # cava は、bars × bar_width + (bars - 1) × bar_spacing が窓の幅 (ポップアップの幅) を超えると、
       # "window is too narrow" で終了する。

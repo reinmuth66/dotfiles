@@ -41,26 +41,28 @@ local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/spotify"
 -- 幅は 233 pt (POPUP_BG_WIDTH): 2 * POPUP_PADDING + TEXT_WIDTH + 右の枠。
 -- items/system.lua のポップアップの幅 (実測で 233 pt。CPU 60 + RAM 57 + Disk 115 + 右の枠 1) にそろえてある。
 -- system 側の幅を変えたら、ここも合わせる (CPU・RAM が 3 桁のときは、system のほうが 1 項目につき 7 pt 広くなる)。
-local POPUP_PADDING = 10
-local TEXT_WIDTH = 212
+local POPUP_PADDING = 6
+local TEXT_WIDTH = 220 -- POPUP_BG_WIDTH を 233 に保つ値 (POPUP_PADDING を変えたら合わせる)
 local POPUP_BORDER = colors.popup.border_width
 local POPUP_HEIGHT = colors.bracket.height - 2 * POPUP_BORDER -- 中身の高さ (偶数にする)
 -- Spotify の bracket とポップアップの間隔 (pt)
 local POPUP_GAP = 4
 
 -- サウンドビジュアライザ (棒グラフ)。cava の窓はポップアップの背景全体 (POPUP_BG_WIDTH x POPUP_BG_HEIGHT) と同じ位置と大きさで、
--- 背景、枠、棒グラフを描く。棒は余白の内側の全体 (文字の領域) に、上下 VIZ_MARGIN の余白を残して伸びて、
--- 曲名などの文字の後ろにも入る (文字は SketchyBar が窓の上に描く)。
+-- 背景、枠、棒グラフを描く。棒は、左右に VIZ_SIDE_MARGIN、上下に VIZ_MARGIN の余白 (枠の内側) を残して伸びて、
+-- 曲名などの文字の後ろにも入る (文字は SketchyBar が窓の上に描く)。文字の領域 (TEXT_WIDTH) より棒の領域のほうが広い。
 -- ポップアップの背景は、中身 (POPUP_HEIGHT の高さの帯) の左端から始まり、右と上下に枠の太さの分だけ広がる
 -- (左は広がらない。SketchyBar の popup.c の popup_calculate_bounds)。
--- 棒の領域の位置と大きさ (窓の左上から VIZ_LEFT, VIZ_Y, VIZ_WIDTH, VIZ_HEIGHT)、角の半径 (colors.popup)、
+-- 棒の領域の位置と大きさ (窓の左上から VIZ_BAR_LEFT, VIZ_Y, VIZ_WIDTH, VIZ_HEIGHT)、角の半径 (colors.popup)、
 -- 枠の太さは、pkgs/cavaviz/popup.frag の定数と同じ値にする。
 -- 設定 (棒の数、感度など) は modules/cavaviz.nix。ここでは窓の位置と大きさだけを決める。
 local VIZ_MARGIN = 4
 local POPUP_BG_WIDTH = 2 * POPUP_PADDING + TEXT_WIDTH + POPUP_BORDER -- 中身の幅 + 右の枠
 local POPUP_BG_HEIGHT = POPUP_HEIGHT + 2 * POPUP_BORDER
-local VIZ_LEFT = POPUP_PADDING
-local VIZ_WIDTH = TEXT_WIDTH
+local VIZ_SIDE_MARGIN = 6
+local VIZ_LEFT = POPUP_PADDING -- 窓の左端から、文字の領域 (spotify.viz の空き) の左端まで。窓の位置を空きから求めるのに使う
+local VIZ_BAR_LEFT = VIZ_SIDE_MARGIN
+local VIZ_WIDTH = POPUP_BG_WIDTH - VIZ_BAR_LEFT - POPUP_BORDER - VIZ_SIDE_MARGIN
 local VIZ_Y = VIZ_MARGIN
 local VIZ_HEIGHT = POPUP_BG_HEIGHT - 2 * VIZ_MARGIN
 local VIZ_APP = os.getenv("HOME") .. "/Applications/Home Manager Apps/CavaViz.app"
@@ -772,7 +774,7 @@ local function viz_slot()
 	return nil
 end
 
--- 窓の左上の位置 (ポップアップの背景の左上)。x は空き (棒の領域) の左端から VIZ_LEFT 戻った位置、
+-- 窓の左上の位置 (ポップアップの背景の左上)。x は空き (文字の領域) の左端から VIZ_LEFT 戻った位置、
 -- y は popup の縦の中央から POPUP_BG_HEIGHT の半分だけ上の位置。
 -- ポップアップは半ポイント位置に描かれることがある (中央揃えで、項目の位置が x.5 のとき) ので、丸めずに小数のまま渡す。
 local function viz_window_pos(rect)
