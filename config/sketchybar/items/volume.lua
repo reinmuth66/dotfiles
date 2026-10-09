@@ -46,9 +46,16 @@ local DEVICES = {
 	{ match = "ヘッドホン", glyph = HEADPHONES },
 }
 
--- 音量を 1 目盛りで変える量 (%)。ctrl を押している間は細かく変える
-local SCROLL_STEP = 10
+-- スクロールで音量を変える。トラックパッドは 1 回のスワイプで多数のイベントが出る (慣性スクロール含む) ので、
+-- イベントごとには変えず、スクロールの量 (delta) を足し合わせて、SCROLL_THRESHOLD に達するごとに
+-- 1 目盛り (SCROLL_STEP) だけ変える。調整するのは次の 3 つ:
+--   SCROLL_THRESHOLD: 1 目盛りに必要なスクロールの量。大きいほど鈍くなる
+--   SCROLL_STEP: 1 目盛りで変える音量 (%)。ctrl を押している間は SCROLL_STEP_FINE
+--   SCROLL_IDLE: この秒数スクロールが止まったら、足し合わせた量を捨てる (次の操作に持ち越さない)
+local SCROLL_THRESHOLD = 5
+local SCROLL_STEP = 5
 local SCROLL_STEP_FINE = 1
+local SCROLL_IDLE = 0.3
 
 local SETTINGS_URL = "x-apple.systempreferences:com.apple.Sound-Settings.extension"
 
@@ -128,13 +135,40 @@ end
 -- delta はスクロールの量 (向きは符号)。範囲外は osascript が収める。
 -- 音量を設定すると、同じ値でも mute が解除される (実機で確認)。トラックパッドの右クリック (2 本指) は、
 -- クリックの直前に量 0 のスクロールが届くと推測している (音量が変わらないまま mute だけ解除されていた) ので、
--- 量が 0 のときは何もしない。
+-- 目盛りに達するまでは音量を設定しない。
 -- 何もしないと、mute 中の右クリックが、スクロールで解除された後にクリックで mute し直してしまう。
+local scroll_sum = 0
+local scroll_generation = 0
+
 local function scroll(delta, fine)
-	local step = math.floor(delta * (fine and SCROLL_STEP_FINE or SCROLL_STEP) + 0.5)
-	if step == 0 then
+	delta = tonumber(delta)
+	if not delta or delta == 0 then
 		return
 	end
+
+	-- 向きが変わったら、逆向きの分は持ち越さない
+	if scroll_sum * delta < 0 then
+		scroll_sum = 0
+	end
+	scroll_sum = scroll_sum + delta
+
+	-- SCROLL_IDLE 秒の間、次のイベントが来なければ捨てる
+	scroll_generation = scroll_generation + 1
+	local generation = scroll_generation
+	sbar.delay(SCROLL_IDLE, function()
+		if generation == scroll_generation then
+			scroll_sum = 0
+		end
+	end)
+
+	local ticks = math.floor(math.abs(scroll_sum) / SCROLL_THRESHOLD)
+	if ticks == 0 then
+		return
+	end
+	local sign = scroll_sum > 0 and 1 or -1
+	scroll_sum = scroll_sum - sign * ticks * SCROLL_THRESHOLD
+
+	local step = sign * ticks * (fine and SCROLL_STEP_FINE or SCROLL_STEP)
 	sbar.exec(
 		string.format("osascript -e 'set volume output volume ((output volume of (get volume settings)) + (%d))'", step),
 		update
