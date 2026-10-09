@@ -41,6 +41,7 @@ let
   clockHelper = mkHelper "clock";
   systemHelper = mkHelper "system";
   btmWindow = pkgs.callPackage ../pkgs/btm-window { };
+  mediaKey = pkgs.callPackage ../pkgs/media-key { };
 in
 {
   programs.sketchybar = {
@@ -57,7 +58,7 @@ in
     };
 
     sbarLuaPackage = pkgs.sbarlua;
-    extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick pkgs.switchaudio-osx btmWindow ]; # imagemagick: spotify の色の抽出、switchaudio-osx: volume item の出力先、btmWindow: system item の btm の窓
+    extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick pkgs.switchaudio-osx btmWindow mediaKey ]; # imagemagick: spotify の色の抽出、switchaudio-osx: volume item の出力先、btmWindow: system item の btm の窓、mediaKey: volume item のスクロールで標準の音量ポップアップを出す
   };
 
   launchd.agents.sketchybar-clock-helper = mkHelperAgent "clock" clockHelper;

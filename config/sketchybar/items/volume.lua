@@ -48,13 +48,11 @@ local DEVICES = {
 
 -- スクロールで音量を変える。トラックパッドは 1 回のスワイプで多数のイベントが出る (慣性スクロール含む) ので、
 -- イベントごとには変えず、スクロールの量 (delta) を足し合わせて、SCROLL_THRESHOLD に達するごとに
--- 1 目盛り (SCROLL_STEP) だけ変える。調整するのは次の 3 つ:
---   SCROLL_THRESHOLD: 1 目盛りに必要なスクロールの量。大きいほど鈍くなる
---   SCROLL_STEP: 1 目盛りで変える音量 (%)。ctrl を押している間は SCROLL_STEP_FINE
+-- 音量キー 1 回分だけ変える。音量キーを合成して送る (media-key, pkgs/media-key) ので、標準の音量ポップアップが出る。
+-- 音量キー 1 回は音量の 1/16 (約 6%)、ctrl を押している間 (fine) は 1/64 (約 1.6%)。調整するのは次の 2 つ:
+--   SCROLL_THRESHOLD: 音量キー 1 回に必要なスクロールの量。大きいほど鈍くなる
 --   SCROLL_IDLE: この秒数スクロールが止まったら、足し合わせた量を捨てる (次の操作に持ち越さない)
 local SCROLL_THRESHOLD = 5
-local SCROLL_STEP = 5
-local SCROLL_STEP_FINE = 1
 local SCROLL_IDLE = 0.3
 
 local SETTINGS_URL = "x-apple.systempreferences:com.apple.Sound-Settings.extension"
@@ -128,11 +126,12 @@ end
 volume:subscribe({ "volume_change", "system_woke", "routine", "forced" }, update)
 update()
 
+-- mute キーを合成して送る (スクロールと同じく、標準のポップアップが出る)
 local function toggle_mute()
-	sbar.exec("osascript -e 'set volume output muted not (output muted of (get volume settings))'", update)
+	sbar.exec("media-key mute", update)
 end
 
--- delta はスクロールの量 (向きは符号)。範囲外は osascript が収める。
+-- delta はスクロールの量 (向きは符号)。範囲外は OS が収める。
 -- 音量を設定すると、同じ値でも mute が解除される (実機で確認)。トラックパッドの右クリック (2 本指) は、
 -- クリックの直前に量 0 のスクロールが届くと推測している (音量が変わらないまま mute だけ解除されていた) ので、
 -- 目盛りに達するまでは音量を設定しない。
@@ -168,11 +167,7 @@ local function scroll(delta, fine)
 	local sign = scroll_sum > 0 and 1 or -1
 	scroll_sum = scroll_sum - sign * ticks * SCROLL_THRESHOLD
 
-	local step = sign * ticks * (fine and SCROLL_STEP_FINE or SCROLL_STEP)
-	sbar.exec(
-		string.format("osascript -e 'set volume output volume ((output volume of (get volume settings)) + (%d))'", step),
-		update
-	)
+	sbar.exec(string.format("media-key %s %d%s", sign > 0 and "up" or "down", ticks, fine and " fine" or ""), update)
 end
 
 -- bracket と、クリックを受ける領域は、items/network.lua が作る (Wi-Fi、Bluetooth とまとめて 1 つの bracket にする)
