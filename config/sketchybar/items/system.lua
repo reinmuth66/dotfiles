@@ -207,7 +207,7 @@ hit:subscribe("mouse.entered", function()
 end)
 
 -- 右クリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない。
--- もう一度右クリックすると外す。ピン留め中は bracket の枠線が白くなる (spotify.lua と同じ)。
+-- もう一度右クリックすると外す。ピン留め中は bracket の枠線が colors.bracket.pinned_border_color になる (spotify.lua と同じ)。
 local pinned = false
 
 -- ピン留めの状態を変え、bracket の枠線の色で示す
@@ -232,7 +232,7 @@ local TOGGLE_BTM_COMMAND = "pkill -USR1 -x btm-window || { nohup btm-window >/de
 -- btm の窓の状態を、bracket の中の pill (gear の背景) の色で示す。bracket の背景は変えない。
 --   最前面: aerospace の workspace (items/aerospace.lua の highlight) と同じく色を反転する。
 --           pill を colors.space.bg_focused に、アイコンを colors.space.fg_focused にする。
---   起動中だが最前面ではない: pill を反転の色を薄くした色 (colors.space.bg_inactive) に、アイコンを colors.space.fg_focused にする。
+--   起動中だが最前面ではない: pill を colors.dim に、アイコンを colors.space.fg_focused にする。
 --   起動していない: pill は描かず、アイコンは普段の色。
 -- 窓が最前面になる・外れる・閉じるのは、どれも front_app_switched (INFO は前面になったアプリ名) で分かる。
 -- 最前面でないときだけ、起動しているかを pgrep で調べる。
@@ -241,7 +241,7 @@ local BTM_APP_NAME = "btm-window"
 local function set_btm_state(state)
 	local pill_color = {
 		front = colors.space.bg_focused,
-		background = colors.space.bg_inactive,
+		background = colors.dim,
 	}
 	local color = pill_color[state]
 	gear:set({

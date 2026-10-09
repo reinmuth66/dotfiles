@@ -564,12 +564,12 @@ end
 
 local fading_out = false -- 閉じるアニメーションの途中 (close_popup が重ねて呼ばれても、やり直さない)
 -- 右クリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない (close_popup)。
--- もう一度右クリックすると外す。ピン留め中は bracket の枠線が白くなる。曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
+-- もう一度右クリックすると外す。ピン留め中は bracket の枠線が colors.bracket.pinned_border_color になる。曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
 local pinned = false
 
 -- Spotify が最前面のとき、bracket の枠線を太く明るくして、画像の周りにリングを作る (items/system.lua の pill と同じ配色)。
 -- bracket の背景は黒のままなので、リングと画像の間には、黒い隙間 (BRACKET_PADDING - RING_WIDTH) ができる。
--- ピン留めの白い枠線とは同じ枠線を使うので、両方のときは白 (ピン留めの色) にする。太さはリングのときだけ変える。
+-- ピン留めの枠線とは同じ枠線を使うので、両方のときはピン留めの色にする (今はリングと同じ色)。太さはリングのときだけ変える。
 local RING_COLOR = colors.space.bg_focused
 local RING_WIDTH = 3
 local ring_active = false
