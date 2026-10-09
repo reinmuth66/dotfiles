@@ -6,8 +6,7 @@
 # Swift の処理系は、nixpkgs のものではなく macOS 標準の /usr/bin/swiftc (Xcode Command Line Tools) を使う
 # (pkgs/btm-window と同じ。Nix のサンドボックスが無効 (sandbox = false) なので、ビルド中でも使える)。
 stdenvNoCC.mkDerivation {
-  pname = "media-key";
-  version = "0";
+  name = "media-key";
 
   dontUnpack = true;
   # darwin の fixup は Mach-O を署名し直す。swiftc (ld) が付けた ad-hoc 署名のままでよい
