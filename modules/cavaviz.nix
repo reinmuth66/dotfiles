@@ -15,11 +15,6 @@ let
   # 必要なシェーダーが揃っていれば、cava は設定ディレクトリに何も書き込まない
   # (読み取り専用のストアでも動く。実機で確認済み)。
   shaders = "${pkgs.cava.src}/output/shaders";
-  configHome = pkgs.runCommand "cavaviz-config-home" { } ''
-    mkdir -p $out/cava/shaders
-    cp ${shaders}/pass_through.vert $out/cava/shaders/pass_through.vert
-    cp ${../pkgs/cavaviz/popup.frag} $out/cava/shaders/popup.frag
-  '';
 
   # sdl_x / sdl_y はポップアップを開くたびに変わるので、@X@ などのまま置いておき (幅と高さも @W@ @H@ にして、
   # 大きさは spotify.lua の POPUP_BG_WIDTH / POPUP_BG_HEIGHT に合わせる)、
@@ -80,6 +75,7 @@ in
 {
   home.packages = [ cavaviz ];
 
-  xdg.configFile."cavaviz/cava".source = "${configHome}/cava";
+  xdg.configFile."cavaviz/cava/shaders/pass_through.vert".source = "${shaders}/pass_through.vert";
+  xdg.configFile."cavaviz/cava/shaders/popup.frag".source = ../pkgs/cavaviz/popup.frag;
   xdg.configFile."cavaviz/config.template".text = lib.generators.toINI { } settings;
 }
