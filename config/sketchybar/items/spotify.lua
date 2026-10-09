@@ -558,10 +558,29 @@ local fading_out = false -- 閉じるアニメーションの途中 (close_popup
 local pinned = false
 local PINNED_BORDER_COLOR = 0xffffffff -- ピン留め中の bracket の枠線の色 (普段は colors.bracket.border_color)
 
+-- Spotify が最前面のとき、bracket の枠線を太く明るくして、画像の周りにリングを作る (items/system.lua の pill と同じ配色)。
+-- bracket の背景は黒のままなので、リングと画像の間には、黒い隙間 (BRACKET_PADDING - RING_WIDTH) ができる。
+-- ピン留めの白い枠線とは同じ枠線を使うので、両方のときは白 (ピン留めの色) にする。太さはリングのときだけ変える。
+local RING_COLOR = colors.space.bg_focused
+local RING_WIDTH = 3
+local ring_active = false
+
+local function update_border()
+	local color = colors.bracket.border_color
+	if pinned then
+		color = PINNED_BORDER_COLOR
+	elseif ring_active then
+		color = RING_COLOR
+	end
+	bracket:set({
+		background = { border_color = color, border_width = ring_active and RING_WIDTH or colors.bracket.border_width },
+	})
+end
+
 -- ピン留めの状態を変え、bracket の枠線の色で示す
 local function set_pinned(value)
 	pinned = value
-	bracket:set({ background = { border_color = value and PINNED_BORDER_COLOR or colors.bracket.border_color } })
+	update_border()
 end
 
 -- ポップアップを開く。ホバーの瞬間にアニメーションを始め、実際の位置は取得できしだい、アニメーションなしで合わせる
@@ -998,8 +1017,19 @@ end
 -- 画像は取得できてから出す (取得前に切り替えると、画像のない覆いだけが見えてしまう)。
 local showing_art = false
 
+-- Spotify が最前面かどうかは front_app_switched (INFO は前面になったアプリ名) で分かる。リングの描き方は update_border を参照。
+-- アイコンを出している間 (未起動・停止中) は、リングにしない (アイコンの見た目は変えない)。
+local SPOTIFY_APP_NAME = "Spotify"
+local spotify_front = false
+
+local function update_ring()
+	ring_active = spotify_front and showing_art
+	update_border()
+end
+
 local function show_art()
 	showing_art = true
+	update_ring()
 	spotify:set({
 		icon = { drawing = false },
 		label = { drawing = true },
@@ -1009,6 +1039,7 @@ end
 
 local function show_icon()
 	showing_art = false
+	update_ring()
 	set_pinned(false)
 	popup_open = false
 	viz_stop()
@@ -1256,6 +1287,11 @@ spotify:subscribe("spotify_change", function(env)
 		artist = info["Artist"],
 		album = info["Album"],
 	}, timing)
+end)
+
+spotify:subscribe("front_app_switched", function(env)
+	spotify_front = env.INFO == SPOTIFY_APP_NAME
+	update_ring()
 end)
 
 -- Spotify の終了は通知が来るとは限らないので、画像を出している間だけ、起動中かを定期的に確認する。
