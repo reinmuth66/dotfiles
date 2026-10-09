@@ -57,7 +57,7 @@ in
     };
 
     sbarLuaPackage = pkgs.sbarlua;
-    extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick btmWindow ]; # imagemagick: spotify の色の抽出、btmWindow: system item の btm の窓
+    extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick pkgs.switchaudio-osx btmWindow ]; # imagemagick: spotify の色の抽出、switchaudio-osx: volume item の出力先、btmWindow: system item の btm の窓
   };
 
   launchd.agents.sketchybar-clock-helper = mkHelperAgent "clock" clockHelper;

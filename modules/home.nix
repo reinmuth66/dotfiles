@@ -52,6 +52,7 @@
     ripgrep
     sd
     sketchybar-app-font
+    switchaudio-osx
     texlab
   ];
 
