@@ -9,8 +9,9 @@ local popup_state = require("popup_state")
 -- 数字は bottom (btm。pkgs/btm-window が表示する) と同じ値・同じ書式にしてある (値の測り方は helper/system.c)。
 
 -- アイコンのサイズ (pt)。sketchybar-app-font の :activity_monitor: は、字面がほぼ一辺 SIZE の正方形になる
--- (CoreText で実測。20pt で 19.96 x 19.24)。箱の幅も SIZE にする。フォントやサイズを変えたら再測定が必要。
-local SIZE = 20
+-- (CoreText の CTLineGetImageBounds で実測。幅は SIZE x 0.998、高さは SIZE x 0.962。20pt で 19.96 x 19.24、16pt で 15.97 x 15.39)。
+-- pill (PILL_SIZE = 24) の縁とアイコンの隙間が約 4 pt になる 16。フォントやサイズを変えたら再測定が必要。
+local SIZE = 16
 
 -- ポップアップの高さ (pt)。バー (ui.bar_height) の中に収める。
 local POPUP_HEIGHT = 32
@@ -34,29 +35,39 @@ ui.add_notch_spacer("e", "system.notch_gap")
 -- bracket は円にする。幅を高さ (colors.bracket.height) と同じにし、角の半径は短辺の半分にする。
 -- 円の中にアイコンが同心で収まるよう、アイコンの左右に余白 (ICON_PADDING) を取る。
 local BRACKET_WIDTH = colors.bracket.height
-local ICON_PADDING = (BRACKET_WIDTH - SIZE) / 2
+-- pill (btm の窓の状態を示す円の背景。BTM_BACKGROUND_COLOR の付近を参照) は、bracket の円と同心にして、
+-- 縁との隙間を上下左右とも PILL_MARGIN にする (aerospace の pill、spotify の画像と同じ 5 pt)。
+local PILL_MARGIN = 5
+local PILL_SIZE = BRACKET_WIDTH - 2 * PILL_MARGIN
+local ICON_PADDING = (PILL_SIZE - SIZE) / 2
 
 -- item の width は指定しない。width を指定した item の後は、配置が width の分しか進まず、bracket の padding が
 -- 数えられないので、隣の item が padding の分だけ重なる (ui.add_hit_layer の説明)。幅は icon.width で決める。
--- 余白は item の padding ではなく icon の padding にして、item の幅を bracket の幅 (円の直径) と同じにする。
--- ポップアップは item の端にそろう (align = "right" は item の右端) ので、item が bracket より狭いと、
--- ポップアップの右端が円の端からずれる。icon.width は padding を含む箱の全幅 (spotify.lua)。
+-- item の背景 (pill) は icon.width の箱と同じ大きさ (PILL_SIZE) になり、bracket の範囲との隙間は item の padding
+-- (PILL_MARGIN。ui.add_bracket の padding で設定する) で作る。item の幅 + padding は bracket の幅 (円の直径) と同じ。
+-- icon.width は padding を含む箱の全幅 (spotify.lua)。
 local gear = ui.add_item("system", "e", {
 	icon = {
 		string = ":activity_monitor:",
 		font = "sketchybar-app-font:Regular:" .. SIZE .. ".0",
-		width = BRACKET_WIDTH,
+		width = PILL_SIZE,
 		-- 字面は箱の左端 + padding_left から描かれる (spotify.lua)。字面は幅 19.96 なので、円の中心より 0.02 pt 左に寄るだけ。
 		align = "left",
 		padding_left = ICON_PADDING,
 		padding_right = 0,
 	},
 	label = { drawing = false },
+	-- pill。普段は描かない (set_btm_state で色を変える)
+	background = {
+		drawing = false,
+		height = PILL_SIZE,
+		corner_radius = PILL_SIZE / 2,
+	},
 })
 
 local bracket = ui.add_bracket("system.bracket", { gear }, {
 	background = { corner_radius = colors.bracket.height / 2 },
-}, 0)
+}, PILL_MARGIN)
 
 -- bracket 全体でマウス操作を受ける (ui.add_hit_layer_over)。item の幅は自動なので、配置が進む幅 (chain) は
 -- bracket の幅と同じ
@@ -221,6 +232,47 @@ end)
 -- btm の窓 (pkgs/btm-window) の開閉。起動中なら SIGUSR1 を送り、窓が最前面なら閉じ、そうでなければ前に出させる。
 -- 起動していなければ起動する。窓は AeroSpace の管理外で、今の workspace の上に重なる (workspace は切り替わらない)。
 local TOGGLE_BTM_COMMAND = "pkill -USR1 -x btm-window || { nohup btm-window >/dev/null 2>&1 & }"
+
+-- btm の窓の状態を、bracket の中の pill (gear の背景) の色で示す。bracket の背景は変えない。
+--   最前面: aerospace の workspace (items/aerospace.lua の highlight) と同じく色を反転する。
+--           pill を colors.space.bg_focused に、アイコンを colors.space.fg_focused にする。
+--   起動中だが最前面ではない: pill を反転の色を薄くした色 (BTM_BACKGROUND_COLOR) に、アイコンを colors.space.fg_focused にする。
+--   起動していない: pill は描かず、アイコンは普段の色。
+-- 窓が最前面になる・外れる・閉じるのは、どれも front_app_switched (INFO は前面になったアプリ名) で分かる。
+-- 最前面でないときだけ、起動しているかを pgrep で調べる。
+local BTM_APP_NAME = "btm-window"
+local BTM_BACKGROUND_COLOR = 0x44dddddd -- 起動中だが最前面ではない窓の、pill の色
+
+local function set_btm_state(state)
+	local pill_color = {
+		front = colors.space.bg_focused,
+		background = BTM_BACKGROUND_COLOR,
+	}
+	local color = pill_color[state]
+	gear:set({
+		icon = { color = color and colors.space.fg_focused or colors.white },
+		background = { drawing = color ~= nil, color = color },
+	})
+end
+
+-- 古い問い合わせの結果が、新しい状態を上書きしないよう、最後の問い合わせだけ反映する
+local btm_query_id = 0
+
+gear:subscribe("front_app_switched", function(env)
+	btm_query_id = btm_query_id + 1
+	local id = btm_query_id
+	if env.INFO == BTM_APP_NAME then
+		set_btm_state("front")
+		return
+	end
+	-- 窓が閉じた直後は、プロセスが終わりきる前に pgrep が走らないよう、少し待つ
+	sbar.exec("sleep 0.3; pgrep -x " .. BTM_APP_NAME, function(output)
+		if id ~= btm_query_id then
+			return
+		end
+		set_btm_state((output or ""):match("%d") and "background" or "none")
+	end)
+end)
 
 hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
