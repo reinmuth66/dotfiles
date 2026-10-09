@@ -35,10 +35,9 @@ ui.add_notch_spacer("q", "system.notch_gap")
 -- 円の中にアイコンが同心で収まるよう、アイコンの左右に余白 (ICON_PADDING) を取る。
 -- pill (btm の窓の状態を示す円の背景。set_btm_state の付近を参照) は、bracket と同心にして、
 -- 縁との隙間を上下 PILL_MARGIN にする (aerospace の pill、spotify の画像と同じ 5 pt)。
--- 左右は SIDE_EXTRA だけ広げる (幅は高さより 2 * SIDE_EXTRA 広く、横長の丸みになる)。
+-- 左右も同じ隙間にして、bracket の幅を高さと同じにする (円になる。spotify の bracket と同じ)。
 local PILL_MARGIN = 5
-local SIDE_EXTRA = 1
-local SIDE_MARGIN = PILL_MARGIN + SIDE_EXTRA
+local SIDE_MARGIN = PILL_MARGIN
 local PILL_SIZE = colors.bracket.height - 2 * PILL_MARGIN
 local BRACKET_WIDTH = PILL_SIZE + 2 * SIDE_MARGIN
 local ICON_PADDING = (PILL_SIZE - SIZE) / 2
