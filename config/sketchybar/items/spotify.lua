@@ -377,19 +377,21 @@ end
 
 -- 長い文字列は、size (pt) の文字が TEXT_WIDTH に収まる所で切って "..." を付ける
 -- (utf8.len が nil なら不正なバイト列なのでそのまま使う)
+-- 大きさが基準 (EM_REF_SIZE) と違う分の、間隔の変化の補正 (size が小さいほど、1em あたりの幅が広い) は、半角だけにかける。
+-- 全角は大きさによらず一律 EM_WIDE (8pt と 12pt で CoreText が測った値が同じ)。
 local function truncate(text, size)
 	if utf8.len(text) == nil then
 		return text
 	end
-	-- 大きさが基準 (EM_REF_SIZE) と違う分の、間隔の変化を補正する (size が小さいほど、1em あたりの幅が広い)
-	local limit = (TEXT_WIDTH - TEXT_MARGIN) / size / (1 + EM_PER_PT * (EM_REF_SIZE - size))
+	local spacing = 1 + EM_PER_PT * (EM_REF_SIZE - size)
+	local limit = (TEXT_WIDTH - TEXT_MARGIN) / size
 	local total = 0
 	local cut = 1 -- "..." を付けても収まる、最後の切れ目 (バイト位置)
 	for pos, code in utf8.codes(text) do
-		if total + EM_ELLIPSIS <= limit then
+		if total + EM_ELLIPSIS * spacing <= limit then
 			cut = pos
 		end
-		total = total + char_em(code)
+		total = total + char_em(code) * (code >= 0x2E80 and 1 or spacing)
 	end
 	if total <= limit then
 		return text
