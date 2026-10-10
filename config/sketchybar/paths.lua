@@ -1,7 +1,7 @@
--- 複数の item が使うパス。
+-- Paths used by multiple items.
 local home = os.getenv("HOME")
 
--- cache の下には、item ごとにサブディレクトリを作る。
+-- Under cache, create a subdirectory for each item.
 return {
 	home = home,
 	cache = home .. "/Library/Caches/sketchybar",

@@ -1,12 +1,12 @@
 { stdenvNoCC }:
 
-# 音量と mute のメディアキーを合成して送る小さなコマンドで、実体は main.swift。sketchybar の volume item のスクロールが使う。
-# OS が音量キーとして処理するので、標準の音量ポップアップが出る。osascript の set volume では出ない。
+# A small command that synthesizes and sends media keys for volume and mute; the implementation is main.swift. Used by scrolling on sketchybar's volume item.
+# The OS handles it as a volume key, so the standard volume popup appears. It does not appear with osascript's set volume.
 #
-# Swift の処理系は、nixpkgs のものではなく macOS 標準の /usr/bin/swiftc を使う。Xcode Command Line Tools のもの。
-# pkgs/btm-window と同じ。Nix のサンドボックスが無効、つまり sandbox = false なので、ビルド中でも使える。
+# For the Swift toolchain, use macOS's standard /usr/bin/swiftc, from the Xcode Command Line Tools, not nixpkgs's.
+# Same as pkgs/btm-window. The Nix sandbox is disabled, i.e. sandbox = false, so it can be used during the build.
 #
-# darwin の fixup は Mach-O を署名し直す。swiftc の ld が付けた ad-hoc 署名のままでよいので、dontFixup にする。
+# Darwin's fixup re-signs Mach-O. The ad-hoc signature that swiftc's ld applied is fine as it is, so use dontFixup.
 stdenvNoCC.mkDerivation {
   name = "media-key";
 

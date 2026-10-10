@@ -4,38 +4,38 @@
   bottom,
 }:
 
-# sketchybar の system item から開く、btm の窓。btm は bottom。SwiftTerm の端末ビューに btm を載せて表示する。
-# wezterm で開くより、起動が速く、約 730ms から約 210ms になり、メモリが小さく、約 350MB から約 150MB になる。
-# 見た目は config/wezterm/wezterm.lua と揃えてある。値は main.swift の Style。
+# The btm window opened from sketchybar's system item. btm is bottom. It shows btm in a SwiftTerm terminal view.
+# Compared with opening in wezterm, startup is faster (about 730ms to about 210ms) and memory is smaller (about 350MB to about 150MB).
+# The appearance matches config/wezterm/wezterm.lua. The values are in Style in main.swift.
 #
-# - SwiftTerm は Package.swift が swift-argument-parser などに依存するが、macOS の本体の Sources/SwiftTerm には不要なので、
-#   SwiftPM を通さず swiftc で直接ビルドする。ビルド情報の生成は、SwiftTermBuildInfoPlugin の代わりに、
-#   同梱の生成ツールを自分でビルドして実行する。
-# - SwiftTerm のビルドは 1 分以上かかる。最適化が 1 コアで走り、その間ログも出ない。
-#   main.swift を変えるたびにやり直さないよう、SwiftTerm は別の derivation の swiftterm-lib にして、
-#   数秒のアプリ本体と分けている。SwiftTerm の rev を変えたとき以外は、swiftterm-lib は再ビルドされない。
-# - Swift の処理系は、nixpkgs のものではなく macOS 標準の /usr/bin/swiftc を使う。Xcode Command Line Tools のもの。
-#   Nix のサンドボックスが無効、つまり sandbox = false なので、ビルド中でも使える。pkgs/cavaviz の codesign と同じ。
-#   サンドボックスを有効にすると、このビルドは失敗する。
-#   stdenv が設定する SDKROOT などは外し、swiftc に標準の SDK を選ばせる。
-# - btm の場所はビルド時に bottom のパスへ置き換える。btm の設定の ~/.config/bottom は btm 自身が読む。modules/bottom.nix を参照。
+# - SwiftTerm's Package.swift depends on swift-argument-parser and others, but they are not needed for macOS's main Sources/SwiftTerm,
+#   so build directly with swiftc without going through SwiftPM. Build info is generated, instead of by SwiftTermBuildInfoPlugin,
+#   by building and running the bundled generator tool ourselves.
+# - Building SwiftTerm takes more than a minute. Optimization runs on one core and no log is output in the meantime.
+#   So that it is not redone every time main.swift changes, SwiftTerm is a separate derivation, swiftterm-lib,
+#   split from the app itself, which takes a few seconds. swiftterm-lib is not rebuilt except when SwiftTerm's rev changes.
+# - The Swift toolchain is macOS's standard /usr/bin/swiftc, from the Xcode Command Line Tools, not nixpkgs's.
+#   Because the Nix sandbox is disabled (sandbox = false), it can be used during the build. Same as codesign in pkgs/cavaviz.
+#   With the sandbox enabled, this build would fail.
+#   Remove SDKROOT and the like that stdenv sets, and let swiftc choose the standard SDK.
+# - The location of btm is replaced with bottom's path at build time. btm's config in ~/.config/bottom is read by btm itself. See modules/bottom.nix.
 let
   swiftterm = fetchFromGitHub {
     owner = "migueldeicaza";
     repo = "SwiftTerm";
-    rev = "15fed4fd7ca7b0a8c77dd380412b18a5ce8600b5"; # 2026-10-05 のコミット
+    rev = "15fed4fd7ca7b0a8c77dd380412b18a5ce8600b5"; # commit of 2026-10-05
     hash = "sha256-kaWDZDRfgcSNC7oOu/b94WhXyuORdNFGuwX1LXwoxlo=";
   };
 
-  # 2 つのビルドで共通の準備。stdenv の設定を外し、swiftc に標準の SDK を選ばせる
+  # Preparation common to both builds. Remove stdenv's settings and let swiftc choose the standard SDK
   swiftEnv = ''
     unset SDKROOT DEVELOPER_DIR NIX_CFLAGS_COMPILE NIX_LDFLAGS NIX_CFLAGS_LINK
     export HOME=$TMPDIR
     swiftc="/usr/bin/swiftc -module-cache-path $TMPDIR/swift-module-cache"
   '';
 
-  # SwiftTerm 本体を、静的ライブラリの libSwiftTerm.a と、Swift のモジュールの SwiftTerm.swiftmodule にする。
-  # 先に、ビルド情報、つまり git の情報と terminfo の表を生成する。ソースは git の管理外なので、コミットは環境変数で渡す。
+  # Make SwiftTerm itself into the static library libSwiftTerm.a and the Swift module SwiftTerm.swiftmodule.
+  # First generate the build info, i.e. git info and the terminfo table. The source is outside git's management, so the commit is passed via an environment variable.
   swifttermLib = stdenvNoCC.mkDerivation {
     name = "swiftterm-lib";
 
@@ -64,7 +64,7 @@ let
     '';
   };
 in
-# darwin の fixup は Mach-O を署名し直す。swiftc の ld が付けた ad-hoc 署名のままでよいので、dontFixup にする。
+# Darwin's fixup re-signs Mach-O. The ad-hoc signature that swiftc's ld applied is fine as it is, so use dontFixup.
 stdenvNoCC.mkDerivation {
   name = "btm-window";
 

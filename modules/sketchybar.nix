@@ -51,10 +51,10 @@ in
     extraPackages = [
       pkgs.aerospace
       pkgs.macism
-      pkgs.imagemagick # spotify: 色の抽出、wallpaper: サムネイルの作成
-      pkgs.switchaudio-osx # volume item の出力先
-      btmWindow # system item の btm の窓
-      mediaKey # volume item のスクロールで標準の音量ポップアップを出す
+      pkgs.imagemagick # spotify: color extraction, wallpaper: thumbnail creation
+      pkgs.switchaudio-osx # output destination of the volume item
+      btmWindow # the btm window of the system item
+      mediaKey # shows the standard volume popup when scrolling on the volume item
     ];
   };
 

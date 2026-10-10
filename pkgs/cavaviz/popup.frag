@@ -1,11 +1,11 @@
 #version 330
 
-// Spotify のポップアップの背景、枠、棒グラフを描く。cava の SDL 版のシェーダーで、modules/cavaviz.nix を参照。
-// 窓は SketchyBar のポップアップの背景と同じ位置と大きさで、ポップアップの下に置く。ポップアップの下は sdl-window.patch で window level 100。
-// ポップアップの背景は、中身の左端から始まり、右と上下に枠の太さの分だけ広い。
-// ポップアップの背景は透明にしてあり、文字は、SketchyBar がこの窓の上に描く。
-// 窓のうち、角の外は透明でアルファ 0。窓は premultiplied alpha で合成されるので、色にもアルファを掛ける。
-// 再生済みと未再生の 2 色の明るさは config/sketchybar/palette.lua が決める。
+// Draws the Spotify popup's background, border, and bar graph. A shader for the SDL version of cava; see modules/cavaviz.nix.
+// The window has the same position and size as the SketchyBar popup's background, and is placed under the popup. Under the popup is window level 100 via sdl-window.patch.
+// The popup's background starts from the contents' left edge and is wider by the border thickness on the right, top, and bottom.
+// The popup's background is made transparent, and SketchyBar draws the text over this window.
+// Outside the corners, the window is transparent with alpha 0. The window is composited with premultiplied alpha, so multiply the color by alpha too.
+// The brightness of the two colors, played and unplayed, is decided by config/sketchybar/palette.lua.
 
 in vec2 fragCoord;
 out vec4 fragColor;
@@ -14,33 +14,33 @@ uniform float bars[512];
 uniform int bars_count;
 uniform int bar_spacing; // pt
 
-// 描画面は Retina で 2 倍の px。
+// The drawing surface is 2x px on Retina.
 uniform vec3 u_resolution; // pt
 
-// 再生位置の 0〜1。sdl-progress.patch が、$CAVAVIZ_PROGRESS のファイルから渡す。
+// Playback position 0 to 1. sdl-progress.patch passes it from the file at $CAVAVIZ_PROGRESS.
 uniform float viz_progress;
 
-// 色は、設定のグラデーションの色の gradient_color_1〜4 で受け取る。foreground と background は動いている間に変えられず、
-// グラデーションの色だけが SIGUSR2 で読み直されるため。
-// 添字は 0 が未再生の棒、1 が背景、2 が枠、3 が再生済みの棒。
+// Colors are received as the config's gradient colors gradient_color_1 to 4. foreground and background cannot be changed while running,
+// and only the gradient colors are re-read on SIGUSR2.
+// Index 0 is the unplayed bar, 1 is the background, 2 is the border, 3 is the played bar.
 uniform vec3 gradient_colors[8];
 
-// 窓の左上を原点とする、下向きが正の値で、単位は pt。config/sketchybar/items/spotify.lua の VIZ_* と、
-// config/sketchybar/colors.lua の popup の角の半径と枠の太さに合わせる。
-// VIZ は棒グラフの領域で、x, y, 幅, 高さの順。BORDER は図形の内側に引く。
-// MIN_BAR の単位は pt。曲の静かな部分でも、棒の色で再生位置が見えるようにする。
+// Values with the window's top-left as origin and downward positive, in pt. Match VIZ_* in config/sketchybar/items/spotify.lua and
+// the popup's corner radius and border thickness in config/sketchybar/colors.lua.
+// VIZ is the bar graph's area, in the order x, y, width, height. BORDER is drawn inside the shape.
+// The unit of MIN_BAR is pt. It lets the playback position be seen by bar color even in quiet parts of a track.
 const vec4 VIZ = vec4(6.0, 4.0, 222.0, 26.0);
 const float RADIUS = 5.0;
 const float BORDER = 1.0;
 const float MIN_BAR = 2.0;
 
-// 画面の 1px が何 pt かを px に取る。Retina なら 0.5。縁は、この幅でぼかす。
-// 角丸の長方形の距離を求める。内側が負。角と枠を滑らかにする。
-// 棒グラフは、領域の左下を原点にして、上向きを正にする。
-// 最初の棒の左端と最後の棒の右端が、領域の両端に合うように並べる。端数が出るので、左右の縁もぼかす。
-// 無音でも MIN_BAR の高さは描く。再生位置を、棒の色で示すため。上端はぼかす。
-// 棒の途中でも再生済みに切り替わる。境界は 1px でぼかす。
-// 棒は不透明で描く。未再生と再生済みの色は、背景と文字に対する明るさを palette.lua が決めている。
+// How many pt one screen px is. 0.5 on Retina. Edges are blurred by this width.
+// Compute the distance of a rounded rectangle. Negative inside. Smooths the corners and border.
+// The bar graph takes the area's bottom-left as origin and upward as positive.
+// Lay out so that the first bar's left edge and the last bar's right edge meet the two ends of the area. Fractions arise, so the left and right edges are also blurred.
+// Even in silence, draw the MIN_BAR height. To indicate the playback position by bar color. The top edge is blurred.
+// It switches to played partway through a bar. The boundary is blurred by 1px.
+// Bars are drawn opaque. palette.lua decides the brightness of the unplayed and played colors relative to the background and text.
 void main() {
     vec2 size = u_resolution.xy;
     vec2 p = vec2(fragCoord.x, 1.0 - fragCoord.y) * size;

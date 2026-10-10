@@ -1,5 +1,5 @@
--- 無彩色の色は ARGB でここにまとめる。
--- Spotify のポップアップの配色は palette.lua がアルバム画像から決める。colors.popup は決められないときの既定。
+-- Achromatic colors are collected here as ARGB.
+-- The Spotify popup colors are derived from the album art by palette.lua. colors.popup is the default used when they cannot be determined.
 local black = 0xff000000
 local white = 0xffffffff
 local light_gray = 0xffdddddd
@@ -9,7 +9,7 @@ return {
 	white = white,
 	transparent = 0x00000000,
 	dim = dim,
-	pinned_border = light_gray, -- space.bg_focused と同じ
+	pinned_border = light_gray, -- same as space.bg_focused
 
 	space = {
 		fg = dim,
@@ -25,8 +25,8 @@ return {
 		height = 34,
 	},
 
-	-- 壁紙のポップアップは、この色のまま使う。
-	-- 背景と枠は透過させない。枠は colors.bracket.border_color の 0x44ffffff を、黒に重ねた色にしてある。
+	-- The wallpaper popup uses this color as is.
+	-- The background and border are not made transparent. The border is colors.bracket.border_color (0x44ffffff) composited over black.
 	popup = {
 		border_width = 1,
 		corner_radius = 5,

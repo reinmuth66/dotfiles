@@ -1,19 +1,19 @@
--- item / bracket / spacer を追加するための薄いヘルパー。
--- 位置指定や余白の書き方をそろえ、各 item の定義から定型文を減らす。
+-- Thin helpers for adding items / brackets / spacers.
+-- They unify how position and padding are written and reduce boilerplate in each item's definition.
 
 local colors = require("colors")
 
 local M = {}
 
--- bracket の範囲は中の item の padding を含むため、
--- 何も挟まないと隣の bracket と背景が接してしまう。
+-- A bracket's extent includes the padding of the items inside it,
+-- so with nothing between, adjacent brackets' backgrounds would touch.
 M.bracket_gap = 6
 
--- 端の item は、アイコンとラベルの内側の padding を 0 にしておくこと。
+-- For edge items, set the inner padding of the icon and label to 0.
 M.bracket_padding = 8
 
--- これを add_bracket の padding に渡すと、上下と左右の余白がそろう。
--- content_height には、見える字面の高さを使う。行の高さではない。
+-- Passing this as add_bracket's padding makes the top/bottom and left/right margins equal.
+-- For content_height, use the height of the visible glyph, not the line height.
 function M.vertical_margin(content_height)
 	return math.floor((colors.bracket.height - content_height) / 2 + 0.5)
 end
@@ -29,18 +29,18 @@ local function merge(base, extra)
 	return out
 end
 
--- position は "left"、"right"、"center"、"q"、"e" のいずれかを必ず指定する。q はノッチの左、e はノッチの右。
--- sketchybar の既定は left だが、呼び出し側で意図を明示させる。
+-- position must be specified as one of "left", "right", "center", "q", "e". q is left of the notch, e is right of the notch.
+-- SketchyBar's default is left, but make the caller state its intent explicitly.
 function M.add_item(name, position, props)
 	return sbar.add("item", name, merge(props or {}, { position = position }))
 end
 
--- 背景を描かず範囲の測定だけに使うときは { background = { drawing = false } } を渡す。
+-- To use it only to measure the extent without drawing a background, pass { background = { drawing = false } }.
 --
--- bracket の範囲は item の padding を含むことを実機で検証したので、padding は端の item の padding として設定する。
--- members は右から左の並び順で、item オブジェクトで渡すこと。
--- 名前や正規表現では item を特定できないため、padding を指定するとエラーにする。
--- 上下 2 段を重ねる zmk_battery のように、描画位置と並びの順序が一致しない item には使えない。
+-- Verified on the actual device that a bracket's extent includes item padding, so padding is set as the edge item's padding.
+-- members must be passed as item objects, in right-to-left order.
+-- Items cannot be identified by name or regex, so specifying padding is an error.
+-- It cannot be used for items like zmk_battery whose drawing position and order differ, as it stacks two rows vertically.
 function M.add_bracket(name, members, props, padding)
 	props = props or {}
 
@@ -71,14 +71,14 @@ function M.add_bracket(name, members, props, padding)
 	)
 end
 
--- 空のラベルが 1px の幅を持つことを実機で測定した。
--- spacer の padding_right を width にしても、見た目の隙間は width + 1 になる。
+-- Measured on the actual device that an empty label has a width of 1px.
+-- Even if the spacer's padding_right is set to width, the visual gap is width + 1.
 local SPACER_RENDERED_WIDTH = 1
 
 local spacer_count = 0
 
--- width を指定した item は、負の padding_right が隣へ伝わらないことを実機で検証した。
--- 後から padding_right を負にして隙間を詰められるよう、幅は自動のまま、空のラベルを持たせ padding_right で width を表す。
+-- Verified on the actual device that for an item with width specified, a negative padding_right does not propagate to the neighbor.
+-- So that the gap can later be closed with a negative padding_right, keep the width automatic, give it an empty label, and express width with padding_right.
 function M.add_spacer(position, width, name)
 	if name == nil then
 		spacer_count = spacer_count + 1
@@ -92,49 +92,49 @@ function M.add_spacer(position, width, name)
 	})
 end
 
--- bar.lua の notch_width と items/wallpaper.lua に使う。
--- 実測は NSScreen の frame 幅 - auxiliaryTopLeftArea 幅 - auxiliaryTopRightArea 幅 で、1710 - 751 - 750。
+-- Used for bar.lua's notch_width and items/wallpaper.lua.
+-- Measured as NSScreen's frame width - auxiliaryTopLeftArea width - auxiliaryTopRightArea width: 1710 - 751 - 750.
 M.notch_width = 209
 
--- bar.lua の height に使う。ノッチとの間隔もここから決める。
+-- Used for bar.lua's height. The distance to the notch is also decided from here.
 M.bar_height = 40
 
--- ノッチと bracket の間隔は、bracket の上下の余白と同じにする。余白は (バーの高さ - bracket の高さ) / 2。
+-- The distance between the notch and the bracket is the same as the bracket's top/bottom margin. The margin is (bar height - bracket height) / 2.
 local NOTCH_GAP = (M.bar_height - colors.bracket.height) / 2
 
--- position が "q" と "e" の起点を SketchyBar が求める位置の、実測したノッチの縁からのずれで、単位は pt。
--- ノッチの外側が正、内側が負。ノッチが画面の中心より 0.5 pt 右にあり、SketchyBar の対称の前提と合わない。
--- bar.c は左の起点を (画面幅 - notch_width) / 2 の切り捨てで求める。整数に丸めた結果、左右で逆向きにずれる。
--- 実測は bar.lua で、notch_width が 209 のとき、左の起点が 750 pt で実測の左端が 751 pt、右の起点が 959 pt で実測の右端が 960 pt。
+-- The offset, in pt, from the measured notch edge of the position where SketchyBar computes the origin for positions "q" and "e".
+-- Positive outside the notch, negative inside. The notch is 0.5 pt right of the screen center, which does not match SketchyBar's symmetric assumption.
+-- bar.c computes the left origin as (screen width - notch_width) / 2 truncated. Rounded to integers, it shifts in opposite directions left and right.
+-- Measured in bar.lua: with notch_width 209, the left origin is 750 pt and the measured left edge is 751 pt, and the right origin is 959 pt and the measured right edge is 960 pt.
 local NOTCH_ORIGIN_OFFSET = { q = 1, e = -1 }
 
--- ノッチに最も近い位置に置くので、その側の item より先に追加すること。
--- 見た目の隙間は 幅 + SPACER_RENDERED_WIDTH + 起点のずれ になるので、上のずれを幅から引いて実測のノッチの縁からの間隔をそろえる。
--- 結果は "q" が NOTCH_GAP - 2、"e" が NOTCH_GAP。
+-- Placed at the position closest to the notch, so add it before the items on that side.
+-- The visual gap is width + SPACER_RENDERED_WIDTH + origin offset, so subtract the offset above from the width to even out the distance from the measured notch edge.
+-- The result is NOTCH_GAP - 2 for "q" and NOTCH_GAP for "e".
 function M.add_notch_spacer(position, name)
 	local offset = NOTCH_ORIGIN_OFFSET[position]
 	assert(offset ~= nil, 'add_notch_spacer: position must be "q" or "e"')
 	return M.add_spacer(position, NOTCH_GAP - SPACER_RENDERED_WIDTH - offset, name)
 end
 
--- マウスイベントは、カーソルの下にあるウィンドウに届く。SketchyBar は、マウスイベントを購読している
--- item が再描画されるたびに、その item のマウス追跡領域を張り直す。
--- このとき mouse.exited が届かなくなることがあり、ホバーで開いたポップアップが閉じなくなる。実機で再現した。
--- 再描画される item に購読させず、この item に購読させれば、この item は再描画されないので起きない。
--- bracket の背景、つまり item の padding の部分は item のウィンドウに含まれないが、この item は padding まで覆うので、bracket 全体で反応する。
+-- Mouse events go to the window under the cursor. SketchyBar re-establishes an item's mouse tracking area
+-- every time an item that subscribes to mouse events is redrawn.
+-- At that point mouse.exited may stop arriving, and a popup opened by hover no longer closes. Reproduced on the actual device.
+-- If this item subscribes instead of the redrawn items, this item is not redrawn, so it does not happen.
+-- The bracket's background, i.e. the padding part of items, is not included in an item's window, but this item covers up to the padding, so the whole bracket responds.
 --
--- 位置は、自分の padding を負の値にして合わせる。SketchyBar の配置の癖を実機で検証した。
---   - width を指定した item の後は、配置が width の分しか進まない。padding は数えられない。
---   - 自分の width を指定すると、負の padding が隣へ伝わらず隙間ができる。
--- そのため、この item は width を使わず icon.width で幅を確保し、padding で隣の item の位置を変えない。
--- padding_left + padding_right + 幅 = 0 になり、hit_region_geometry が計算する。
+-- Position is matched by making its own padding negative. Verified on the actual device against SketchyBar's placement quirks.
+--   - After an item with width specified, placement advances only by width. Padding is not counted.
+--   - Specifying its own width prevents negative padding from propagating to the neighbor and leaves a gap.
+-- So this item does not use width but reserves its width with icon.width, and does not change the neighbor item's position with padding.
+-- padding_left + padding_right + width = 0, which hit_region_geometry computes.
 --
--- bracket の中の item が分かれていて、範囲ごとに別の操作を受けたいときは、範囲ごとに作る。items/network.lua を参照。
--- 重ねる item より後で、かつ bracket より後に追加すること。ウィンドウは後に追加した item が上になる。
--- 重ねる item が "q" のノッチの左のときは props.position = "q" を渡す。配置は right と同じ右から左で、端は右端。
--- "e" のノッチの右のときは props.position = "e" を渡す。配置は left と同じ左から右で、端は左端。
--- 購読は呼び出し側で行う。作った後は背景などを変更しないこと。再描画されると上の問題が戻る。
--- "e" は左から右へ並ぶので、戻す向きと進める向きが逆になる。そのため padding の左右を入れ替える。
+-- When items inside a bracket are separate and each range should receive a different action, create one per range. See items/network.lua.
+-- Add after the item to overlay and after the bracket. Later-added items' windows are on top.
+-- When the item to overlay is at "q", left of the notch, pass props.position = "q". Placement goes right to left, the same as right, and the edge is the right edge.
+-- When it is at "e", right of the notch, pass props.position = "e". Placement goes left to right, the same as left, and the edge is the left edge.
+-- Subscription is done by the caller. Do not change the background and so on after creating it. Redrawing would bring back the problem above.
+-- "e" is laid out left to right, so the directions for stepping back and advancing are opposite. So swap left and right padding.
 function M.add_hit_region(name, chain_width, from, to, props)
 	local layer = M.hit_region_geometry(chain_width, from, to)
 	layer.label = { drawing = false }
@@ -146,12 +146,12 @@ function M.add_hit_region(name, chain_width, from, to, props)
 	return M.add_item(name, position, merge(layer, props))
 end
 
--- bracket の右端から from〜to px の範囲を覆い、隣の item の位置を変えない hit の padding と幅。
--- bracket 全体なら from = 0、to = bracket の幅。
--- chain_width は、bracket の中の item が配置を右から左へ進める幅の合計。
--- width を指定した item は、後続の配置を width の分しか進めない。padding は数えられない。
--- そのため width を指定した item の width を合計する。幅が自動の item は含めない。実機で検証した。
--- padding_left + padding_right + 幅 = 0 になる。幅が変わるときは、この値を set し直す。
+-- The hit padding and width that cover the range from from to to px from the bracket's right edge without changing the neighbor items' positions.
+-- For the whole bracket, from = 0 and to = the bracket's width.
+-- chain_width is the total width by which the items in the bracket advance placement from right to left.
+-- An item with width specified advances subsequent placement only by width. Padding is not counted.
+-- So sum the widths of the items with width specified. Items with automatic width are not included. Verified on the actual device.
+-- padding_left + padding_right + width = 0. When the width changes, set this value again.
 function M.hit_region_geometry(chain_width, from, to)
 	return {
 		padding_left = chain_width - to,
@@ -160,13 +160,13 @@ function M.hit_region_geometry(chain_width, from, to)
 	}
 end
 
--- アイコンや隣の item に被らない位置の空の item、anchor を、ポップアップの持ち主にする。
--- opts.align が "left" なら持ち主の左端にそろって右へ伸び、"right" なら右端にそろって左へ伸びる。伸びる先の他の item は覆う。
--- ポップアップは既定でバーの下端から下に出る。y_offset を負にして上へ戻し、バーの縦の中央に置く。
--- 上端は (バーの高さ - opts.height) / 2 になる。
--- ポップアップの枠線 opts.background.border_width の分だけ中身が下にずれるので、その分も上げる。
--- 実機で、枠線 1 のとき中身の上端が 5 pt、枠線 0 のとき 4 pt だった。
--- opts.height は中身の高さ、opts.background は popup の背景で border_width を含める。
+-- The popup's owner is an empty item, the anchor, placed at a position that does not overlap icons or neighbor items.
+-- If opts.align is "left", it aligns with the owner's left edge and extends right; if "right", it aligns with the right edge and extends left. It covers other items in the direction it extends.
+-- By default the popup appears below the bottom edge of the bar. Make y_offset negative to bring it back up and place it at the vertical center of the bar.
+-- The top edge is (bar height - opts.height) / 2.
+-- The contents shift down by the popup's border opts.background.border_width, so raise by that amount too.
+-- Measured on the actual device: the top edge of the contents was 5 pt with a border of 1 and 4 pt with a border of 0.
+-- opts.height is the height of the contents, and opts.background is the popup's background, including border_width.
 function M.add_popup_anchor(name, position, opts)
 	return M.add_item(name, position, {
 		width = 1,
@@ -184,11 +184,11 @@ function M.add_popup_anchor(name, position, opts)
 	})
 end
 
--- ポップアップの文字は、メニューバーと同じシステムフォントにする。
--- ファミリに ".AppleSystemUIFont" を指定すると、欧文は SF になり、日本語は自動でメニューバーと同じ
--- ".Hiragino Kaku Gothic Interface" の W4 に切り替わる。CoreText で確認した。
--- "SF Pro" などの名前は、SF Pro が入っていないと Helvetica に解決されてしまう。
--- スタイルを Bold にすると、欧文は System Font Bold、日本語は W6 になる。Regular なら W4。
+-- Make the popup text the same system font as the menu bar.
+-- Specifying ".AppleSystemUIFont" as the family gives SF for Latin text and automatically switches Japanese to the same
+-- ".Hiragino Kaku Gothic Interface" W4 as the menu bar. Confirmed with CoreText.
+-- Names such as "SF Pro" resolve to Helvetica if SF Pro is not installed.
+-- With the Bold style, Latin becomes System Font Bold and Japanese becomes W6. Regular gives W4.
 local POPUP_FONT_FAMILY = ".AppleSystemUIFont"
 local POPUP_FONT_STYLE = "Bold"
 
@@ -196,7 +196,7 @@ function M.popup_font(size, features)
 	return { family = POPUP_FONT_FAMILY, style = POPUP_FONT_STYLE, size = size, features = features }
 end
 
--- 非表示の item は origin が -9999, -9999 になるので、画面外なら nil を返す。
+-- A hidden item has origin -9999, -9999, so return nil if it is off-screen.
 function M.visible_rect(name)
 	local rects = sbar.query(name).bounding_rects
 	for _, rect in pairs(rects or {}) do
@@ -207,10 +207,10 @@ function M.visible_rect(name)
 	return nil
 end
 
--- 見た目の隙間が、通常の spacer を挟んだときの spacing + SPACER_RENDERED_WIDTH と同じになるよう、
--- 間に置いた spacer の padding_right を調整する。
--- 実測値に対する差分で更新するので、何度呼んでも収束する。
--- レイアウトの反映は非同期なので、呼び出し側は変更の少し後に呼ぶこと。
+-- Adjust the padding_right of the spacer placed between so that the visual gap is the same as
+-- spacing + SPACER_RENDERED_WIDTH when a normal spacer is placed between them.
+-- It updates by the difference from the measured value, so it converges no matter how many times it is called.
+-- Applying layout is asynchronous, so the caller should call it a little after the change.
 function M.close_gap(opts)
 	local spacer = opts.spacer
 	local spacing = opts.spacing
@@ -227,8 +227,8 @@ function M.close_gap(opts)
 	spacer:set({ padding_right = current - (gap - (spacing + SPACER_RENDERED_WIDTH)) })
 end
 
--- 非同期の部品は ui/async.lua、入力まわりの部品は ui/interaction.lua に分けてある。
--- 呼び出し側は、従来どおり ui.latest などで使える。
+-- Asynchronous components are split into ui/async.lua, and input-related components into ui/interaction.lua.
+-- Callers can still use them as ui.latest and so on, as before.
 local async = require("ui.async")
 local interaction = require("ui.interaction")
 

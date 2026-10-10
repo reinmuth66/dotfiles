@@ -1,8 +1,8 @@
--- ファイルの読み書き。items/spotify.lua と items/spotify/artwork.lua が使う。
+-- File reading and writing. Used by items/spotify.lua and items/spotify/artwork.lua.
 
 local M = {}
 
--- 開けなければ nil。空のファイルは空文字列。
+-- nil if it cannot be opened. An empty file is an empty string.
 function M.read(path)
 	local f = io.open(path, "rb")
 	if not f then
@@ -23,7 +23,7 @@ function M.has_content(path)
 	return size ~= nil and size > 0
 end
 
--- 同期的に書く。シェルの起動を待たない。書けたら true。
+-- Write synchronously. Does not wait for a shell to launch. Returns true if written.
 function M.write(path, text)
 	local f = io.open(path, "w")
 	if not f then
@@ -34,7 +34,7 @@ function M.write(path, text)
 	return true
 end
 
--- 一時ファイル path .. ".tmp" に書いてから置き換える。読む側が書きかけを読まない。置き換えられたら true。
+-- Write to a temporary file path .. ".tmp" and then replace. The reader never reads a half-written file. Returns true if replaced.
 function M.write_atomic(path, text)
 	local tmp = path .. ".tmp"
 	return M.write(tmp, text) and os.rename(tmp, path) and true or false

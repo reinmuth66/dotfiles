@@ -1,13 +1,13 @@
 local colors = require("colors")
 local ui = require("ui")
 
--- 字面は箱の外にはみ出すと見切れるので、字面の幅を切り上げた値にする。
--- 実測は 17.5 で、advance は 10.8 しかない。どのグリフも同じ幅で、左端から始まる。
--- 字面は箱の左端 + padding_left から描かれるので、spotify.lua と同じく padding_left は 0 のままでよい。
--- 実測は Hack Nerd Font Bold 18pt で、フォントやサイズを変えたら再測定する。
+-- A glyph that overflows the box is clipped, so use the glyph width rounded up.
+-- Measured 17.5, while the advance is only 10.8. Every glyph has the same width and starts at the left edge.
+-- The glyph is drawn from the box's left edge + padding_left, so as in spotify.lua padding_left can stay 0.
+-- Measured with Hack Nerd Font Bold 18pt; re-measure if the font or size changes.
 local ICON_WIDTH = 18
 
--- 形はすべて扇形にそろえてある。
+-- All shapes are made fan-shaped.
 local LEVEL_ICONS = {
 	"󰤟", -- nf-md-wifi_strength_1
 	"󰤢", -- nf-md-wifi_strength_2
@@ -19,7 +19,7 @@ local OFF = { key = "off", icon = "󰤭", color = colors.dim } -- nf-md-wifi_str
 
 local SETTINGS_URL = "x-apple.systempreferences:com.apple.wifi-settings-extension"
 
--- 余白は bracket の padding で決めるため、アイコンの内側の padding は箱の位置合わせ以外は 0 にする。
+-- Spacing is determined by the bracket's padding, so the icon's inner padding is 0 except for aligning the box.
 local wifi = ui.add_item("wifi", "right", {
 	update_freq = 15,
 	icon = {
@@ -35,10 +35,10 @@ local wifi = ui.add_item("wifi", "right", {
 
 local current
 
--- 説明文の例は Wi‑Fi、接続済み、3本 で、標準メニューバーの Wi-Fi 項目のアクセシビリティの説明。
--- SketchyBar のプロセスから約 0.13 秒で取れることを実機で確認した。
--- 項目の位置は変わるので、説明文に Wi を含むものを探す。説明文は表示言語に依存するので、
--- 数字を取れなければ、強さ不明として最大のアイコンにする。
+-- An example description is "Wi‑Fi、接続済み、3本" (Wi-Fi, connected, 3 bars), the accessibility description of the Wi-Fi item in the standard menu bar.
+-- Confirmed on the actual device that it can be obtained from the SketchyBar process in about 0.13 seconds.
+-- The item's position changes, so look for one whose description contains Wi. The description depends on the display language,
+-- so if the number cannot be obtained, treat the strength as unknown and use the largest icon.
 local SIGNAL_SCRIPT = [[tell application "System Events" to tell process "ControlCenter"
 repeat with mi in menu bar items of menu bar 1
 set d to description of mi
@@ -46,7 +46,7 @@ if d contains "Wi" then return d
 end repeat
 end tell]]
 
--- en0 が Wi-Fi であることは networksetup -listallhardwareports で確認した。ipconfig は IP が無いと何も出力しない。
+-- Confirmed with networksetup -listallhardwareports that en0 is Wi-Fi. ipconfig prints nothing when there is no IP.
 local COMMAND = [[
 ip=$(ipconfig getifaddr en0)
 echo "ip=$ip"
@@ -56,7 +56,7 @@ if [ -n "$ip" ]; then
 fi
 ]]
 
--- 線の数は 0〜3 で、アイコンの段階 1〜4 に 1 を足して対応させる。
+-- The number of bars is 0 to 3; add 1 to map it to the icon level 1 to 4.
 local function update()
 	sbar.exec(COMMAND, function(out)
 		if type(out) ~= "string" then
@@ -69,7 +69,7 @@ local function update()
 			local bars = tonumber(signal:match("(%d+)本") or signal:match("(%d+)%s*bars?"))
 			local level = bars and math.max(1, math.min(bars + 1, #LEVEL_ICONS)) or #LEVEL_ICONS
 			state = { key = "connected" .. level, icon = LEVEL_ICONS[level], color = colors.white }
-		elseif out:match("power=[^\n]*Off") then -- 出力の Wi-Fi Power の行が Off
+		elseif out:match("power=[^\n]*Off") then -- the Wi-Fi Power line of the output is Off
 			state = OFF
 		else
 			state = DISCONNECTED
@@ -84,12 +84,12 @@ local function update()
 	end)
 end
 
--- wifi_change は、接続し直したときなどに同じ時刻に 2 回届く。実機で確認した。
--- update は状態が前回と同じなら何もしないので、そのまま購読する。
+-- wifi_change arrives twice at the same time, e.g. on reconnect. Verified on the actual device.
+-- update does nothing if the state is the same as last time, so subscribe as is.
 wifi:subscribe({ "wifi_change", "system_woke", "routine", "forced" }, update)
 update()
 
--- bracket とクリックを受ける領域は、Wi-Fi と Bluetooth を 1 つの bracket にまとめる items/network.lua が作る。
+-- The bracket and the click-receiving region are created by items/network.lua, which groups Wi-Fi and Bluetooth into one bracket.
 return {
 	item = wifi,
 	icon_width = ICON_WIDTH,

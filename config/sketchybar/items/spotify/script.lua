@@ -1,19 +1,19 @@
--- Spotify に AppleScript を送るコマンドと、その出力や分散通知の読み取り。items/spotify.lua と items/spotify/artwork.lua が使う。
--- 状態、曲の ID、曲名、アーティスト、再生位置、曲の長さは、どの経路でも items/spotify.lua の apply に渡す
--- state, track_id, meta, timing の形にそろえる。meta は { title, artist }、timing は { position, duration } で、どちらも秒。
+-- Commands that send AppleScript to Spotify, and reading of their output and the distributed notifications. Used by items/spotify.lua and items/spotify/artwork.lua.
+-- State, track ID, title, artist, playback position, and track length are, whichever route they come from, shaped into
+-- state, track_id, meta, timing to pass to apply in items/spotify.lua. meta is { title, artist } and timing is { position, duration } in seconds.
 
 local M = {}
 
--- 未起動の Spotify を osascript が起動してしまわないよう、先に pgrep で確認する。
+-- Check with pgrep first so that osascript does not launch a Spotify that is not running.
 function M.command(script)
 	return string.format([[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to %s' 2>/dev/null]], script)
 end
 
--- 分散通知の Player State の "Playing" と "Paused" に合わせる。それ以外は停止などで nil。
+-- Matches "Playing" and "Paused" of the distributed notification's Player State. Anything else, such as stopped, is nil.
 local PLAYER_STATE = { playing = "Playing", paused = "Paused" }
 
--- 曲の長さはミリ秒。取れなければ nil。
--- ロケールによっては、位置の小数点がカンマになる
+-- Track length is in milliseconds. nil if it could not be obtained.
+-- Depending on the locale, the decimal point of the position may be a comma
 local function parse_timing(position, duration_ms)
 	position = tonumber((position:gsub(",", ".")))
 	local length = tonumber(duration_ms) / 1000
@@ -26,7 +26,7 @@ end
 M.POSITION_COMMAND =
 	M.command("(player state as text) & tab & (player position as text) & tab & (duration of current track as text)")
 
--- 読めなければ nil。
+-- nil if it cannot be read.
 function M.parse_position(out)
 	if type(out) ~= "string" then
 		return nil
@@ -36,12 +36,12 @@ function M.parse_position(out)
 	return state, state and parse_timing(position, length)
 end
 
--- 曲名などに "|" が含まれうるので、区切りにはタブを使う。
+-- A track title and the like may contain "|", so use a tab as the delimiter.
 M.SNAPSHOT_COMMAND = M.command(
 	"(player state as text) & tab & (id of current track) & tab & (name of current track) & tab & (artist of current track) & tab & (player position as text) & tab & (duration of current track as text)"
 )
 
--- 状態が読めないとき、停止中などは nil。
+-- nil when the state cannot be read, or when stopped and so on.
 function M.parse_snapshot(out)
 	if type(out) ~= "string" then
 		return nil
@@ -55,7 +55,7 @@ function M.parse_snapshot(out)
 	return state, track_id, { title = title, artist = artist }, parse_timing(position, duration)
 end
 
--- Player State はそのまま渡す。"Playing" と "Paused" 以外も来る。Playback Position は秒の小数、Duration はミリ秒。実機で確認した。
+-- Player State is passed as is. Values other than "Playing" and "Paused" also arrive. Playback Position is fractional seconds, Duration is milliseconds. Verified on the actual device.
 function M.parse_notification(info)
 	local position, duration = tonumber(info["Playback Position"]), tonumber(info["Duration"])
 	local timing = nil

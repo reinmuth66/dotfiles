@@ -1,14 +1,14 @@
--- ノッチの真下、position "center" をクリックすると、壁紙のサムネイルをポップアップで並べ、選んだ画像を壁紙にする。
--- ノッチの下にも item を置け、クリックを受けられることを実機で確認した。
--- ノッチの item は透明で、ノッチと同じ幅。ポップアップはバーの下端から下へ、ノッチの中央にそろえて開く。
--- 壁紙は WALLPAPER_DIR の jpg、jpeg、png をファイル名順に並べる。画像を git に入れないため、リポジトリの外に置く。
--- ポップアップに同時に出すのは VISIBLE 枚まで。それより多いときは、ポップアップの上でスクロールすると、
--- 表示する範囲が 1 枚ずつずれる。端まで行ったら反対側へ回る。
--- ポップアップを開くときは、画像が VISIBLE 枚より多ければ、いまの壁紙が中央に来るように範囲を合わせる。
--- ノッチとサムネイルのどれの上にもマウスがなくなったら、CLOSE_DELAY だけ待って自動で閉じる。
--- サムネイルは extraPackages の imagemagick で作り、CACHE_DIR に置く。元の画像より新しければ作り直さない。
--- 壁紙の設定は System Events の osascript で行う。初回は、sketchybar に System Events の操作の許可が要る。
--- すべてのデスクトップ、Space に同じ画像を設定する。
+-- Clicking position "center" right under the notch lines up wallpaper thumbnails in a popup, and the chosen image becomes the wallpaper.
+-- Confirmed on the actual device that an item can be placed under the notch and receive clicks.
+-- The notch item is transparent and the same width as the notch. The popup opens downward from the bottom edge of the bar, aligned to the notch's center.
+-- The wallpapers are the jpg, jpeg and png files in WALLPAPER_DIR, sorted by file name. They are kept outside the repository so that images are not put into git.
+-- At most VISIBLE images are shown in the popup at once. If there are more, scrolling over the popup
+-- shifts the displayed range one image at a time. On reaching the end it wraps to the other side.
+-- When opening the popup, if there are more than VISIBLE images, adjust the range so the current wallpaper is at the center.
+-- When the mouse is no longer over the notch or any thumbnail, wait CLOSE_DELAY and close automatically.
+-- Thumbnails are made with imagemagick from extraPackages and placed in CACHE_DIR. They are not regenerated if newer than the source image.
+-- The wallpaper is set via osascript with System Events. The first time, sketchybar needs permission to control System Events.
+-- The same image is set for all desktops and Spaces.
 
 local ui = require("ui")
 local colors = require("colors")
@@ -17,20 +17,20 @@ local paths = require("paths")
 local WALLPAPER_DIR = paths.home .. "/Pictures/wallpaper"
 local CACHE_DIR = paths.cache .. "/wallpaper"
 
--- 表示サイズは pt。キャッシュは 2 倍の解像度の px で作る。
+-- The display size is in pt. The cache is made in px at 2x resolution.
 local THUMB_WIDTH = 128
 local THUMB_HEIGHT = 72
 local THUMB_SCALE = 0.5
 local VISIBLE = 5
 
--- トラックパッドは 1 回のスワイプで多数のイベントが出るため、スクロールの量を足し合わせる。ui.scroll_accumulator を使う。
--- 上スクロールの delta > 0 で前の画像、下スクロールの delta < 0 で次の画像が見える。逆にするなら SCROLL_DIRECTION を -1 にする。
+-- A single trackpad swipe emits many events, so accumulate the scroll amount. Uses ui.scroll_accumulator.
+-- With scroll up delta > 0 the previous image is shown, and with scroll down delta < 0 the next image. To reverse, set SCROLL_DIRECTION to -1.
 local SCROLL_THRESHOLD = 5
 local SCROLL_IDLE = 0.3
 local SCROLL_DIRECTION = 1
 
 local POPUP_PADDING = 6
--- item の上下もこの高さになり、余白でもマウスを受ける
+-- The item's top and bottom are also this height, so it receives the mouse even in the margins
 local POPUP_HEIGHT = THUMB_HEIGHT + 2 * POPUP_PADDING
 local POPUP_BORDER = colors.popup.border_width
 
@@ -54,7 +54,7 @@ local notch = ui.add_item("wallpaper", "center", {
 	},
 })
 
--- 画像がなければ何も出力せず、ポップアップは空のまま。
+-- If there are no images, output nothing and leave the popup empty.
 local LIST_COMMAND = string.format(
 	[[mkdir -p "%s"
 for f in "%s"/*.jpg "%s"/*.jpeg "%s"/*.png; do
@@ -76,7 +76,7 @@ done]],
 	THUMB_HEIGHT * 2
 )
 
--- AppleScript の文字列に入れるので、" と \ をエスケープする。
+-- It goes into an AppleScript string, so escape " and \.
 local function set_wallpaper(path)
 	local escaped = path:gsub("\\", "\\\\"):gsub('"', '\\"')
 	local script = 'tell application "System Events" to tell every desktop to set picture to "' .. escaped .. '"'
@@ -85,8 +85,8 @@ end
 
 local popup_open = false
 
--- マウスがノッチからポップアップのサムネイルへ渡るとき、一瞬どの item の上にもない。entered の前に exited が来るため、
--- exited ですぐには閉じず、CLOSE_DELAY 秒待つ。その間に別の item に入ったら entered で、閉じるのをやめる。
+-- When the mouse moves from the notch to a popup thumbnail, for a moment it is not over any item. exited arrives before entered,
+-- so do not close right away on exited but wait CLOSE_DELAY seconds. If it enters another item in the meantime, entered cancels the close.
 local CLOSE_DELAY = 0.25
 local close_timer = ui.timer()
 
@@ -116,10 +116,10 @@ end
 local entries = {}
 local slots = {}
 
--- first は、いちばん左に出す画像の一覧の添字で、0 始まり。i 番目の item は first + i - 1 番目の画像を出す。
+-- first is the index into the list of images shown at the far left, 0-based. The i-th item shows image number first + i - 1.
 local first = 0
 
--- 最後に選んだ画像のパス。System Events から、いまの壁紙のパスが取れなかった、つまり一覧にないときの代わりにする。
+-- Path of the last chosen image. Used as a substitute when the current wallpaper's path could not be obtained from System Events, i.e. is not in the list.
 local chosen_path = nil
 
 local function entry_at(slot_index)
@@ -132,13 +132,13 @@ local function render()
 	end
 end
 
--- 最後まで行ったら最初へ戻る。逆向きも同じ。
+-- On reaching the end, return to the start. Same in the other direction.
 local scroll_by_ticks = ui.scroll_accumulator(SCROLL_THRESHOLD, SCROLL_IDLE, function(sign, ticks)
 	first = (first - SCROLL_DIRECTION * sign * ticks) % #entries
 	render()
 end)
 
--- 全部がポップアップに収まるときは、ずらす必要がない。
+-- When everything fits in the popup, there is no need to shift.
 local function scroll(delta)
 	if #entries <= VISIBLE then
 		return
@@ -146,9 +146,9 @@ local function scroll(delta)
 	scroll_by_ticks(delta)
 end
 
--- サムネイルの間と両端の余白は、padding ではなく透明な item で埋める。padding はマウスイベントを受けないが、
--- item は受けるので、余白の上でもスクロールでき、ポップアップの上にいる判定になる。
--- 余白の item は作った後に変更しない。再描画されないので、mouse.exited が落ちにくい。
+-- Fill the gaps between thumbnails and at both ends with transparent items, not padding. Padding does not receive mouse events,
+-- but items do, so scrolling works over the margins too and counts as being over the popup.
+-- Do not modify the margin items after creating them. They are not redrawn, so mouse.exited is less likely to be dropped.
 local function add_pad(index)
 	local pad = sbar.add("item", "wallpaper.pad." .. index, {
 		position = "popup.wallpaper",
@@ -207,9 +207,9 @@ sbar.exec(LIST_COMMAND, function(output)
 	end
 end)
 
--- メインのディスプレイの現在のデスクトップ
+-- The current desktop of the main display
 local CURRENT_COMMAND = [[osascript -e 'tell application "System Events" to get picture of current desktop']]
--- 中央の item の、左から数えた位置で、0 始まり。
+-- The position of the center item counted from the left, 0-based.
 local CENTER = math.floor((VISIBLE - 1) / 2)
 
 local function index_of(path)
@@ -221,7 +221,7 @@ local function index_of(path)
 	return nil
 end
 
--- 範囲を合わせてから開くので、開いた後に画像が入れ替わって見えることはない。
+-- The range is adjusted before opening, so the images are never seen being swapped after opening.
 local function open()
 	sbar.exec(CURRENT_COMMAND, function(output)
 		if #entries > VISIBLE then
@@ -245,6 +245,6 @@ notch:subscribe("mouse.clicked", function()
 	end
 end)
 
--- バーの外へ出たときの mouse.exited.global も、ノッチとポップアップの外へ出たときと同じ扱いにする。
+-- Treat mouse.exited.global on leaving the bar the same as leaving the notch and popup.
 watch_hover(notch)
 notch:subscribe("mouse.exited.global", schedule_close)

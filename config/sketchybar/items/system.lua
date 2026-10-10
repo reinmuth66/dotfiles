@@ -1,50 +1,50 @@
 local colors = require("colors")
 local ui = require("ui")
 
--- アクティビティモニターのアイコンの item。ホバーで、次の 1 行のポップアップを開く。
---   CPU のアイコンと x%、RAM のアイコンと x%、Disk のアイコンと 使用量/総容量
--- データは pkgs/sketchybar-helper/system.c の sketchybar-system-helper が一定間隔で測り、system_stats イベントで渡す。
--- 測定は helper がカーネルの API を直接呼ぶだけなので軽い。ポップアップが閉じている間は、描画の指示の set は出さない。
--- 数字は bottom の btm と同じ値、同じ書式にしてある。btm は pkgs/btm-window が表示する。値の測り方は pkgs/sketchybar-helper/system.c。
+-- An item for the Activity Monitor icon. On hover it opens the following one-line popup.
+--   CPU icon and x%, RAM icon and x%, Disk icon and used/total
+-- Data is measured at regular intervals by sketchybar-system-helper from pkgs/sketchybar-helper/system.c and delivered with the system_stats event.
+-- The helper only calls kernel APIs directly, so measurement is light. While the popup is closed, no set for drawing is issued.
+-- The numbers have the same values and format as bottom's btm. btm is shown by pkgs/btm-window. How values are measured: pkgs/sketchybar-helper/system.c.
 
--- sketchybar-app-font の :activity_monitor: は、字面がほぼ一辺 SIZE の正方形になる。
--- CoreText の CTLineGetImageBounds で実測した。幅は SIZE x 0.998、高さは SIZE x 0.962。20pt で 19.96 x 19.24、16pt で 15.97 x 15.39。
--- SIZE の 16 は、pill の縁とアイコンの隙間が約 4 pt になる値。pill の PILL_SIZE は 24。フォントやサイズを変えたら再測定する。
+-- The glyph of :activity_monitor: in sketchybar-app-font is almost a square with side SIZE.
+-- Measured with CoreText's CTLineGetImageBounds. Width is SIZE x 0.998 and height is SIZE x 0.962: 19.96 x 19.24 at 20pt, 15.97 x 15.39 at 16pt.
+-- SIZE of 16 gives a gap of about 4 pt between the pill's edge and the icon. The pill's PILL_SIZE is 24. Re-measure if the font or size changes.
 local SIZE = 16
 
--- バー ui.bar_height の中に収める。
+-- Fit within the bar's ui.bar_height.
 local POPUP_HEIGHT = 32
--- 上下、左右、item 同士の見た目の余白をこの値にそろえる。ui.bracket_padding と同じ 8。
--- 縦は、中身の字面の高さを POPUP_HEIGHT の縦中央に置くので、(32 - 15) / 2 = 8.5 になる。整数に丸めると 8 と 9。
--- 字面の高さ GLYPH_HEIGHT は、最も高い CPU と Disk のアイコンの実測 13.5〜14.5 に y_offset 1 を足して 15。
--- 横は item の padding で作る。label は固定幅で、字面の右に約 1 pt の余りがある。実測で、"07%" は 24 の箱に字面 23.0。
--- そのため item 同士の間と右端は、その分を引く。
+-- Make the visual margins top/bottom, left/right, and between items equal to this value. Same 8 as ui.bracket_padding.
+-- Vertically, the contents' glyph height is centered in POPUP_HEIGHT, so (32 - 15) / 2 = 8.5. Rounded to integers, 8 and 9.
+-- The glyph height GLYPH_HEIGHT is 15: the measured 13.5 to 14.5 of the tallest CPU and Disk icons plus y_offset 1.
+-- Horizontally it is made with item padding. The label has a fixed width, with about 1 pt left over to the right of the glyph. Measured: "07%" is a glyph of 23.0 in a box of 24.
+-- So the space between items and at the right edge is reduced by that amount.
 local POPUP_MARGIN = 8
 local LABEL_SLACK = 1
 
--- spacer は 幅 + 1 pt 描かれるので、spacer の幅は 1 引く。ui.add_spacer を参照。
+-- A spacer is drawn at width + 1 pt, so subtract 1 from the spacer's width. See ui.add_spacer.
 local POPUP_GAP = 4
 
--- helper が起動するより先に登録しておく。未登録のイベントは --trigger できない。
+-- Register before the helper launches. An unregistered event cannot be --trigger'd.
 sbar.add("event", "system_stats")
 
--- ノッチに最も近い位置に置くので、gear より先に追加する。
+-- Placed at the position closest to the notch, so add it before gear.
 ui.add_notch_spacer("q", "system.notch_gap")
 
--- 円の中にアイコンが同心で収まるよう、アイコンの左右に余白 ICON_PADDING を取る。
--- pill は btm の窓の状態を示す円の背景で、set_btm_state の付近を参照。bracket と同心にして、縁との隙間を上下 PILL_MARGIN にする。
--- 隙間は aerospace の pill や spotify の画像と同じ 5 pt。
--- 左右も同じ隙間にして、bracket の幅を高さと同じにする。円になり、spotify の bracket と同じ。
+-- So that the icon sits concentrically within the circle, leave margins of ICON_PADDING on the left and right of the icon.
+-- The pill is the circular background that shows the state of the btm window; see near set_btm_state. It is concentric with the bracket, and the gap to the edge is PILL_MARGIN top and bottom.
+-- The gap is 5 pt, the same as aerospace's pill and spotify's image.
+-- Use the same gap on left and right, making the bracket's width equal to its height. It becomes a circle, the same as spotify's bracket.
 local PILL_MARGIN = 5
 local SIDE_MARGIN = PILL_MARGIN
 local PILL_SIZE = colors.bracket.height - 2 * PILL_MARGIN
 local BRACKET_WIDTH = PILL_SIZE + 2 * SIDE_MARGIN
 local ICON_PADDING = (PILL_SIZE - SIZE) / 2
 
--- item の width は指定しない。width を指定した item の後は、配置が width の分しか進まず、
--- bracket の padding が数えられないので、隣の item が padding の分だけ重なる。ui.add_hit_region の説明を参照。
--- 幅は icon.width で決める。icon.width は padding を含む箱の全幅で、spotify.lua と同じ。
--- 字面は箱の左端 + padding_left から描かれる。字面は幅 19.96 なので、円の中心より 0.02 pt 左に寄るだけ。
+-- Do not specify the item's width. After an item with width specified, placement advances only by width,
+-- and the bracket's padding is not counted, so the adjacent item overlaps by the padding. See the ui.add_hit_region documentation.
+-- The width is determined by icon.width. icon.width is the full width of the box including padding, the same as spotify.lua.
+-- The glyph is drawn from the box's left edge + padding_left. The glyph width is 19.96, so it is only 0.02 pt left of the circle's center.
 local gear = ui.add_item("system", "q", {
 	icon = {
 		string = ":activity_monitor:",
@@ -66,14 +66,14 @@ local bracket = ui.add_bracket("system.bracket", { gear }, {
 	background = { corner_radius = colors.bracket.height / 2 },
 }, SIDE_MARGIN)
 
--- item の幅は自動なので、配置が進む幅 chain は bracket の幅と同じ。
+-- The item's width is automatic, so chain, the width by which placement advances, is the same as the bracket's width.
 local hit = ui.add_hit_region("system.hit", BRACKET_WIDTH, 0, BRACKET_WIDTH, { position = "q" })
 
--- 数字の書式は btm の src/utils/data_units.rs と conversion.rs と同じ。
--- 10 進接頭辞で 1 KB = 1000 B とし、値は 1 回の割り算で出す。btm の get_decimal_bytes と get_unit_prefix に合わせる。
+-- The number format is the same as btm's src/utils/data_units.rs and conversion.rs.
+-- Use decimal prefixes with 1 KB = 1000 B and compute the value with a single division. Matches btm's get_decimal_bytes and get_unit_prefix.
 local DECIMAL_BYTES = { { 1e12, "TB" }, { 1e9, "GB" }, { 1e6, "MB" }, { 1e3, "KB" } }
 
--- btm の disk widget と同じ 325GB の形。
+-- The same 325GB form as btm's disk widget.
 local function format_disk(bytes)
 	for _, entry in ipairs(DECIMAL_BYTES) do
 		if bytes >= entry[1] then
@@ -83,8 +83,8 @@ local function format_disk(bytes)
 	return string.format("%.0f%s", bytes, "B")
 end
 
--- アイコンや隣の item に被らないよう、ポップアップの持ち主は、アイコンの左に置いた空の item の anchor にする。
--- ui.add_popup_anchor を使う。
+-- So as not to overlap the icon or the adjacent item, the popup's owner is the anchor of an empty item placed to the left of the icon.
+-- Use ui.add_popup_anchor.
 ui.add_spacer("q", POPUP_GAP - 1)
 local anchor = ui.add_popup_anchor("system.anchor", "q", {
 	align = "right",
@@ -97,18 +97,18 @@ local anchor = ui.add_popup_anchor("system.anchor", "q", {
 	},
 })
 
--- 数字の見せ方は battery.lua と同じ。桁が変わっても隣の item がずれないよう、label の幅を固定する。
--- 実測は Hack Nerd Font Bold 13pt で、label の固定幅は内側の padding_left の 3 を含む。
--- "45%" が 27px、"100%" が 34px。最も長い形の "245GB/500GB" は 89px。
--- 1 桁は "05%" のように 0 埋めして 2 桁として扱う。フォントやサイズ、label の padding を変えたら再測定する。
+-- The presentation of numbers is the same as battery.lua. The label width is fixed so that the adjacent item does not shift even when the digit count changes.
+-- Measured with Hack Nerd Font Bold 13pt; the label's fixed width includes the inner padding_left of 3.
+-- "45%" is 27px and "100%" is 34px. The longest form, "245GB/500GB", is 89px.
+-- A single digit is zero-padded like "05%" and treated as two digits. Re-measure if the font, size, or label padding changes.
 local PERCENT_WIDTH_BY_DIGITS = { [2] = 27, [3] = 34 }
 local DISK_WIDTH = 89
 
--- 字面は advance の 10.8 より広く、箱の外にはみ出すと数字に重なる。wifi.lua、bluetooth.lua と同じ。
--- 字面は箱の左端から描かれるので、箱の幅は、字面の幅に、字面の右端と数字の間の余白 3.9 を足して切り上げた値にする。
--- 字面の幅は CTLineGetImageBounds で実測した。Hack Nerd Font Bold 18pt で、CPU 13.5、RAM 18.7、Disk 14.5。
--- 3.9 は battery.lua の見た目の余白と同じで、advance 10.8 - 字面の右端 9.9 + icon の padding_right 3。
--- フォントやサイズを変えたら再測定する。
+-- The glyph is wider than the advance of 10.8, and if it overflows the box it overlaps the number. Same as wifi.lua and bluetooth.lua.
+-- The glyph is drawn from the box's left edge, so the box width is the glyph width plus the 3.9 margin between the glyph's right edge and the number, rounded up.
+-- Glyph widths were measured with CTLineGetImageBounds. With Hack Nerd Font Bold 18pt: CPU 13.5, RAM 18.7, Disk 14.5.
+-- 3.9 is the same as battery.lua's visual margin: advance 10.8 - glyph right edge 9.9 + icon padding_right 3.
+-- Re-measure if the font or size changes.
 local CPU_ICON_WIDTH = 18
 local RAM_ICON_WIDTH = 23
 local DISK_ICON_WIDTH = 19
@@ -141,17 +141,17 @@ local function percent_label(value)
 	return { string = text, width = PERCENT_WIDTH_BY_DIGITS[#text - 1] }
 end
 
--- メモリ圧力は、カーネルの kern.memorystatus_vm_pressure_level で、pkgs/sketchybar-helper/system.c の MEM_PRESSURE。その表示色。
--- 1 が normal、2 が warn、4 が critical。値が取れないとき、つまり nil は normal の色にする。
+-- Memory pressure is the kernel's kern.memorystatus_vm_pressure_level, i.e. MEM_PRESSURE in pkgs/sketchybar-helper/system.c. This is its display color.
+-- 1 is normal, 2 is warn, 4 is critical. When the value cannot be obtained, i.e. nil, use the normal color.
 local PRESSURE_COLORS = {
 	[1] = colors.status.normal,
 	[2] = colors.status.warn,
 	[4] = colors.status.critical,
 }
 
--- 瞬間値で判定する。平滑化はしない。
---   CPU : warn は Apple のサポート記事による。継続的に 70% 超は高負荷。critical の 90% は目安。
---   Disk: 空き 20% 以下で warn、10% 以下で critical。macOS の "空きを 10〜20% 保つ" という目安と、Zabbix の既定 90% による。
+-- Judged by the instantaneous value. No smoothing.
+--   CPU : warn is from Apple's support article: sustained use above 70% is high load. The critical 90% is a rough guide.
+--   Disk: warn at 20% free or less, critical at 10% or less. From the macOS guideline of keeping 10-20% free and Zabbix's default of 90%.
 local CPU_THRESHOLDS = { warn = 70, critical = 90 }
 local DISK_THRESHOLDS = { warn = 80, critical = 90 }
 
@@ -202,7 +202,7 @@ gear:subscribe("system_stats", function(env)
 	end
 end)
 
--- ピン留め中は開いたままなので、開き直さない。
+-- While pinned it stays open, so do not reopen.
 hit:subscribe("mouse.entered", function()
 	if popup_open then
 		return
@@ -216,7 +216,7 @@ local pin = ui.pin(function(active)
 	bracket:set({ background = { border_color = active and colors.pinned_border or colors.bracket.border_color } })
 end)
 
--- バーの外へ出たときは mouse.exited.global でも閉じる。
+-- Also close on mouse.exited.global when leaving the bar.
 hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	if pin.active then
 		return
@@ -225,11 +225,11 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	anchor:set({ popup = { drawing = false } })
 end)
 
--- btm の窓 pkgs/btm-window は AeroSpace の管理外で、今の workspace の上に重なる。workspace は切り替わらない。
+-- The btm window pkgs/btm-window is outside AeroSpace's management and overlays the current workspace. The workspace does not switch.
 local BTM_APP_NAME = "btm-window"
 local TOGGLE_BTM_COMMAND = string.format("pkill -USR1 -x %s || { nohup %s >/dev/null 2>&1 & }", BTM_APP_NAME, BTM_APP_NAME)
 
--- 最前面のときは、aerospace の workspace と同じく色を反転する。items/aerospace.lua の highlight を参照。
+-- When frontmost, invert the colors like aerospace's workspace. See highlight in items/aerospace.lua.
 local function set_btm_state(state)
 	local pill_color = {
 		front = colors.space.bg_focused,
@@ -242,11 +242,11 @@ local function set_btm_state(state)
 	})
 end
 
--- 古い問い合わせの結果が、新しい状態を上書きしないよう、最後の問い合わせだけ反映する。
+-- So that the result of an old query does not overwrite the new state, reflect only the last query.
 local btm_query = ui.latest()
 
--- 窓が最前面になる、外れる、閉じるのは、どれも front_app_switched で分かる。INFO は前面になったアプリ名。
--- 窓が閉じた直後は、プロセスが終わりきる前に pgrep が走らないよう、少し待つ。
+-- The window becoming frontmost, losing focus, or closing are all detected by front_app_switched. INFO is the name of the app brought to the front.
+-- Right after the window closes, wait a little so that pgrep does not run before the process has fully exited.
 gear:subscribe("front_app_switched", function(env)
 	local is_latest = btm_query.begin()
 	if env.INFO == BTM_APP_NAME then

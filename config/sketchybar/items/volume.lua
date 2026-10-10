@@ -1,26 +1,26 @@
 local ui = require("ui")
 
--- 字面は箱の外にはみ出すと見切れるので、字面の最大幅にする。実測は 15.0 で、advance は 12.0 しかない。
--- 字面は箱の左端 + padding_left + 字面の左端のずれから描かれる。bluetooth.lua と同じ。
--- 音量が変わってもスピーカーの位置が動かないよう、スピーカーの左端を箱の左端にそろえ、波形だけが右へ伸び縮みするようにする。
--- padding は整数に切り捨てられるので、0.5pt 単位の補正はできない。実機で確認した。
--- 通常の Hack Nerd Font は字面ごとに左端のずれが違う。20pt で off と high が 0、medium が 0.38、low が 2.25。
--- そのため padding では 0.3pt 前後のずれが残り、mute と high が左にずれて見える。
--- Propo は字面ごとの位置の補正が無く、どの字面も左端が 0 なので、padding を使わずにそろう。
--- 実測は Hack Nerd Font Propo Bold 20pt を CoreText で 32 倍に描いて測った。フォントやサイズを変えたら再測定する。
---   字面        インクの左端  幅
+-- A glyph that overflows the box is clipped, so use the maximum glyph width. Measured 15.0, while the advance is only 12.0.
+-- The glyph is drawn from the box's left edge + padding_left + the glyph's left-edge offset. Same as bluetooth.lua.
+-- So that the speaker position does not move when the volume changes, align the speaker's left edge with the box's left edge so that only the waves stretch and shrink to the right.
+-- padding is truncated to an integer, so corrections in 0.5pt units are not possible. Verified on the actual device.
+-- Regular Hack Nerd Font has a different left-edge offset per glyph. At 20pt: off and high are 0, medium is 0.38, low is 2.25.
+-- So an offset of around 0.3pt remains with padding, and mute and high look shifted to the left.
+-- Propo has no per-glyph position correction and every glyph's left edge is 0, so they line up without using padding.
+-- Measured by drawing Hack Nerd Font Propo Bold 20pt at 32x with CoreText. Re-measure if the font or size changes.
+--   glyph       ink left edge width
 --   off / high  0             15.0
 --   medium      0             11.3
 --   low         0             7.5
 --   headphones  0             15.0
 local ICON_WIDTH = 15
 
--- フォントサイズは Wi-Fi や Bluetooth の 18pt より大きくする。音量の字面は同じ 18pt では他より小さく見えるため。
--- 音量 high の字面の高さは 18pt で 13.1、Wi-Fi は 13.9、Bluetooth は 15.0。
+-- Make the font size larger than the 18pt of Wi-Fi and Bluetooth. At the same 18pt the volume glyph looks smaller than the others.
+-- The height of the volume-high glyph is 13.1 at 18pt, Wi-Fi is 13.9, and Bluetooth is 15.0.
 local FONT_SIZE = 20.0
 
--- 字面の縦の中心はベースラインからの高さで、20pt が 6.94、Wi-Fi と Bluetooth の 18pt が 6.25。
--- Propo でも、どの字面でも同じ。他は y_offset = 1 なので、差の 0.69 を引いて 0.31 になり、整数に切り捨てて 0 にする。
+-- The vertical center of the glyph is the height from the baseline: 6.94 at 20pt, and 6.25 at 18pt for Wi-Fi and Bluetooth.
+-- Same for every glyph, even with Propo. Others use y_offset = 1, so subtracting the difference of 0.69 gives 0.31, truncated to the integer 0.
 local Y_OFFSET = 0
 
 local HEADPHONES = { icon = "󰋋" } -- nf-md-headphones
@@ -34,22 +34,22 @@ local LEVELS = {
 
 local MUTED = LEVELS[1]
 
--- match は、出力先の名前を小文字にしたものに含まれる文字。
--- Hack Nerd Font にイヤホンの字面は無いので、Beats もヘッドホンと同じ字面にしている。
--- 他のデバイスを足すときは、SwitchAudioSource -a -t output で名前を確認する。
+-- match is a string contained in the lowercased output destination name.
+-- Hack Nerd Font has no earphone glyph, so Beats also uses the same glyph as headphones.
+-- When adding other devices, check the name with SwitchAudioSource -a -t output.
 local DEVICES = {
 	{ match = "beats", glyph = HEADPHONES },
 	{ match = "headphone", glyph = HEADPHONES },
 	{ match = "headset", glyph = HEADPHONES },
-	{ match = "ヘッドフォン", glyph = HEADPHONES }, -- 有線のヘッドホン。内蔵の出力として現れる
+	{ match = "ヘッドフォン", glyph = HEADPHONES }, -- wired headphones. They appear as the built-in output
 	{ match = "ヘッドホン", glyph = HEADPHONES },
 }
 
--- トラックパッドは 1 回のスワイプで慣性スクロールを含め多数のイベントが出るので、
--- スクロールの量を足し合わせて、音量キー 1 回分ずつ変える。
--- 音量キーは media-key が合成して送るので、標準の音量ポップアップが出る。pkgs/media-key を参照。
--- 音量キー 1 回は音量の 1/16 で約 6%。option を押している間の fine は 1/64 で約 1.6%。
--- SCROLL_THRESHOLD は大きいほど鈍くなる。
+-- A single trackpad swipe emits many events including inertial scrolling, so
+-- accumulate the scroll amount and change the volume by one volume key press at a time.
+-- The volume key is synthesized and sent by media-key, so the standard volume popup appears. See pkgs/media-key.
+-- One volume key press is 1/16 of the volume, about 6%. fine, while option is held, is 1/64, about 1.6%.
+-- The larger SCROLL_THRESHOLD is, the duller it gets.
 local SCROLL_THRESHOLD = 5
 local SCROLL_IDLE = 0.3
 
@@ -68,7 +68,7 @@ local volume = ui.add_item("volume", "right", {
 	label = { drawing = false },
 })
 
--- 音量を持たない出力は HDMI などで、値が missing value になる。
+-- An output with no volume, such as HDMI, has the value missing value.
 local COMMAND = [[
 echo "device=$(SwitchAudioSource -c -t output)"
 osascript -e 'set s to get volume settings' -e 'return "vol=" & (output volume of s as text) & linefeed & "muted=" & (output muted of s as text)'
@@ -76,7 +76,7 @@ osascript -e 'set s to get volume settings' -e 'return "vol=" & (output volume o
 
 local current
 
--- 音量が取れない出力は、最大の段階として扱う。
+-- An output whose volume cannot be obtained is treated as the maximum level.
 local function pick(device, vol, muted)
 	if muted then
 		return MUTED
@@ -118,8 +118,8 @@ local function update()
 	end)
 end
 
--- mute は音量を変えず、mute 中も volume_change が届くかは実機で未確認。
--- そのため update_freq の数秒おきの更新でも拾う。
+-- mute does not change the volume, and it is unverified on the actual device whether volume_change arrives during mute.
+-- So also pick it up with the update_freq update every few seconds.
 volume:subscribe({ "volume_change", "system_woke", "routine", "forced" }, update)
 update()
 
@@ -127,20 +127,20 @@ local function toggle_mute()
 	sbar.exec("media-key mute", update)
 end
 
--- 音量を設定すると、同じ値でも mute が解除される。実機で確認した。
--- トラックパッドの右クリックは 2 本指で、クリックの直前に量 0 のスクロールが届くと推測している。
--- 音量が変わらないまま mute だけ解除されていたため、目盛りに達するまでは音量を設定しない。
--- 何もしないと、mute 中の右クリックが、スクロールで解除された後にクリックで mute し直してしまう。
+-- Setting the volume unmutes even with the same value. Verified on the actual device.
+-- A trackpad right click is a two-finger tap, and it is presumed that a zero-amount scroll arrives just before the click.
+-- Because only mute was cleared with the volume unchanged, do not set the volume until a tick is reached.
+-- Otherwise a right click during mute would be unmuted by the scroll and then muted again by the click.
 local scroll = ui.scroll_accumulator(SCROLL_THRESHOLD, SCROLL_IDLE, function(sign, ticks, fine)
 	sbar.exec(string.format("media-key %s %d%s", sign > 0 and "up" or "down", ticks, fine and " fine" or ""), update)
 end)
 
--- bracket とクリックを受ける領域は、Wi-Fi と Bluetooth とまとめて 1 つの bracket にする items/network.lua が作る。
+-- The bracket and the click-receiving region are created by items/network.lua, which groups it together with Wi-Fi and Bluetooth into one bracket.
 return {
 	item = volume,
 	icon_width = ICON_WIDTH,
 	settings_url = SETTINGS_URL,
-	title_pattern = "サウンド", -- 表示言語に依存する
+	title_pattern = "サウンド", -- depends on the display language
 	toggle_mute = toggle_mute,
 	scroll = scroll,
 }

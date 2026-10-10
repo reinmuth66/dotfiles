@@ -1,7 +1,7 @@
--- Spotify のアルバム画像の取得とキャッシュ。items/spotify.lua が使う。
--- 画像は、osascript で引いた artwork url から取得する。使う側は、M.load で曲の画像を用意させ、
--- 準備できたら on_ready に files と histogram を渡して受け取る。
--- files.small が画像のパス、histogram が palette.lua の入力になる色の頻度表。
+-- Fetching and caching of Spotify album art. Used by items/spotify.lua.
+-- The image is fetched from the artwork url obtained via osascript. The caller has M.load prepare the track's image,
+-- and receives files and histogram via on_ready once it is ready.
+-- files.small is the image path, and histogram is the color frequency table that is the input to palette.lua.
 
 local paths = require("paths")
 local fs = require("items.spotify.fs")
@@ -10,25 +10,25 @@ local script = require("items.spotify.script")
 local M = {}
 
 local CACHE_DIR = paths.cache .. "/spotify"
--- 表示サイズとは独立の固定値で、使う側が scale として 表示サイズ / ART_PX で縮める。
--- Retina の 2 倍なら、表示サイズが 48 まで足りる。変えるときは、古い解像度の画像が残るため、CACHE_DIR のキャッシュを消すこと。
+-- A fixed value independent of the display size; the caller shrinks it with scale = display size / ART_PX.
+-- At 2x Retina this is enough for display sizes up to 48. When changing it, delete the cache in CACHE_DIR, because images at the old resolution remain.
 local ART_PX = 96
 M.ART_PX = ART_PX
 
--- 1 枚の画像につき、アイコン用の画像 <ID>.jpg と色の頻度表 <ID>.colors の 2 ファイルを、画像の ID で持つ。ID は artwork url の末尾。
--- 画像の大きさ ART_PX は固定なので、ファイル名には含めない。表示サイズは画像の実ピクセル * scale。
--- キャッシュの確認を Lua で行うので、キャッシュにある画像では、取得のためのシェルを起動しない。
--- 取得は画像の ID ごとに 1 本だけ走らせる。同じアルバムの曲を続けて切り替えると、同じ画像の取得が重なるため、
--- 重なった要求は、走っている取得の完了を待つ。
--- 取得は、curl の出力を中間ファイルなしで magick に渡し、1 回のデコードで画像と頻度表を出す。
--- 出力は一時ファイルに書いて、最後に mv で置くので、途中の状態が見えない。
+-- Per image, keep two files named by the image ID: <ID>.jpg for the icon image and <ID>.colors for the color frequency table. The ID is the end of the artwork url.
+-- The image size ART_PX is fixed, so it is not included in the file name. The display size is the image's actual pixels * scale.
+-- Cache existence is checked in Lua, so no shell is launched for fetching an image that is in the cache.
+-- Run only one fetch per image ID. Switching between tracks of the same album in a row would overlap fetches of the same image,
+-- so overlapping requests wait for the running fetch to finish.
+-- The fetch passes curl's output to magick without an intermediate file, and produces the image and frequency table in one decode.
+-- Output is written to a temporary file and finally placed with mv, so intermediate states are never visible.
 
 local COLOR_SWATCHES = 32
 local COLOR_SAMPLE_PX = 48
 
 local ARTWORK_URL_COMMAND = script.command("get artwork url of current track")
 
--- curl か magick が失敗したら、pipefail で何も置かない。
+-- If curl or magick fails, pipefail ensures nothing is placed.
 local function download_command(key, url)
 	return string.format(
 		[[
@@ -67,7 +67,7 @@ local function artwork_files(key)
 	}
 end
 
--- 色の頻度表が欠けた古いキャッシュは、取り直して揃える
+-- An old cache missing the color frequency table is refetched to complete it
 local function cached_artwork(key)
 	local files = artwork_files(key)
 	local histogram = fs.read(files.colors)
@@ -77,13 +77,13 @@ local function cached_artwork(key)
 	return nil
 end
 
--- 古い画像の掃除は、再読み込みを含め読み込み時に 1 回だけ行う。取得と重ならない。
+-- Cleanup of old images is done only once at load time, including reload. It does not overlap with fetching.
 sbar.exec(string.format("find %q -type f -mtime +30 -delete 2>/dev/null", CACHE_DIR))
 
 local downloads = {}
 
--- 失敗したら done に nil を渡す。
--- 色の頻度表だけ作れなかったときも、画像は出す。配色は固定色に戻る。
+-- On failure, pass nil to done.
+-- Even if only the color frequency table could not be made, the image is still output. The colors fall back to the fixed colors.
 local function ensure_artwork(key, url, done)
 	local files, histogram = cached_artwork(key)
 	if files then
@@ -111,7 +111,7 @@ local function ensure_artwork(key, url, done)
 	end)
 end
 
--- 画像を出せた曲だけ覚える。取得に失敗した曲は覚えない。誤った url を取っても、使い回さない。
+-- Remember only tracks whose image could be output. Do not remember tracks whose fetch failed. Even if a wrong url was obtained, do not reuse it.
 local artwork_of_track = {}
 
 local function resolve_artwork(track_id, done)
@@ -127,15 +127,15 @@ local function resolve_artwork(track_id, done)
 	end)
 end
 
--- 曲が変わった・停止した場合は、古い取得の結果を捨てるのに使う
+-- Used to discard the result of an old fetch when the track changed or stopped
 local current_track = nil
 
--- 取得に失敗したとき、つまりネットワークや osascript の一時的な失敗は、少し待って取り直す。
+-- When a fetch fails, i.e. a temporary network or osascript failure, wait a moment and retry.
 local ARTWORK_ATTEMPTS = 3
-local ARTWORK_RETRY_DELAY = 0.5 -- 秒
+local ARTWORK_RETRY_DELAY = 0.5 -- seconds
 
--- 取り直しても失敗し続けたら、current_track を nil に戻す。次のイベントで再試行する。
--- 取得中に曲が変わった・停止した場合は、結果を捨てる。
+-- If it keeps failing even after retrying, return current_track to nil. Retry at the next event.
+-- If the track changed or stopped during the fetch, discard the result.
 local function load_artwork(track_id, on_ready, attempt)
 	attempt = attempt or 1
 	current_track = track_id
@@ -172,9 +172,9 @@ local function load_artwork(track_id, on_ready, attempt)
 	end)
 end
 
--- 取得中に曲が変わって別の曲で load された、または clear された場合は、呼ばない。
--- 色の頻度表だけ作れなかったときは、histogram は空文字列で、配色は固定色に戻る。
--- 取得に失敗し続けたときは、current を nil に戻す。次のイベントで再試行できる。
+-- Not called if the track changed during the fetch and another track was loaded, or if it was cleared.
+-- If only the color frequency table could not be made, histogram is an empty string and the colors fall back to the fixed colors.
+-- If the fetch keeps failing, current is returned to nil. It can be retried at the next event.
 function M.load(track_id, on_ready)
 	load_artwork(track_id, on_ready, 1)
 end
@@ -183,7 +183,7 @@ function M.current()
 	return current_track
 end
 
--- 取得中の結果は捨てられる
+-- The result of an in-progress fetch is discarded
 function M.clear()
 	current_track = nil
 end

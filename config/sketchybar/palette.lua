@@ -1,32 +1,32 @@
--- アルバム画像の代表色から、Spotify のポップアップの配色を決める。
--- 入力は ImageMagick の色の頻度表を "個数,R,G,B;個数,R,G,B;..." にした文字列で、items/spotify/artwork.lua の download_command が作る。
--- 背景の色相は、最大の 1 色だけに引きずられないよう、有彩色の色相を重み付けして円周上で平均する。
--- 背景の明るさは、画像の明るさ L* が dark と light のどちらの背景に近いかで決める。閾値は置かず、両側から等距離で判定する。
--- 棒グラフの色相の accent は、白系の色を候補にしない。文字の色と同系統になり、棒の上の文字が読めなくなるため。
--- 再生済みと未再生の棒は色相をそろえ、1 本の棒として見せる。背景と同系統でなくてよい。
--- 棒の上に曲名とアーティストが重なるので、再生済みの棒は文字が読める範囲でできるだけ背景から離す。bar_luminances が決める。
--- 未再生は背景と再生済みの間に置く。どちらも不透明で、items 側の棒の不透明度は 1。
--- 無彩色の画像でアクセントが見つからないときは nil を返す。呼び出し側は default に戻す。
+-- Decides the Spotify popup's colors from the album art's representative colors.
+-- The input is ImageMagick's color frequency table as a string "count,R,G,B;count,R,G,B;...", made by download_command in items/spotify/artwork.lua.
+-- The background hue is the chromatic hues weighted and averaged on the circle, so as not to be dragged by just the single largest color.
+-- The background brightness is decided by whether the image's brightness L* is closer to the dark or the light background. No threshold is set; it is judged by equal distance from both sides.
+-- The bar graph's accent hue does not take whitish colors as candidates. It would be the same family as the text color, making the text over the bars unreadable.
+-- The played and unplayed bars share a hue so they look like one bar. They need not be the same family as the background.
+-- The title and artist overlap the bars, so the played bar is kept as far from the background as possible while the text stays readable. bar_luminances decides this.
+-- The unplayed bar is placed between the background and the played one. Both are opaque, and the bar opacity on the items side is 1.
+-- Returns nil when no accent is found, as with an achromatic image. The caller falls back to default.
 
 local colors = require("colors")
 
 local M = {}
 
--- 調整用の定数。
--- 色の候補にする彩度と明るさの下限。BASE_ の 2 つは背景の色相の候補用で、アクセントより緩くする。
--- BASE_MIN_VALUE は、暗い空や夜の画像でも、その色を背景に使えるようにする値。
+-- Constants for tuning.
+-- Lower bounds of saturation and brightness for color candidates. The two BASE_ ones are for background hue candidates and are looser than the accent.
+-- BASE_MIN_VALUE is the value that lets even dark sky or night images use that color as the background.
 local MIN_SATURATION = 0.3
 local MIN_VALUE = 0.25
 local BASE_MIN_SATURATION = 0.15
 local BASE_MIN_VALUE = 0.1
 
--- 棒グラフの色のスコアは、Android の Palette API の Target と同じ方式。占有率は、最も多い色に対する割合で、0〜1 の値。目標は 1。
--- 重みは Palette の既定の VIBRANT とは違い、淡い色に偏らないよう、彩度を重くしてある。
--- 占有率も重く見て、画像の見た目に効いている色を選ぶ。小さな差し色が選ばれると不自然になる。
--- ACCENT_TARGET_LIGHTNESS は、白っぽい色や黒っぽい色を避ける値。実際の明るさは bar_luminances が決める。
--- ACCENT_MIN_HUE_GAP の 0.15 は 54 度。MIN_SHARE は、小さな差し色を拾わない下限。
--- ACCENT_MAX_SATURATION は、派手になりすぎないようにする上限。
--- HUE_MIN_CONCENTRATION は、補色どうしが打ち消し合うと平均が定まらないので、これ未満なら最大の色の色相にする。
+-- The bar graph's color score uses the same method as Android's Palette API Target. Share is the ratio to the most frequent color, a value from 0 to 1. The target is 1.
+-- Unlike Palette's default VIBRANT, the weights emphasize saturation so as not to lean toward pale colors.
+-- Share is also weighted heavily so colors that affect the image's look are chosen. Picking a small accent color would look unnatural.
+-- ACCENT_TARGET_LIGHTNESS is the value that avoids whitish and blackish colors. The actual brightness is decided by bar_luminances.
+-- ACCENT_MIN_HUE_GAP of 0.15 is 54 degrees. MIN_SHARE is the lower bound so that small accent colors are not picked up.
+-- ACCENT_MAX_SATURATION is the upper bound so that it does not become too flashy.
+-- HUE_MIN_CONCENTRATION: complementary colors cancel out and the average becomes undefined, so below this use the hue of the largest color.
 local ACCENT_WEIGHT_SATURATION = 0.4
 local ACCENT_WEIGHT_LIGHTNESS = 0.2
 local ACCENT_WEIGHT_POPULATION = 0.4
@@ -38,7 +38,7 @@ local ACCENT_MAX_SATURATION = 0.7
 local ACCENT_FALLBACK_SATURATION = 0.5
 local HUE_MIN_CONCENTRATION = 0.3
 
--- 背景と枠は透過させない。BORDER_SATURATION は、アクセントより控えめにする。
+-- The background and border are not made transparent. BORDER_SATURATION is more subdued than the accent.
 local BG_ALPHA = 0xff
 local BORDER_ALPHA = 0xff
 local BORDER_SATURATION = 0.22
@@ -46,9 +46,9 @@ local BORDER_SATURATION = 0.22
 local TEXT_CONTRAST = 7
 local SUBTEXT_CONTRAST = 4.5
 
--- 棒の上に文字が重なるので、文字が埋もれない範囲で棒を明るくする。
--- PLAYED_MIN_SATURATION は、未再生との差を、明るさだけでなく鮮やかさでも出す値。
--- BAR_MIN_STEP は、文字の条件で背景と再生済みの差が潰れないようにする値。
+-- The text overlaps the bars, so make the bars as bright as possible within the range where the text does not get buried.
+-- PLAYED_MIN_SATURATION is the value that makes the difference from the unplayed bar appear in vividness as well as brightness.
+-- BAR_MIN_STEP is the value that keeps the text condition from collapsing the difference between the background and the played bar.
 local PLAYED_TEXT_CONTRAST = 4.5
 local PLAYED_SUBTEXT_CONTRAST = 3
 local UNPLAYED_STEP = 0.35
@@ -56,13 +56,13 @@ local PLAYED_MIN_SATURATION = 0.45
 local UNPLAYED_SATURATION_SCALE = 0.6
 local BAR_MIN_STEP = 1.5
 
--- 中間の明るさの背景は、アクセントの色が出ないので、dark と light のどちらかに寄せる。
+-- A background of intermediate brightness would not show the accent color, so push it toward either dark or light.
 local THEMES = {
 	dark = {
 		bg_saturation = { scale = 0.6, min = 0.05, max = 0.35 },
 		bg_luminance = { scale = 0.25, min = 0.012, max = 0.06 },
 		text = { s = 0.12, v = 0.96 },
-		subtext = { s = 0.15, v = 0.70 }, -- colors の既定は無彩色の 0xaaaaaa
+		subtext = { s = 0.15, v = 0.70 }, -- the default of colors is the achromatic 0xaaaaaa
 		border_value = 0.42,
 	},
 	light = {
@@ -92,7 +92,7 @@ local function rgb_to_hsv(r, g, b)
 	return h, max == 0 and 0 or d / max, max
 end
 
--- 戻り値は 0〜255 の整数 3 つ
+-- The return value is three integers from 0 to 255
 local function hsv_to_rgb(h, s, v)
 	local i = math.floor(h * 6)
 	local f = h * 6 - i
@@ -115,7 +115,7 @@ local function hsv_to_rgb(h, s, v)
 	return math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5)
 end
 
--- WCAG の相対輝度とコントラスト比
+-- WCAG relative luminance and contrast ratio
 local function luminance(r, g, b)
 	local function f(c)
 		c = c / 255
@@ -136,7 +136,7 @@ local function argb(alpha, r, g, b)
 	return alpha * 0x1000000 + r * 0x10000 + g * 0x100 + b
 end
 
--- 読めない部分は捨てる。
+-- Discard the unreadable parts.
 local function parse(text)
 	local list = {}
 	for n, r, g, b in text:gmatch("(%d+),(%d+),(%d+),(%d+)") do
@@ -145,13 +145,13 @@ local function parse(text)
 	return list
 end
 
--- 0〜1 の輪にした色相の距離。0〜0.5。
+-- Distance of hues on a 0 to 1 wheel. 0 to 0.5.
 local function hue_distance(a, b)
 	local d = math.abs(a - b) % 1
 	return math.min(d, 1 - d)
 end
 
--- 0〜255 の RGB から求める HSL の明るさと彩度。
+-- HSL lightness and saturation obtained from 0 to 255 RGB.
 local function rgb_to_hsl(r, g, b)
 	r, g, b = r / 255, g / 255, b / 255
 	local max, min = math.max(r, g, b), math.min(r, g, b)
@@ -160,7 +160,7 @@ local function rgb_to_hsl(r, g, b)
 	return l, d == 0 and 0 or d / (1 - math.abs(2 * l - 1))
 end
 
--- share は占有率。画像が空なら nil。
+-- share is the occupancy. nil if the image is empty.
 local function analyze(list)
 	local total = 0
 	for _, c in ipairs(list) do
@@ -182,7 +182,7 @@ local function clamp(x, min, max)
 	return math.max(min, math.min(max, x))
 end
 
--- { s = 彩度, lum = 相対輝度 } を返す。
+-- Returns { s = saturation, lum = relative luminance }.
 local function average(swatches)
 	local r, g, b = 0, 0, 0
 	for _, c in ipairs(swatches) do
@@ -192,7 +192,7 @@ local function average(swatches)
 	return { s = s, lum = luminance(r, g, b) }
 end
 
--- 有彩色がなければ nil。
+-- nil if there is no chromatic color.
 local function pick_hue(swatches)
 	local x, y, total = 0, 0, 0
 	local largest
@@ -228,7 +228,7 @@ local function score(c, top_share)
 		+ ACCENT_WEIGHT_POPULATION * c.share / top_share
 end
 
--- なければ nil。min_gap を渡すと、refs に渡したすでに選んだ色のどれかと色相の距離が min_gap 未満の色は候補から外す。
+-- nil if none. If min_gap is passed, colors whose hue distance to any of the already chosen colors passed in refs is less than min_gap are excluded from the candidates.
 local function pick_accent(swatches, refs, min_gap)
 	local top_share = max_share(swatches)
 	local best, best_score
@@ -249,12 +249,12 @@ local function pick_accent(swatches, refs, min_gap)
 	return best
 end
 
--- CIE L* で知覚の明るさ。0〜100。
+-- Perceived brightness by CIE L*. 0 to 100.
 local function lightness(lum)
 	return lum > 0.008856 and 116 * lum ^ (1 / 3) - 16 or 903.3 * lum
 end
 
--- 明るさ HSV の V を最大にしても届かないときは、届くまで彩度を下げて白に近づける。
+-- If it is not reached even with V of HSV brightness at its maximum, lower the saturation toward white until it is reached.
 local function at_luminance(h, s, target)
 	while true do
 		local lo, hi = 0, 1
@@ -296,13 +296,13 @@ local function fit_contrast(color, bg, ratio, light)
 	end
 end
 
--- alpha は捨てる。cava の設定の色に使う。items/spotify.lua も使う。
+-- Discard alpha. Used for cava's config colors. Also used by items/spotify.lua.
 local function hex(color)
 	return string.format("#%06x", color % 0x1000000)
 end
 M.hex = hex
 
--- 戻り値は未再生と再生済みの相対輝度。UNPLAYED_STEP は、背景と再生済みの間をコントラスト比の対数で見たときの、背景からの位置。
+-- Returns the relative luminance of unplayed and played. UNPLAYED_STEP is the position from the background, seen on the logarithm of the contrast ratio between the background and the played one.
 local function bar_luminances(bg, text, subtext, light)
 	local lb, lt, ls = luminance(bg[1], bg[2], bg[3]) + 0.05, luminance(text[1], text[2], text[3]) + 0.05, luminance(subtext[1], subtext[2], subtext[3]) + 0.05
 	local lp
@@ -315,7 +315,7 @@ local function bar_luminances(bg, text, subtext, light)
 	return lu - 0.05, lp - 0.05
 end
 
--- 背景と枠線は透過させない。colors.popup は、半透明の枠 0x44ffffff を黒の上に重ねた色 0x444444 にしてある。
+-- The background and border are not made transparent. colors.popup is the semi-transparent border 0x44ffffff composited over black, giving 0x444444.
 M.default = {
 	bg = colors.popup.bg,
 	border = colors.popup.border,
@@ -325,7 +325,7 @@ M.default = {
 	played = "#5c5c5c",
 }
 
--- histogram は nil や空でもよい。無彩色なら nil を返す。
+-- histogram may be nil or empty. Returns nil for an achromatic image.
 function M.from_histogram(histogram)
 	if type(histogram) ~= "string" then
 		return nil

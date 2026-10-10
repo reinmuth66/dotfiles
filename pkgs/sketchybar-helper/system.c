@@ -6,18 +6,18 @@
 #include <sys/statvfs.h>
 #include <sys/sysctl.h>
 
-// CPU、メモリ、ディスクの使用状況を一定間隔で測り、
-// SketchyBar の system_stats イベントに環境変数として渡す。
-// 測定はカーネルの API を直接呼ぶだけで、プロセスを起動しない。
-// 描画や書式は items/system.lua の Lua が決めるので、ここでは生の値だけを送る。
+// Measures CPU, memory, and disk usage at fixed intervals and
+// passes them as environment variables to SketchyBar's system_stats event.
+// Measurement only calls kernel APIs directly and does not launch processes.
+// Drawing and formatting are decided by the Lua in items/system.lua, so only raw values are sent here.
 //
-// 値の測り方は bottom の btm に合わせて、popup の数字が btm と一致するようにしている。btm は pkgs/btm-window が表示する。
-// btm が使う sysinfo クレートの macOS 実装と同じ式。
+// How values are measured follows bottom's btm so that the popup's numbers match btm. btm is shown by pkgs/btm-window.
+// The same formula as the macOS implementation of the sysinfo crate that btm uses.
 
 #define INTERVAL 1.0
-// 秒。割り込みをまとめて、省電力にする
+// Seconds. Coalesce wakeups to save power
 #define TOLERANCE 0.2
-// btm の disk widget は "/" だけを表示する設定。APFS のコンテナ、つまりディスク全体の空きが取れる。
+// btm's disk widget is configured to show only "/". The free space of the APFS container, i.e. the whole disk, can be obtained.
 #define DISK_PATH "/"
 #define MAX_CPUS 256
 
@@ -25,14 +25,14 @@ static mach_port_t host;
 static vm_size_t page_size;
 static uint64_t mem_total;
 
-// sysinfo と同じく i32 の tick を i64 で足す
+// Like sysinfo, add i32 ticks as i64
 static int64_t cpu_prev_busy[MAX_CPUS];
 static int32_t cpu_prev_idle[MAX_CPUS];
 static bool cpu_has_prev;
 
-// sysinfo の global_cpu_usage と同じく、コアごとの使用率を busy / (busy + idle) の f32 で出して、その平均を取る。
-// 全コアの tick を合計して割るのとは、わずかに値が違う。
-// total が 0 で使用率が NaN になるコアは、足さずに 0 として扱う。
+// Like sysinfo's global_cpu_usage, compute each core's usage as an f32 busy / (busy + idle) and take their average.
+// This differs slightly from summing the ticks of all cores and dividing.
+// A core whose total is 0 and whose usage would be NaN is treated as 0 without being added.
 static float cpu_usage(void) {
   natural_t count;
   processor_info_array_t info;
@@ -65,7 +65,7 @@ static float cpu_usage(void) {
   return sum / (float)count;
 }
 
-// アクティビティモニタの "使用メモリ" と同じ内訳で、アプリ + 確保済み + 圧縮。
+// The same breakdown as Activity Monitor's "Memory Used": app + wired + compressed.
 static uint64_t memory_used(void) {
   vm_statistics64_data_t vm;
   mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
@@ -78,8 +78,8 @@ static uint64_t memory_used(void) {
   return pages * page_size;
 }
 
-// メモリ圧力は 1 が normal、2 が warn、4 が critical。memory_pressure コマンドと同じカーネルの値で、プロセスを起動せずに読める。
-// 読めなかったときは 0。
+// Memory pressure is 1 for normal, 2 for warn, 4 for critical. The same kernel value as the memory_pressure command, readable without launching a process.
+// 0 if it could not be read.
 static int memory_pressure(void) {
   int level = 0;
   size_t length = sizeof(level);
@@ -88,8 +88,8 @@ static int memory_pressure(void) {
   return level;
 }
 
-// btm の disk widget の Free と Total と同じ値で、statvfs の空きブロック数 x ブロックサイズ。
-// macOS の "消せるキャッシュ" は空きに含めない。
+// The same value as btm's disk widget Free and Total: statvfs's free block count x block size.
+// macOS's "purgeable cache" is not included in free.
 static void disk_usage(uint64_t *free_bytes, uint64_t *total_bytes) {
   struct statvfs fs;
   *free_bytes = *total_bytes = 0;
@@ -99,7 +99,7 @@ static void disk_usage(uint64_t *free_bytes, uint64_t *total_bytes) {
   *total_bytes = (uint64_t)fs.f_blocks * fs.f_frsize;
 }
 
-// CPU は f32 の値をそのまま送る。%.9g で桁を失わない。Lua で丸めるときに、btm と同じ値から丸める。
+// CPU sends the f32 value as is. %.9g does not lose digits. When rounding in Lua, round from the same value as btm.
 static void sample(CFRunLoopTimerRef timer, void *info) {
   float cpu = cpu_usage();
   uint64_t mem_used = memory_used();
@@ -117,7 +117,7 @@ static void sample(CFRunLoopTimerRef timer, void *info) {
   sketchybar(message);
 }
 
-// 最初の cpu_usage は基準値を取るだけ。増分が要る CPU は、2 回目から意味を持つ。
+// The first cpu_usage only takes the baseline. CPU, which needs a delta, is meaningful from the second time.
 int main(void) {
   host = mach_host_self();
   host_page_size(host, &page_size);

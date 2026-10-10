@@ -1,12 +1,12 @@
 local ui = require("ui")
 
--- 英大文字の字面の高さ。Hack Nerd Font Bold 16pt を CoreText で実測した 11.7。
--- フォントやサイズを変えたら再測定する。
+-- Glyph height of uppercase Latin letters. Measured 11.7 for Hack Nerd Font Bold 16pt with CoreText.
+-- Re-measure if the font or size changes.
 local GLYPH_HEIGHT = 12
 
--- label の width は最大値に固定する。JP と EN で描画幅が 1px 違い、EN が 18px、JP が 19px なので、
--- 切り替えで bracket の幅が変わってしまう。
--- 実測は Hack Nerd Font Bold 16pt で、フォントやサイズを変えたら再測定する。
+-- Fix the label width to the maximum. JP and EN render 1px apart (EN is 18px, JP is 19px),
+-- so the bracket width would change on every switch.
+-- Measured with Hack Nerd Font Bold 16pt; re-measure if the font or size changes.
 local ime = ui.add_item("ime", "right", {
 	icon = { drawing = false },
 	label = {
@@ -17,8 +17,8 @@ local ime = ui.add_item("ime", "right", {
 	},
 })
 
--- 字面の左右には label の端から約 1px の空きがあるので、その分を引いて見た目の左右の余白を上下にそろえる。
--- 実測は左 0.9〜1.3px、右 0.4〜0.7px で、平均は約 0.8px。
+-- The glyph has about 1px of space from the label edge on both sides, so subtract that to even out the visible left/right margins with the top/bottom.
+-- Measured 0.9 to 1.3px on the left and 0.4 to 0.7px on the right, averaging about 0.8px.
 local SIDE_BEARING = 1
 
 ui.add_bracket("ime.bracket", { ime }, nil, ui.vertical_margin(GLYPH_HEIGHT) - SIDE_BEARING)

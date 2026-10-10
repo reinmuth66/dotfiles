@@ -1,23 +1,23 @@
 local ui = require("ui")
 
--- 中身で最も高いアイコンの字面の高さ。Hack Nerd Font Bold 18pt を CoreText で実測して 15.0、label の 13pt は 9.7。
--- フォントやサイズを変えたら再測定する。
+-- Glyph height of the tallest icon in the contents. Measured with CoreText: 15.0 for Hack Nerd Font Bold 18pt, 9.7 for the 13pt label.
+-- Re-measure if the font or size changes.
 local GLYPH_HEIGHT = 15
 
--- label の幅は、add_item の label.width で、"100%" が収まる 34px に常に固定する。
--- 桁数や先頭の文字で幅が変わると左隣の item がずれる。先頭が "1" と "5" のときは文字列幅が 1px 狭くなる。
--- 左隣の network が動くと items/spotify.lua のポップアップとの隙間も変わるため、桁数にかかわらず固定する。
--- Hack Nerd Font Bold 13pt の実測は、label の固定幅が内側の padding を含み、文字幅 + padding_left の 3 になる。
--- "45%" が 27px、"100%" が 34px。1 桁は "05%" のように 0 埋めして 2 桁として扱う。
--- フォントやサイズ、label の padding を変えたら再測定する。
+-- The label width is always fixed via add_item's label.width to 34px, which fits "100%".
+-- If the width varied with the digit count or leading character, the item to the left would shift. The string is 1px narrower when it starts with "1" or "5".
+-- When the network item on the left moves, the gap to the items/spotify.lua popup also changes, so the width is fixed regardless of digit count.
+-- Measured with Hack Nerd Font Bold 13pt: the label's fixed width includes the inner padding, so it is text width + padding_left of 3.
+-- "45%" is 27px and "100%" is 34px. A single digit is zero-padded like "05%" and treated as two digits.
+-- Re-measure if the font, size, or label padding changes.
 --
--- 字面は label の左端 + padding_left から描かれ、padding_left を変えても label の幅 34 と item の幅は変わらない。
--- 実機で確認した。sketchybar の label には x_offset がない。
--- 3 桁の "100%" は幅いっぱいなので 3。2 桁の "45%" は余りの 7px を左右に分けると、左に 3.5px 足す位置 6.5 が中央で、
--- 整数の 6 か 7 から選ぶ。大きくすると右へ、小さくすると左へ動く。
+-- The glyph is drawn from the label's left edge + padding_left; changing padding_left changes neither the label width of 34 nor the item width.
+-- Verified on the actual device. sketchybar labels have no x_offset.
+-- The three-digit "100%" fills the width, so 3. For the two-digit "45%", splitting the remaining 7px left and right puts the center at 6.5 (3.5px added on the left),
+-- so choose 6 or 7 from the integers. Larger moves it right, smaller moves it left.
 local LABEL_PADDING_LEFT = { [2] = 8, [3] = 3 }
 
--- 余白は bracket の padding で決めるため、左端の icon と右端の label の内側の padding は 0 にする。
+-- Spacing is determined by the bracket's padding, so the inner padding of the leftmost icon and the rightmost label is 0.
 local battery = ui.add_item("battery", "right", {
 	update_freq = 120,
 	icon = { font = { size = 18.0 }, y_offset = 1, padding_left = 0, padding_right = 3 },
@@ -52,7 +52,7 @@ local function icon_for(charge, charging)
 	return icons[bucket]
 end
 
--- 1桁のときだけ 0 埋めして、9% と 10% で幅が変わらないようにする。
+-- Zero-pad only single digits so that the width does not change between 9% and 10%.
 local function update()
 	sbar.exec("pmset -g batt", function(batt_info)
 		if batt_info == nil then

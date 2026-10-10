@@ -1,16 +1,16 @@
--- 入力、つまりスクロール、右クリック、クリックの受け方と、それに対する操作の部品。
--- ui.lua が ui.scroll_accumulator と ui.pin と ui.toggle_settings として再エクスポートするので、呼び出し側は ui を通して使う。
+-- Components for receiving input (scroll, right click, click) and the actions taken on it.
+-- ui.lua re-exports them as ui.scroll_accumulator, ui.pin and ui.toggle_settings, so callers use them through ui.
 
 local async = require("ui.async")
 
 local M = {}
 
--- 前面かどうかは、System Settings の最前面のウィンドウのタイトルが title_pattern を含むかで見る。
--- アクセシビリティで取る。実機で、タイトルが "Wi‑Fi" と "Bluetooth" で取れることを確認した。
--- タイトルは表示言語に依存するので、取れない、または一致しないときは、閉じずに開いて前面へ出すだけにする。
--- 最後のウィンドウを閉じるとシステム設定のアプリ自体が終了する。実機で確認した。
--- 起動していないときの osascript の確認は約 1.6 秒かかるので、約 0.02 秒の pgrep で先に見て、
--- 起動していなければ確認せずにすぐ開く。起動中の確認は約 0.13 秒。
+-- Whether it is frontmost is determined by whether the title of System Settings' frontmost window contains title_pattern.
+-- Obtained via accessibility. Confirmed on the actual device that the titles can be obtained as "Wi‑Fi" and "Bluetooth".
+-- The title depends on the display language, so if it cannot be obtained or does not match, just open it and bring it to the front without closing.
+-- Closing the last window quits the System Settings app itself. Verified on the actual device.
+-- The osascript check takes about 1.6 seconds when it is not running, so look with pgrep (about 0.02 seconds) first and,
+-- if it is not running, open immediately without the check. The check while running takes about 0.13 seconds.
 function M.toggle_settings(url, title_pattern)
 	local check = string.format(
 		[[tell application "System Events"
@@ -33,8 +33,8 @@ end tell]],
 	sbar.exec(command)
 end
 
--- sign は向きで、上スクロールが正の delta。ticks は達した目盛りの数。返した関数の delta 以外の引数は、そのまま on_ticks に渡る。
--- トラックパッドは 1 回のスワイプで慣性スクロールを含め多数のイベントが出るので、イベントごとには反応せず、目盛りに達するまでは何もしない。
+-- sign is the direction, with scroll up being a positive delta. ticks is the number of ticks reached. Arguments of the returned function other than delta are passed to on_ticks as is.
+-- A single trackpad swipe emits many events including inertial scrolling, so do not react per event and do nothing until a tick is reached.
 function M.scroll_accumulator(threshold, idle, on_ticks)
 	local sum = 0
 	local idle_timer = async.timer()
@@ -65,8 +65,8 @@ function M.scroll_accumulator(threshold, idle, on_ticks)
 	end
 end
 
--- ピン留め中は、閉じる側が pin.active を見て、マウスが外れてもポップアップを閉じない。
--- on_change は、状態が変わったときに active を渡して呼ぶ。
+-- While pinned, the closing side looks at pin.active and does not close the popup even when the mouse leaves.
+-- on_change is called with active when the state changes.
 function M.pin(on_change)
 	local pin = { active = false }
 

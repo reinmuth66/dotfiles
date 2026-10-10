@@ -1,37 +1,37 @@
 { lib, pkgs, ... }:
 
-# Spotify のポップアップの下に敷く、棒グラフのサウンドビジュアライザ。cava の SDL 版を使う。
-# cava の窓は、ポップアップの背景、枠、棒グラフを描く。SketchyBar のポップアップ自身の背景は透明にして、
-# 文字やカバー画像、再生位置のバーだけを、この窓の上に描かせる。
-# 別の窓の前後は window level でしか決まらず、1 つの窓の中の背景と文字の間には入れないため。
-# 起動と停止、窓の位置合わせ、背景の受け渡しは config/sketchybar/items/spotify.lua が行う。
-# .app の作り方と、音声取得の許可については pkgs/cavaviz/default.nix を参照。
+# A bar-graph sound visualizer laid under the Spotify popup. Uses the SDL version of cava.
+# The cava window draws the popup's background, border, and bar graph. The SketchyBar popup's own background is made transparent,
+# so that only the text, cover image, and playback position bar are drawn on top of this window.
+# Ordering between separate windows is decided only by window level, and nothing can be inserted between the background and text inside a single window.
+# Launching and stopping, aligning the window position, and handing over the background are done by config/sketchybar/items/spotify.lua.
+# For how the .app is built and the audio capture permission, see pkgs/cavaviz/default.nix.
 let
   cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
 
-  # 必要なシェーダーが揃っていれば、cava は設定ディレクトリに何も書き込まない。
-  # 読み取り専用のストアでも動くことを、実機で確認済み。
+  # If the required shaders are present, cava writes nothing to the config directory.
+  # Confirmed on the actual device that it works even with a read-only store.
   shaders = "${pkgs.cava.src}/output/shaders";
 
-  # 窓の大きさの sdl_width と sdl_height は、spotify.lua の POPUP_PADDING、TEXT_WIDTH、POPUP_BORDER、
-  # POPUP_HEIGHT から決まる。二重に持たないよう、ここには書かない。
+  # The window size's sdl_width and sdl_height are determined by POPUP_PADDING, TEXT_WIDTH, POPUP_BORDER, and
+  # POPUP_HEIGHT in spotify.lua. They are not written here, to avoid keeping them in two places.
   #
-  # general の bar_width と bar_spacing:
-  #   棒は、棒を描く領域の両端に、最初の棒の左端と最後の棒の右端が合うように並ぶ。
-  #   領域の幅は popup.frag の VIZ の幅で、spotify.lua の TEXT_WIDTH の 222。
-  #   棒の幅は (領域の幅 - (bars - 1) × bar_spacing) / bars になる。bar_width は使われない。
-  #   cava は、bars × bar_width + (bars - 1) × bar_spacing が窓の幅を超えると、
-  #   "window is too narrow" で終了する。窓の幅はポップアップの幅。
-  # general の autosens と sensitivity:
-  #   固定の感度にする。autosens は起動直後に感度を 0 から上げるので、棒が約 0.8 秒かけて伸びてしまう。
-  #   感度は、Spotify の再生音で、最大の棒の 99 パーセンタイルが 0.9 になる値。曲や音量で変わる。
-  # output の channels:
-  #   mono は、左から右へ低音から高音の順に並べる。stereo だと、低音が左右の端、高音が中央の鏡像になる。
-  # color の gradient:
-  #   foreground と background ではなくグラデーションで指定するのは、SIGUSR2 で読み直されるのが、
-  #   グラデーションの色だけだから。グラデーションの有無と色数も読み直される。foreground と background は読み直されない。
-  # smoothing の noise_reduction:
-  #   10 以下は、音が切れたときの落下の緩和が無効になり、棒が瞬時に落ちる。
+  # bar_width and bar_spacing in general:
+  #   Bars are laid out so that the first bar's left edge and the last bar's right edge meet the two ends of the area where bars are drawn.
+  #   The area width is the width of VIZ in popup.frag, which is 222 as TEXT_WIDTH in spotify.lua.
+  #   The bar width is (area width - (bars - 1) × bar_spacing) / bars. bar_width is not used.
+  #   cava exits with "window is too narrow" if bars × bar_width + (bars - 1) × bar_spacing exceeds the window width.
+  #   The window width is the popup width.
+  # autosens and sensitivity in general:
+  #   Use a fixed sensitivity. autosens raises sensitivity from 0 right after startup, so the bars would take about 0.8 seconds to grow.
+  #   The sensitivity is the value at which the 99th percentile of the largest bar is 0.9 with Spotify playback. It varies with track and volume.
+  # channels in output:
+  #   mono lays out bass to treble from left to right. With stereo it would be a mirror image, with bass at the left and right ends and treble in the center.
+  # gradient in color:
+  #   The reason for specifying by gradient instead of foreground and background is that only the gradient colors are re-read on SIGUSR2.
+  #   Whether a gradient is present and the number of colors are also re-read. foreground and background are not re-read.
+  # noise_reduction in smoothing:
+  #   At 10 or below, the fall-off easing when sound cuts out is disabled and the bars drop instantly.
   settings = {
     general = {
       framerate = 30;
@@ -45,7 +45,7 @@ let
     };
     input = {
       method = "coreaudio";
-      source = "tap"; # 再生中の音。システム全体のミックス
+      source = "tap"; # the audio being played. The system-wide mix
     };
     output = {
       method = "sdl_glsl";
@@ -59,8 +59,8 @@ let
       sdl_y = "@Y@";
     };
     color = {
-      background = "'#111111'"; # popup.frag では使わない
-      foreground = "'#ffffff'"; # 同上
+      background = "'#111111'"; # not used in popup.frag
+      foreground = "'#ffffff'"; # same as above
       gradient = 1;
       gradient_color_1 = "'@FG@'";
       gradient_color_2 = "'@BG@'";

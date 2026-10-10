@@ -1,20 +1,20 @@
--- Spotify のポップアップの文字、曲名とアーティストを、指定の幅に収まる所で切る。items/spotify.lua が使う。
--- 幅は、文字ごとの em 換算の見積もりで測る。
+-- Truncate the popup's text, the title and artist, where it fits within the given width. Used by items/spotify.lua.
+-- Width is measured with a per-character estimate in em.
 
--- 文字の幅は em 換算。メニューバーと同じシステムフォント Bold を、12pt で CoreText が測った ASCII の 1 文字ごとの値。
--- 全角のかな・漢字などは一律 0.923、ASCII 以外の半角のアクセント付きの文字やキリル文字などは平均の EM_OTHER にする。
--- 注意: このフォントは文字の間隔が大きさで変わる。小さいほど広く、11pt は 12pt より約 1%、14pt は約 2% 狭い。
--- 100pt などの大きな値で測ると、実際の表示の 11〜14pt より 1 割以上狭く出る。必ず表示と同じ大きさ付近で測ること。
--- 曲名・アーティスト名のサンプル 38 件で、実測の 11、12、14pt との差は -3.9%〜+4.8%、平均は -0.2%〜+2.3%。
--- 過小な見積もりの分は TEXT_MARGIN で吸収する。
--- EM_PER_PT は、大きさが 1pt 小さいと、幅が増える割合。
+-- Character widths are in em. Per-character values for ASCII, measured by CoreText at 12pt with the same system font Bold as the menu bar.
+-- Full-width kana, kanji and the like are uniformly 0.923, and half-width non-ASCII characters such as accented letters and Cyrillic use the average EM_OTHER.
+-- Note: this font's letter spacing varies with size. The smaller the size the wider: 11pt is about 1% and 14pt about 2% narrower than 12pt.
+-- Measuring at a large value such as 100pt gives a result more than 10% narrower than the actual 11 to 14pt display. Always measure near the display size.
+-- Across 38 samples of track and artist names, the difference from the measured 11, 12 and 14pt is -3.9% to +4.8%, with averages of -0.2% to +2.3%.
+-- The underestimated part is absorbed by TEXT_MARGIN.
+-- EM_PER_PT is the rate at which the width increases when the size is 1pt smaller.
 local EM_WIDE = 0.923
 local EM_OTHER = 0.6
 local EM_REF_SIZE = 12
 local EM_PER_PT = 0.01
 
--- 0x20 の空白から 0x7E の ~ までの 95 個。
--- 数値のリストにせず文字列にしているのは、フォーマッタの stylua に 1 個 1 行へ展開されないため。
+-- 95 characters from the space at 0x20 to ~ at 0x7E.
+-- It is a string rather than a list of numbers so that the formatter stylua does not expand it to one per line.
 local EM_ASCII_TEXT = [[
 0.258 0.356 0.569 0.671 0.671 1.036 0.744 0.348 0.429 0.429
 0.484 0.671 0.348 0.484 0.348 0.334 0.685 0.512 0.643 0.669
@@ -35,7 +35,7 @@ end
 
 local EM_ELLIPSIS = 3 * EM_ASCII[string.byte(".") - 31]
 
--- 見積もりの誤差の分、幅から引く。単位は pt。過小に見積もる最大は約 4%。
+-- Subtract from the width by the estimation error. The unit is pt. The maximum underestimate is about 4%.
 local TEXT_MARGIN = 8
 
 local function char_em(code)
@@ -47,9 +47,9 @@ end
 
 local M = {}
 
--- utf8.len が nil なら不正なバイト列なのでそのまま使う。
--- 大きさが基準の EM_REF_SIZE と違う分の間隔の変化の補正は、半角だけにかける。size が小さいほど、1em あたりの幅が広い。
--- 全角は大きさによらず一律 EM_WIDE。8pt と 12pt で CoreText が測った値が同じ。
+-- If utf8.len is nil it is an invalid byte sequence, so use it as is.
+-- The correction for the change in spacing due to the size differing from the reference EM_REF_SIZE is applied only to half-width characters. The smaller the size, the wider the width per 1em.
+-- Full-width characters are uniformly EM_WIDE regardless of size. The values CoreText measured at 8pt and 12pt are the same.
 function M.truncate(text, size, width)
 	if utf8.len(text) == nil then
 		return text
@@ -57,7 +57,7 @@ function M.truncate(text, size, width)
 	local spacing = 1 + EM_PER_PT * (EM_REF_SIZE - size)
 	local limit = (width - TEXT_MARGIN) / size
 	local total = 0
-	local cut = 1 -- バイト位置
+	local cut = 1 -- byte position
 	for pos, code in utf8.codes(text) do
 		if total + EM_ELLIPSIS * spacing <= limit then
 			cut = pos

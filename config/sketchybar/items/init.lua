@@ -1,7 +1,7 @@
--- require の順が item の追加順で、そのまま配置を決める。
--- position が "right" と "q" の item は追加順に右から左へ、"left" と "e" の item は左から右へ並ぶ。ui.add_bracket の説明も参照。
--- ノッチの脇の spacer は、その側の item より先に追加する。ui.add_notch_spacer を使う。
--- items.wifi と items.bluetooth と items.volume は、items.network が require して 1 つの bracket にまとめる。
+-- The order of require is the order items are added, which directly determines placement.
+-- Items with position "right" and "q" are laid out right to left in the order added; items with "left" and "e" are laid out left to right. See also the ui.add_bracket documentation.
+-- A spacer beside the notch must be added before the items on that side. Use ui.add_notch_spacer.
+-- items.wifi, items.bluetooth and items.volume are required by items.network and grouped into one bracket.
 require("items.aerospace")
 require("items.clock")
 require("items.battery")

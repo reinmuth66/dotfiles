@@ -1,8 +1,8 @@
 { stdenv, apple-sdk_15 }:
 
-# SketchyBar に値を送る常駐の C ヘルパー。name を渡すと、<name>.c をビルドして sketchybar-<name>-helper にする。
-# clock.c は clock item に時計を、system.c は system item に CPU、メモリ、ディスクの使用状況を送る。
-# launchd の agent にするのは modules/sketchybar.nix。
+# A resident C helper that sends values to SketchyBar. Given name, it builds <name>.c into sketchybar-<name>-helper.
+# clock.c sends the time to the clock item, and system.c sends CPU, memory, and disk usage to the system item.
+# modules/sketchybar.nix makes it a launchd agent.
 name:
 
 stdenv.mkDerivation {
