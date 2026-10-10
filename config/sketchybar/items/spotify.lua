@@ -1,18 +1,18 @@
 -- Spotify のアルバム画像を表示し、再生状態を明るさと回転で示す。
---   再生中  : 覆いを外して明るくし、画像をゆっくり回す
---   一時停止: 画像を暗くし、回転はその角度で止める
---   未起動・停止中: 画像の代わりに Spotify のアイコンを出す (アイテム自体は常に表示)
--- 操作: 左クリックで再生/一時停止、左ダブルクリックで Spotify のウィンドウを表示、右クリックでポップアップのピン留め、
+--   再生中        : 覆いを外して明るくし、画像をゆっくり回す
+--   一時停止      : 画像を暗くし、回転はその角度で止める
+--   未起動・停止中: 画像の代わりに Spotify のアイコンを出す。item 自体は常に表示する
+-- 操作は、左クリックで再生と一時停止、左ダブルクリックで Spotify のウィンドウを表示、右クリックでポップアップのピン留め、
 -- 上スクロールで前の曲、下スクロールで次の曲。
--- マウスを乗せると、曲名・アーティストと、再生中の音に合わせて動く棒グラフをポップアップで表示する (表示のみで、ボタンは持たない)。
--- 状態は Spotify の分散通知 (media_change は macOS 26 で発火しない) から受け取る。
--- 再生位置は、通知の Playback Position を基準に、ローカルの時計で進める (毎秒の osascript の取得は行わない)。
--- 回転は background.image.rotation を使う (SketchyBar#815 のパッチが前提、pkgs/sketchybar/)。
--- 棒グラフは cava の SDL の窓 (modules/cavaviz.nix、pkgs/cavaviz/) が、ポップアップの背景と枠と一緒に描く。
--- 窓はポップアップの下 (window level 100。ポップアップは 101) に敷き、ポップアップ自身の背景は、窓が出ている間
--- 透明にして、文字が棒グラフの上に描かれるようにする。
--- マウス操作は、bracket 全体を覆う透明な item (hit) が受ける。画像の item は再描画が多く、
--- マウスを購読させると mouse.exited が届かずポップアップが閉じなくなることがあるため (ui.add_hit_region)。
+-- マウスを乗せると、曲名とアーティストと、再生中の音に合わせて動く棒グラフをポップアップで表示する。表示のみで、ボタンは持たない。
+-- 状態は Spotify の分散通知から受け取る。media_change は macOS 26 で発火しない。
+-- 再生位置は、通知の Playback Position を基準に、ローカルの時計で進める。毎秒の osascript の取得は行わない。
+-- 回転は background.image.rotation を使う。SketchyBar#815 のパッチが前提で、pkgs/sketchybar/ にある。
+-- 棒グラフは cava の SDL の窓が、ポップアップの背景と枠と一緒に描く。modules/cavaviz.nix と pkgs/cavaviz/ を参照。
+-- 窓はポップアップの下に敷く。window level は窓が 100、ポップアップが 101。
+-- ポップアップ自身の背景は、窓が出ている間透明にして、文字が棒グラフの上に描かれるようにする。
+-- マウス操作は、bracket 全体を覆う透明な item の hit が受ける。画像の item は再描画が多く、
+-- マウスを購読させると mouse.exited が届かずポップアップが閉じなくなることがあるため。ui.add_hit_region を参照。
 
 local ui = require("ui")
 local colors = require("colors")
@@ -25,53 +25,66 @@ local truncate = require("items.spotify.text").truncate
 
 local hex = palette.hex
 
-local SIZE = 24 -- アイコンのフォントサイズも同じ値にする (このフォントでは字面が一辺 SIZE の正方形になる)
+-- アイコンのフォントサイズも SIZE と同じ値にする。このフォントでは字面が一辺 SIZE の正方形になる。
+local SIZE = 24
 local HOME = paths.home
 
 -- 見た目は実機で確認して調整する。
--- y_offset は、ポップアップの縦の中央からの距離 (上が正)。
--- 右隣の network bracket との隙間を、他の bracket 間と同じ 7 pt にするための幅。network の左端は battery と zmk_battery の
--- ラベル幅 (どちらも常に 3 桁用の幅で固定) だけで決まり 1243 pt になるので、ポップアップの右端 (開始 + 235) との差が 7 pt になる。
--- items/system.lua のポップアップの幅 (実測で 233 pt。CPU 60 + RAM 57 + Disk 115 + 右の枠 1) とは 2 pt 違う。
--- 幅 (VIZ_WIDTH) を決めた値にして、文字の領域の幅 (TEXT_WIDTH = 222) をそこから求める
--- (POPUP_PADDING を変えても、窓の幅は 235 のまま保たれる)。
+-- VIZ_WIDTH は、右隣の network bracket との隙間を、他の bracket 間と同じ 7 pt にするための幅。
+-- network の左端は battery と zmk_battery のラベル幅だけで決まり、どちらも常に 3 桁用の幅で固定なので 1243 pt。
+-- ポップアップの右端は開始 + 235 で、差が 7 pt になる。
+-- items/system.lua のポップアップの幅は実測で 233 pt で、CPU 60 + RAM 57 + Disk 115 + 右の枠 1。それとは 2 pt 違う。
+-- 幅 VIZ_WIDTH を決めた値にして、文字の領域の幅 TEXT_WIDTH の 222 をそこから求める。
+-- POPUP_PADDING を変えても、窓の幅は 235 のまま保たれる。
+-- POPUP_HEIGHT は偶数にする。
 local POPUP_PADDING = 6
 local POPUP_BORDER = colors.popup.border_width
 local VIZ_WIDTH = 235
 local TEXT_WIDTH = VIZ_WIDTH - 2 * POPUP_PADDING - POPUP_BORDER
-local POPUP_HEIGHT = colors.bracket.height - 2 * POPUP_BORDER -- 偶数にする
+local POPUP_HEIGHT = colors.bracket.height - 2 * POPUP_BORDER
 local POPUP_GAP = 4
 
--- ポップアップの背景は、中身 (POPUP_HEIGHT の高さの帯) の左端から始まり、右と上下に枠の太さの分だけ広がる
--- (左は広がらない。SketchyBar の popup.c の popup_calculate_bounds)。
--- 棒の領域 (窓の左上から x = 6, y = 4, 幅 = 235 - 6 - POPUP_BORDER - 6 = 222, 高さ = POPUP_BG_HEIGHT - 2 * 4 = 26)、
--- 角の半径 (colors.popup)、枠の太さは、pkgs/cavaviz/popup.frag の定数と同じ値にする。
--- 設定 (棒の数、感度など) は modules/cavaviz.nix。
+-- ポップアップの背景は、中身の POPUP_HEIGHT の高さの帯の左端から始まり、右と上下に枠の太さの分だけ広がる。
+-- 左は広がらない。SketchyBar の popup.c の popup_calculate_bounds による。
+-- 棒の領域は、窓の左上から x = 6、y = 4、幅 = 235 - 6 - POPUP_BORDER - 6 = 222、高さ = POPUP_BG_HEIGHT - 2 * 4 = 26。
+-- この領域と、角の半径の colors.popup、枠の太さは、pkgs/cavaviz/popup.frag の定数と同じ値にする。
+-- 棒の数や感度などの設定は modules/cavaviz.nix。
 local POPUP_BG_HEIGHT = POPUP_HEIGHT + 2 * POPUP_BORDER
 local VIZ_LEFT = POPUP_PADDING
+
+-- CavaViz.app と、cava の設定ファイルの置き場所。
 local VIZ_APP = HOME .. "/Applications/Home Manager Apps/CavaViz.app"
 local VIZ_CONFIG_HOME = HOME .. "/.config/cavaviz"
 local VIZ_TEMPLATE = VIZ_CONFIG_HOME .. "/config.template"
 local VIZ_RUNTIME_DIR = paths.cache .. "/cavaviz"
 local VIZ_CONFIG = VIZ_RUNTIME_DIR .. "/config"
+
+-- VIZ_SLOT_INTERVAL と VIZ_KILL_AGAIN の単位は秒。VIZ_KILL_AGAIN は、open が約 0.3 秒かかることを踏まえた値。
 local VIZ_SLOT_RETRIES = 20
-local VIZ_SLOT_INTERVAL = 0.05 -- 秒
-local VIZ_KILL_AGAIN = 0.6 -- 秒。open は約 0.3 秒かかる
+local VIZ_SLOT_INTERVAL = 0.05
+local VIZ_KILL_AGAIN = 0.6
+
 local VIZ_CONTROL = VIZ_RUNTIME_DIR .. "/control"
--- 制御ファイルは最後の指示しか持たないので、別のファイルにしてある (sdl-progress.patch)。
+
+-- 制御ファイルは最後の指示しか持たないので、進捗は別のファイルにしてある。sdl-progress.patch を参照。
 local VIZ_PROGRESS = VIZ_RUNTIME_DIR .. "/progress"
--- "off" の間は cava の tap がなく、収録のインジケーターも消える (tap-gate.patch)。
+
+-- "off" の間は cava の tap がなく、収録のインジケーターも消える。tap-gate.patch を参照。
 local VIZ_AUDIO = VIZ_RUNTIME_DIR .. "/audio"
--- パターンの先頭を [C] にして、この pkill を実行するシェル自身 (コマンドラインにパターンを含む) に一致させない
+
+-- パターンの先頭の C を文字クラスにして、この pkill を実行するシェル自身に一致させない。シェルのコマンドラインにパターンが含まれるため。
 local VIZ_STOP = "pkill -f '[C]avaViz.app/Contents/MacOS/cava'"
--- cava が、描画ループの最初に sketchybar --trigger で送る
--- (ID=起動の番号つき。CAVAVIZ_READY_BIN / CAVAVIZ_READY_EVENT / CAVAVIZ_READY_ID で渡す)。
+
+-- cava が、描画ループの最初に sketchybar --trigger で送る。ID は起動の番号。
+-- CAVAVIZ_READY_BIN と CAVAVIZ_READY_EVENT と CAVAVIZ_READY_ID で渡す。
+-- VIZ_WAIT_TIMEOUT の単位は秒。
 local VIZ_READY_EVENT = "cavaviz_ready"
-local VIZ_WAIT_TIMEOUT = 1.5 -- 秒
+local VIZ_WAIT_TIMEOUT = 1.5
 local VIZ_HIDDEN_POS = -3000
--- 窓を出す指示から、ポップアップ自身の背景を透明にするまでの秒数は、窓が実際に出る
--- (指示のファイルへの書き込みと、窓の不透明度の反映) より後にする。それまでは、窓は不透明なポップアップの背景に隠れている
--- (配色は不透明なので、窓と背景が重なっていても見た目は変わらない)。
+
+-- 窓を出す指示から、ポップアップ自身の背景を透明にするまでの秒数は、窓が実際に出るより後にする。
+-- 窓が実際に出るのは、指示のファイルへの書き込みと窓の不透明度の反映のあと。
+-- それまでは、窓は不透明なポップアップの背景に隠れている。配色は不透明なので、窓と背景が重なっていても見た目は変わらない。
 local VIZ_HANDOVER_DELAY = 0.1
 
 local function with_alpha(color, alpha)
@@ -81,37 +94,41 @@ end
 -- bracket は円にする。角の半径は短辺の半分以上にすると、背景の描画側で短辺の半分に丸められる。
 local BRACKET_PADDING = (colors.bracket.height - SIZE) / 2
 
--- 再生位置の表示 (秒) も同じ周で 1 つ進める (秒の切り替わりと回転が同じタイミングで変わる)。
--- 負の値は rotation を減らす向き (見た目の向きはこの符号で決まる)。
+-- 再生位置の表示の秒も同じ周で 1 つ進める。秒の切り替わりと回転が同じタイミングで変わる。
+-- TICK は、表示の秒を 1 周で 1 つ進めるので、1 秒にする。
+-- 負の値は rotation を減らす向き。見た目の向きはこの符号で決まる。
 local ROTATION_PERIOD = 60
-local TICK = 1 -- 表示の秒を 1 周で 1 つ進めるので、1 秒にする
+local TICK = 1
 local ROTATION_STEP = -360 * TICK / ROTATION_PERIOD
 
+-- FADE_FRAMES は 60 フレームで 1 秒。
 local PAUSED_COLOR = colors.spotify.overlay_paused
 local PLAYING_COLOR = colors.transparent
-local FADE_FRAMES = 12 -- 60 フレームで 1 秒
+local FADE_FRAMES = 12
 
 -- ノッチに最も近い位置に置くので、spotify より先に追加する。
 ui.add_notch_spacer("e", "spotify.notch_gap")
 
+-- update_freq は、画像を出している間の、Spotify 終了の確認の routine に使う。
+-- icon.width は padding を含む箱の全幅。SketchyBar v2.24.0 の text.c で確認した。
+-- 字面は箱の左端 + padding_left から描かれ、箱の外にはみ出した部分は描画されず見切れる。
+-- 中央揃えの align = center だと、字面の幅を 17pt に切り上げた値との差を整数で割るため、左右 padding が 0 では 1pt 左に寄る。
+-- 左揃えにして padding_left で位置を直接指定し、箱は SIZE のままにして、字面が箱の中の中央に収まるようにする。
+-- アイコンの色は、起動していないことが分かるよう、少し薄くする。字面は箱と同じ大きさなので、余白はいらない。
+-- label は画像を暗くするための覆いで、画像の背景より後に描かれるラベルの背景を、画像と同じ大きさで重ねる。
+-- 画像の一辺の px は、キャッシュ側が決める。表示サイズとは独立。
 local spotify = ui.add_item("spotify", "e", {
 	width = SIZE,
-	update_freq = 5, -- 画像を出している間の、Spotify 終了の確認 (routine) に使う
-	-- icon.width は padding を含む箱の全幅 (SketchyBar v2.24.0 の text.c で確認)。
-	-- 字面は箱の左端 + padding_left から描かれ、箱の外にはみ出した部分は描画されず見切れる。
-	-- 中央揃え (align = center) だと、字面の幅 (17pt に切り上げ) との差を整数で割るため、
-	-- 左右 padding が 0 では 1pt 左に寄る。左揃えにして padding_left で位置を直接指定し、
-	-- 箱は SIZE のままにして、字面が箱の中の中央に収まるようにする。
+	update_freq = 5,
 	icon = {
 		string = ":spotify:",
 		font = "sketchybar-app-font:Regular:" .. SIZE .. ".0",
-		color = colors.dim, -- 起動していないことが分かるよう、少し薄くする
+		color = colors.dim,
 		width = SIZE,
 		align = "left",
-		padding_left = 0, -- 字面は箱と同じ大きさなので、余白はいらない
+		padding_left = 0,
 		padding_right = 0,
 	},
-	-- 画像を暗くするための覆い。画像の背景より後に描かれるラベルの背景を、画像と同じ大きさで重ねる
 	label = {
 		drawing = false,
 		string = "",
@@ -130,7 +147,7 @@ local spotify = ui.add_item("spotify", "e", {
 		color = colors.transparent,
 		image = {
 			drawing = false,
-			scale = SIZE / artwork.ART_PX, -- 画像の一辺 (px) は、キャッシュ側が決める (表示サイズとは独立)
+			scale = SIZE / artwork.ART_PX,
 			corner_radius = SIZE / 2,
 		},
 	},
@@ -142,16 +159,16 @@ local bracket = ui.add_bracket("spotify.bracket", { spotify }, {
 
 local hit = ui.add_hit_region("spotify.hit", SIZE, 0, SIZE + 2 * BRACKET_PADDING, { position = "e" })
 
--- bracket や画像に被らないよう、ポップアップの持ち主は、bracket の右に置いた空の item (anchor) にする
--- (items/system.lua のポップアップと同じ作り。ui.add_popup_anchor)。
--- hit の padding_right (-2 * BRACKET_PADDING) の分、hit の次の item は bracket の右端より内側 (画像の位置) から始まる
--- (左右反転した q 側での実測。これがないと、ポップアップが bracket に 6 pt 入り込む)。その分も spacer に足して、bracket の右端から
--- POPUP_GAP だけ離す。
+-- bracket や画像に被らないよう、ポップアップの持ち主は、bracket の右に置いた空の item の anchor にする。
+-- items/system.lua のポップアップと同じ作りで、ui.add_popup_anchor を使う。
+-- hit の padding_right は -2 * BRACKET_PADDING なので、hit の次の item は bracket の右端より内側の画像の位置から始まる。
+-- 左右反転した q 側での実測。これがないと、ポップアップが bracket に 6 pt 入り込む。
+-- その分も spacer に足して、bracket の右端から POPUP_GAP だけ離す。
+-- background は起動直後の初期値で、画像が読めたら apply_palette が配色ごとに上書きする。
 ui.add_spacer("e", POPUP_GAP - 1 + 2 * BRACKET_PADDING)
 local anchor = ui.add_popup_anchor("spotify.anchor", "e", {
 	align = "left",
 	height = POPUP_HEIGHT,
-	-- 起動直後の初期値。画像が読めたら apply_palette が配色ごとに上書きする
 	background = {
 		color = palette.default.bg,
 		border_color = palette.default.border,
@@ -160,8 +177,8 @@ local anchor = ui.add_popup_anchor("spotify.anchor", "e", {
 	},
 })
 
--- 文字の領域は、曲名・アーティストの item を width = 0 にして同じ x から y_offset で縦にずらして重ね、
--- その右に TEXT_WIDTH の空き (spotify.viz) を置いて幅を確保する。
+-- 文字の領域は、曲名とアーティストの item を width = 0 にして同じ x から y_offset で縦にずらして重ね、
+-- その右に TEXT_WIDTH の空き spotify.viz を置いて幅を確保する。
 local popup_font = ui.popup_font
 
 local function add_popup_spacer(name, width)
@@ -177,17 +194,21 @@ end
 
 add_popup_spacer("spotify.pad.left", POPUP_PADDING)
 
+-- y_offset は、ポップアップの縦の中央からの距離で、上が正。
 local ROWS = {
 	{ key = "title", size = 13.0, y_offset = 8 },
 	{ key = "artist", size = 8.0, y_offset = -3 },
 }
 
--- 影の色は、ポップアップの背景色 (palette の bg) に、この不透明度を付けたもの。
--- 文字は背景と反対の明るさ (dark の背景なら明るい文字、light の背景なら暗い文字) なので、影は文字の縁を
--- 背景に近い色でなじませ、棒グラフとの境目を作る。黒に固定すると、light の背景で暗い文字が太く汚れて見える。
+-- 影の色は、ポップアップの背景色 palette の bg に、この不透明度を付けたもの。
+-- 文字は背景と反対の明るさで、dark の背景なら明るい文字、light の背景なら暗い文字。
+-- そのため影は文字の縁を背景に近い色でなじませ、棒グラフとの境目を作る。
+-- 黒に固定すると、light の背景で暗い文字が太く汚れて見える。
+-- TEXT_SHADOW_COLOR は初期値で、apply_palette が配色ごとに更新する。
 local TEXT_SHADOW_ALPHA = 0xb0
-local TEXT_SHADOW_COLOR = with_alpha(palette.default.bg, TEXT_SHADOW_ALPHA) -- 初期値 (apply_palette が配色ごとに更新する)
+local TEXT_SHADOW_COLOR = with_alpha(palette.default.bg, TEXT_SHADOW_ALPHA)
 
+-- 棒グラフの上に文字が載るので、label に影を付けて輪郭を出す。
 local rows = {}
 for _, row in ipairs(ROWS) do
 	rows[row.key] = {
@@ -204,7 +225,6 @@ for _, row in ipairs(ROWS) do
 				font = popup_font(row.size),
 				padding_left = 0,
 				padding_right = 0,
-				-- 棒グラフの上に文字が載るので、影を付けて輪郭を出す
 				shadow = { drawing = true, color = TEXT_SHADOW_COLOR, distance = 1 },
 			},
 		}),
@@ -212,7 +232,7 @@ for _, row in ipairs(ROWS) do
 end
 
 -- ビジュアライザの窓の位置の基準で、sketchybar --query の bounding_rects で取る。
--- 矩形は、popup の高さいっぱいの帯になる (y_offset は含まれない)。
+-- 矩形は、popup の高さいっぱいの帯になる。y_offset は含まれない。
 -- 何も描かない item だと位置が取れない可能性があるので、透明な背景を持たせる。
 sbar.add("item", "spotify.viz", {
 	position = "popup.spotify.anchor",
@@ -236,22 +256,25 @@ local function set_popup_info(meta)
 	end
 end
 
--- 通知は一時停止・再開・曲の切り替えで来るが、シークでは来ない (実機で確認)。
+-- 通知は一時停止、再開、曲の切り替えで来るが、シークでは来ない。実機で確認した。
 -- そのため、ポップアップを閉じている間のシークは、開いた瞬間の取得で直る。
 -- 開いている間のシークは、次の通知か開き直しまで直らない。毎秒の osascript の取得は行わない。
--- 秒の進みは、位置の見積もりとは切り離す。見積もりが表示に追いつくのを待つ作りだと、補正が続くとき
--- (素早いホバーの繰り返しなど) に、秒も回転も止まってしまう。
-local shown = nil -- nil なら、まだ位置が分かっていない
-local duration = 0 -- 秒
+-- 秒の進みは、位置の見積もりとは切り離す。見積もりが表示に追いつくのを待つ作りだと、
+-- 補正が続くとき、たとえば素早いホバーの繰り返しに、秒も回転も止まってしまう。
+-- shown が nil なら、まだ位置が分かっていない。duration と SNAP_BACK の単位は秒。
+local shown = nil
+local duration = 0
 local popup_open = false
--- 画像は取得できてから出す (取得前に切り替えると、画像のない覆いだけが見えてしまう)。
--- 画像を出している間 (再生中と一時停止中) が、曲情報のある間で、ポップアップを出せる。
-local showing_art = false
--- ポップアップを開くたびに begin する (open_popup)。古い取得の結果で、別の開き直しのポップアップを開かないための印
-local open_session = ui.latest()
-local SNAP_BACK = 1.5 -- 秒
 
--- 位置が分からないとき (shown が nil、曲の長さが 0) は 0 を書く (前の曲の位置を残さない)。
+-- 画像は取得できてから出す。取得前に切り替えると、画像のない覆いだけが見えてしまう。
+-- 画像を出している間、つまり再生中と一時停止中が、曲情報のある間で、ポップアップを出せる。
+local showing_art = false
+
+-- ポップアップを開くたびに open_popup で begin する。古い取得の結果で、別の開き直しのポップアップを開かないための印。
+local open_session = ui.latest()
+local SNAP_BACK = 1.5
+
+-- 位置が分からないとき、つまり shown が nil か曲の長さが 0 のときは 0 を書く。前の曲の位置を残さない。
 local function write_progress()
 	local progress = 0
 	if shown ~= nil and duration > 0 then
@@ -260,8 +283,8 @@ local function write_progress()
 	fs.write(VIZ_PROGRESS, string.format("%.4f", progress))
 end
 
--- position は秒 (小数)。new_duration が nil なら前の値のまま。
--- 再生中の小さな補正では、表示を戻さない (棒の色の境界が戻らないようにする)。
+-- position は秒の小数。new_duration が nil なら前の値のまま。
+-- 再生中の小さな補正では、表示を戻さない。棒の色の境界が戻らないようにする。
 local function rebase(position, new_duration, playing, force)
 	duration = new_duration or duration
 	if shown == nil or force or not playing or not popup_open or position >= shown or position < shown - SNAP_BACK then
@@ -282,7 +305,7 @@ local function step_time()
 	end
 end
 
--- done は、結果の反映 (または失敗) のあとに呼ぶ (nil でもよい)。
+-- done は、結果の反映または失敗のあとに呼ぶ。nil でもよい。
 local function refresh_position(done)
 	sbar.exec(script.POSITION_COMMAND, function(out)
 		local state, timing = script.parse_position(out)
@@ -295,12 +318,12 @@ local function refresh_position(done)
 	end)
 end
 
--- cava は tap がある間だけ音声を収録する。一時停止中は VIZ_AUDIO を "off" にして tap を解放し (棒は 0 に落ち、最小の高さの棒の色で
--- 再生位置だけを見せる)、再生が始まったら "on" にして作り直す (write_audio)。
--- 音声の取得 (Core Audio tap) の許可は CavaViz.app に付いているので、sketchybar の子プロセスにせず、
--- open で起動する (pkgs/cavaviz/default.nix を参照)。
--- 窓が出ていないとき (許可がなくて cava が起動できないときなど) に背景を透明にすると、ポップアップの背景がなくなってしまうので、
--- 準備完了 (viz.ready) と窓を出す指示 (viz.shown) がそろってから、viz_take_background で透明にする。
+-- cava は tap がある間だけ音声を収録する。一時停止中は VIZ_AUDIO を "off" にして tap を解放し、
+-- 棒は 0 に落ち、最小の高さの棒の色で再生位置だけを見せる。再生が始まったら "on" にして作り直す。write_audio が行う。
+-- 音声の取得の Core Audio tap の許可は CavaViz.app に付いているので、sketchybar の子プロセスにせず、open で起動する。
+-- pkgs/cavaviz/default.nix を参照。
+-- 窓が出ていないとき、たとえば許可がなくて cava が起動できないときに背景を透明にすると、ポップアップの背景がなくなってしまう。
+-- そのため、準備完了の viz.ready と窓を出す指示の viz.shown がそろってから、viz_take_background で透明にする。
 local viz = {
 	running = false,
 	id = 0,
@@ -317,12 +340,17 @@ local viz = {
 }
 
 -- ポップアップの窓全体の透明度は変えられないので、item ごとに色の alpha と y_offset を動かす。
--- 棒グラフ (cava の窓) は SketchyBar の外なので動かせない。アニメーションの終わりに合わせて出す (open_popup)。
-local FADE_IN_FRAMES = 10 -- 60 フレームで 1 秒。棒グラフがないときの長さ
-local FADE_OUT_FRAMES = 8 -- 待たされる感じがしないよう、開くときより短くする
-local FADE_IN_FRAMES_VIZ = 24 -- ホバーから cava の準備ができるまでの時間 (約 0.4 秒) に合わせる
-local SLIDE_DISTANCE = 4 -- pt。ポップアップが低いので、文字が item の窓からはみ出して切れない範囲にする
-local current_palette = palette.default -- apply_palette が更新する
+-- 棒グラフの cava の窓は SketchyBar の外なので動かせない。アニメーションの終わりに合わせて出す。open_popup が行う。
+-- FADE_IN_FRAMES は、60 フレームで 1 秒。棒グラフがないときの長さ。
+-- FADE_OUT_FRAMES は、待たされる感じがしないよう、開くときより短くする。
+-- FADE_IN_FRAMES_VIZ は、ホバーから cava の準備ができるまでの時間、約 0.4 秒に合わせる。
+-- SLIDE_DISTANCE の単位は pt。ポップアップが低いので、文字が item の窓からはみ出して切れない範囲にする。
+-- current_palette は、apply_palette が更新する。
+local FADE_IN_FRAMES = 10
+local FADE_OUT_FRAMES = 8
+local FADE_IN_FRAMES_VIZ = 24
+local SLIDE_DISTANCE = 4
+local current_palette = palette.default
 
 local slide_items = {}
 for _, row in ipairs(ROWS) do
@@ -362,11 +390,12 @@ local function popup_fade_out()
 	end)
 end
 
-local fading_out = false -- close_popup が重ねて呼ばれても、やり直さない
+-- close_popup が重ねて呼ばれても、やり直さないための印。
+local fading_out = false
 
--- Spotify が最前面のとき、bracket の枠線を太く明るくして、画像の周りにリングを作る (items/system.lua の pill と同じ配色)。
--- bracket の背景は黒のままなので、リングと画像の間には、黒い隙間 (BRACKET_PADDING - RING_WIDTH) ができる。
--- ピン留めの枠線とは同じ枠線を使うので、両方のときはピン留めの色にする (今はリングと同じ色)。太さはリングのときだけ変える。
+-- Spotify が最前面のとき、bracket の枠線を太く明るくして、画像の周りにリングを作る。配色は items/system.lua の pill と同じ。
+-- bracket の背景は黒のままなので、リングと画像の間には、BRACKET_PADDING - RING_WIDTH の黒い隙間ができる。
+-- ピン留めの枠線とは同じ枠線を使うので、両方のときはピン留めの色にする。今はリングと同じ色。太さはリングのときだけ変える。
 local RING_COLOR = colors.space.bg_focused
 local RING_WIDTH = 3
 local ring_active = false
@@ -383,7 +412,7 @@ local function update_border(pinned)
 	})
 end
 
--- 曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
+-- 曲情報がなくなってポップアップが閉じるとき、show_icon でも外す。
 local pin = ui.pin(update_border)
 
 -- ui.timer が世代で管理するので、停止 -> 再生が短時間で続いても古いループは残らない。
@@ -399,14 +428,14 @@ local function tick()
 	spin_timer.start(TICK, tick)
 end
 
+-- 開始の瞬間には進めず、1 周期待ってから最初のステップを進める。
+-- 瞬間に進めると、再生と停止を素早く繰り返したとき、そのたびに回転が進んでしまう。
 local function set_spinning(on)
 	if on == spinning then
 		return
 	end
 	spinning = on
 	if on then
-		-- 開始の瞬間には進めず、1 周期待ってから最初のステップを進める。
-		-- 瞬間に進めると、再生と停止を素早く繰り返したとき、そのたびに回転が進んでしまう。
 		spin_timer.start(TICK, tick)
 	else
 		spin_timer.cancel()
@@ -427,13 +456,13 @@ local function set_lit(on)
 	end)
 end
 
--- ポップアップの開閉 (open_popup、close_popup) が呼ぶので、その前に定義する。
+-- ポップアップの開閉の open_popup と close_popup が呼ぶので、その前に定義する。
 local function viz_look()
 	return viz.fg .. viz.played .. viz.bg .. viz.border
 end
 
 -- ひな形が読めなければ nil。
--- 窓の位置は、起動のたびに画面外に置く (VIZ_HIDDEN_POS)。実際の位置は、準備ができてから制御ファイルで指示する。
+-- 窓の位置は、起動のたびに画面外の VIZ_HIDDEN_POS に置く。実際の位置は、準備ができてから制御ファイルで指示する。
 local function viz_render_config()
 	local template = fs.read(VIZ_TEMPLATE)
 	if not template then
@@ -451,12 +480,12 @@ local function viz_render_config()
 	}))
 end
 
--- ポップアップが描かれる前は nil を返す (ui.visible_rect)。
+-- ポップアップが描かれる前は nil を返す。ui.visible_rect の結果。
 local function viz_slot()
 	return ui.visible_rect("spotify.viz")
 end
 
--- ポップアップは半ポイント位置に描かれることがある (中央揃えで、項目の位置が x.5 のとき) ので、丸めずに小数のまま渡す。
+-- ポップアップは半ポイント位置に描かれることがある。中央揃えで、項目の位置が x.5 のとき。そのため丸めずに小数のまま渡す。
 local function viz_window_pos(rect)
 	local x = rect.origin[1] - VIZ_LEFT
 	local y = rect.origin[2] + rect.size[2] / 2 - POPUP_BG_HEIGHT / 2
@@ -483,16 +512,17 @@ local VIZ_OPEN = [[
 open -n -a %q --env XDG_CONFIG_HOME=%q --env CAVAVIZ_CONTROL=%q --env CAVAVIZ_PROGRESS=%q --env CAVAVIZ_AUDIO=%q --env CAVAVIZ_READY_BIN="$(command -v sketchybar)" --env CAVAVIZ_READY_EVENT=%s --env CAVAVIZ_READY_ID=%d --stderr /dev/null --args -p %q
 ]]
 
--- cava は 100ms ごとに見て、tap を作る / 解放する。
+-- cava は 100ms ごとに見て、tap を作る、または解放する。
 local function write_audio(on)
 	fs.write(VIZ_AUDIO, on and "on" or "off")
 end
 
 -- 書き出しや制御ファイルの書き込みに失敗したら、起動しない。
--- 制御ファイル ("show X Y" か "hide") は、起動後も窓の表示、移動、非表示の指示に使う。
+-- 制御ファイルの "show X Y" と "hide" は、起動後も窓の表示、移動、非表示の指示に使う。
+-- write_audio は起動前に書く。cava は起動時に読む。
 local function viz_launch(id)
 	viz.applied = viz_look()
-	write_audio(spinning) -- 起動前に書く (cava は起動時に読む)
+	write_audio(spinning)
 	local config = viz_render_config()
 	if not (config and fs.write(VIZ_CONFIG, config) and fs.write(VIZ_CONTROL, "hide")) then
 		return
@@ -512,10 +542,10 @@ local function viz_launch(id)
 	)
 end
 
--- cava は SIGUSR2 でグラデーションの色だけを読み直す
--- (foreground / background は読み直さないので、色はグラデーションで指定している。窓も音声の取得も作り直さない)。
--- cava が準備中 (ready の前) だと、シグナルの受け口がなく、終了させてしまうので、
--- 準備完了のイベントのあとに行う (そのとき viz.applied とのずれを直す)。
+-- cava は SIGUSR2 でグラデーションの色だけを読み直す。窓も音声の取得も作り直さない。
+-- foreground と background は読み直さないので、色はグラデーションで指定している。
+-- cava が準備中、つまり ready の前だと、シグナルの受け口がなく、終了させてしまうので、
+-- 準備完了のイベントのあとに行う。そのとき viz.applied とのずれを直す。
 local VIZ_RECOLOR = "pkill -USR2 -f '[C]avaViz.app/Contents/MacOS/cava'"
 
 local function viz_apply_color()
@@ -549,8 +579,8 @@ local function viz_take_background_later(id)
 	end)
 end
 
--- use_cache: 前回の位置が分かっていれば、ポップアップが描かれるのを待たずに、まずそこへ出す
--- (ポップアップの位置は、普通は変わらない)。空きの位置が取れたあと、ずれていたときだけ出し直す。
+-- use_cache が true で前回の位置が分かっていれば、ポップアップが描かれるのを待たずに、まずそこへ出す。
+-- ポップアップの位置は、普通は変わらない。空きの位置が取れたあと、ずれていたときだけ出し直す。
 local function viz_show_at_slot(use_cache)
 	if use_cache and viz.cache then
 		viz_control(string.format("show %.2f %.2f", viz.cache.x, viz.cache.y))
@@ -567,6 +597,7 @@ local function viz_show_at_slot(use_cache)
 	end)
 end
 
+-- viz.id を進めるのは、直前の viz_stop の止め直しで、起動したばかりの cava を止めないようにするため。
 local function viz_ensure_hidden()
 	if viz.running then
 		return
@@ -575,32 +606,33 @@ local function viz_ensure_hidden()
 	viz.ready = false
 	viz.shown = false
 	viz.on_ready = nil
-	viz.id = viz.id + 1 -- 直前の viz_stop の「止め直し」で、起動したばかりの cava を止めないようにする
+	viz.id = viz.id + 1
 	viz_launch(viz.id)
 end
 
--- 止めるときは、先に窓を隠す。pkill だけだと、プロセスが終わるまで約 0.1〜0.2 秒、窓が残って見える
--- (ポップアップは先に消える)。制御ファイルへの書き込みは Lua で同期的に行い (シェルの起動を待たない)、
--- cava は書き込みで即座に起きて窓を隠す (消えるまで約 0.02 秒)。
+-- 止めるときは、先に窓を隠す。pkill だけだと、プロセスが終わるまで約 0.1〜0.2 秒、窓が残って見える。ポップアップは先に消える。
+-- 制御ファイルへの書き込みは、シェルの起動を待たず Lua で同期的に行う。
+-- cava は書き込みで即座に起きて窓を隠す。消えるまで約 0.02 秒。
 local function viz_hide_now()
 	fs.write(VIZ_CONTROL, "hide")
 end
 
+-- ポップアップ自身の背景を先に戻す。窓は、そのあとすぐに隠れる。
+-- アニメーションの中で戻すと、透明から滑らかに変わってしまうので、アニメーションの外で行う。
+-- viz.id を進めて、位置を待っている処理を取り消す。
+-- open は起動に約 0.3 秒かかる。起動の直後に止めると、まだ存在しない窓には pkill が当たらず、遅れて起動した窓が残ってしまう。
+-- その間に再び起動されていなければ、もう一度止める。
 local function viz_stop()
-	-- ポップアップ自身の背景を先に戻す (窓は、そのあとすぐに隠れる)。アニメーションの中で戻すと、透明から滑らかに
-	-- 変わってしまうので、アニメーションの外で行う。
 	viz.drawing_bg = false
 	anchor:set({ popup = { background = popup_background(current_palette) } })
 	viz_hide_now()
-	viz.id = viz.id + 1 -- 位置を待っている処理を取り消す
+	viz.id = viz.id + 1
 	local id = viz.id
 	viz.running = false
 	viz.ready = false
 	viz.shown = false
 	viz.on_ready = nil
 	sbar.exec(VIZ_STOP)
-	-- open は起動に約 0.3 秒かかる。起動の直後に止めると、まだ存在しない窓には pkill が当たらず、
-	-- 遅れて起動した窓が残ってしまう。その間に再び起動されていなければ、もう一度止める。
 	sbar.delay(VIZ_KILL_AGAIN, function()
 		if id == viz.id then
 			sbar.exec(VIZ_STOP)
@@ -608,13 +640,13 @@ local function viz_stop()
 	end)
 end
 
+-- 普通は、ホバーの時点で viz_wait により起動済み。ここで起動した場合、たとえばポップアップを開いたまま停止から再生に戻したときは、
+-- 起動の指示の制御ファイルへの "hide" の書き込みと、窓を出す指示の同じファイルへの "show" の書き込みの順序が決まらず、
+-- "hide" があとになると窓が出なくなる。そのため、準備完了を待ってから出す。
 local function viz_start()
 	if not showing_art or not popup_open then
 		return
 	end
-	-- 普通は、ホバーの時点で起動済み (viz_wait)。ここで起動した場合 (ポップアップを開いたまま、停止から
-	-- 再生に戻したときなど) は、起動の指示 (制御ファイルへの "hide" の書き込み) と、窓を出す指示 (同じファイルへの
-	-- "show" の書き込み) の順序が決まらず、"hide" があとになると窓が出なくなる。そのため、準備完了を待ってから出す。
 	local was_running = viz.running
 	viz_ensure_hidden()
 	if was_running then
@@ -639,16 +671,18 @@ local function viz_wait(on_ready)
 	return true
 end
 
+-- 止めた、または起動し直したことで取り消された起動のイベントは無視する。
+-- 準備完了のあとの viz_apply_color は、起動してから準備完了までの間に、色が変わっていたときのため。
+-- viz_take_background_later は、準備完了より先に、窓を出す指示を出していたときのため。
 sbar.add("event", VIZ_READY_EVENT)
 spotify:subscribe(VIZ_READY_EVENT, function(env)
-	-- 取り消された (止めた、または起動し直した) 起動のイベントは無視する
 	if not viz.running or tostring(env.ID) ~= tostring(viz.id) then
 		return
 	end
 	viz.ready = true
-	viz_apply_color() -- 起動してから準備完了までの間に、色が変わっていたとき
+	viz_apply_color()
 	if viz.shown then
-		viz_take_background_later(viz.id) -- 準備完了より先に、窓を出す指示を出していたとき
+		viz_take_background_later(viz.id)
 	end
 	local on_ready = viz.on_ready
 	viz.on_ready = nil
@@ -661,7 +695,8 @@ os.execute(string.format("mkdir -p %q", VIZ_RUNTIME_DIR))
 -- 再読み込み前の窓が残っていたら止める
 viz_stop()
 
--- 実際の位置は取得できしだい、アニメーションなしで合わせる (開いている間にバーが古い位置から伸びないように)。
+-- 実際の位置は取得できしだい、アニメーションなしで合わせる。開いている間にバーが古い位置から伸びないようにするため。
+-- 準備ができなくても、たとえば許可がなくて cava が起動できないときも、VIZ_WAIT_TIMEOUT 秒で窓を出す指示を出す。
 local function open_popup()
 	popup_open = true
 	fading_out = false
@@ -692,7 +727,6 @@ local function open_popup()
 		animation_done = true
 		show_viz()
 	end)
-	-- 準備ができなくても (許可がなくて cava が起動できないときなど)、この秒数で窓を出す指示を出す
 	sbar.delay(VIZ_WAIT_TIMEOUT, function()
 		viz_done = true
 		show_viz()
@@ -700,7 +734,8 @@ local function open_popup()
 	refresh_position()
 end
 
--- 棒グラフの窓は、消え残りを避けるため、先に即座に隠す (窓は SketchyBar の外なのでフェードできない)。
+-- 棒グラフの窓は、消え残りを避けるため、先に即座に隠す。窓は SketchyBar の外なのでフェードできない。
+-- 窓を隠す指示は制御ファイルへの同期的な書き込みで、アニメーションより先に出す。
 -- mouse.exited と mouse.exited.global が続けて来ても、1 回だけ行う。
 local function close_popup()
 	if pin.active then
@@ -708,7 +743,6 @@ local function close_popup()
 	end
 	local was_open = popup_open
 	popup_open = false
-	-- 窓を隠す指示 (制御ファイルへの同期的な書き込み) を、アニメーションより先に出す
 	viz_stop()
 	if not was_open then
 		if not fading_out then
@@ -727,7 +761,7 @@ local function close_popup()
 	end)
 end
 
--- 棒、背景、枠の色は、cava が動いていれば SIGUSR2 で即座に変わる (止まっていれば、次の起動で入る)。
+-- 棒、背景、枠の色は、cava が動いていれば SIGUSR2 で即座に変わる。止まっていれば、次の起動で入る。
 local function apply_palette(p)
 	current_palette = p
 	local shadow_color = with_alpha(p.bg, TEXT_SHADOW_ALPHA)
@@ -741,8 +775,8 @@ local function apply_palette(p)
 	viz_apply_color()
 end
 
--- Spotify が最前面かどうかは front_app_switched (INFO は前面になったアプリ名) で分かる。
--- アイコンを出している間 (未起動・停止中) は、リングにしない (アイコンの見た目は変えない)。
+-- Spotify が最前面かどうかは、front_app_switched の INFO、つまり前面になったアプリ名で分かる。
+-- アイコンを出している間、つまり未起動・停止中は、アイコンの見た目を変えないため、リングにしない。
 local SPOTIFY_APP_NAME = "Spotify"
 local spotify_front = false
 
@@ -781,8 +815,10 @@ local function on_artwork(files, histogram)
 	show_art()
 end
 
--- meta は { title, artist }、timing は { position, duration } (どちらも秒)。
--- 取れなかったときは nil で、ポップアップ (曲情報、再生位置) はそのまま。
+-- meta は { title, artist }、timing は { position, duration } で、どちらも秒。
+-- 取れなかったときは nil で、ポップアップの曲情報と再生位置はそのまま。
+-- write_audio は、一時停止したら tap を解放し、再生が始まったら作り直す。
+-- 最後の viz_start は、ポップアップを開いたまま曲が始まったときのため。
 local function apply(state, track_id, meta, timing)
 	local playing = state == "Playing"
 	if playing or state == "Paused" then
@@ -798,8 +834,8 @@ local function apply(state, track_id, meta, timing)
 		end
 		set_spinning(playing)
 		set_lit(playing)
-		write_audio(playing) -- 一時停止したら tap を解放し、再生が始まったら作り直す
-		viz_start() -- ポップアップを開いたまま曲が始まったとき
+		write_audio(playing)
+		viz_start()
 	else
 		set_spinning(false)
 		set_lit(false)
@@ -836,14 +872,14 @@ spotify:subscribe("routine", function()
 	end)
 end)
 
--- バーの外へ出たときは mouse.exited.global でも閉じる。
+-- ピン留め中は開いたままなので、開き直さない。開き直すとフェードインのやり直しになる。
 hit:subscribe("mouse.entered", function()
-	-- ピン留め中は開いたままなので、開き直さない (フェードインのやり直しになる)
 	if showing_art and not popup_open then
 		open_popup()
 	end
 end)
 
+-- バーの外へ出たときは mouse.exited.global でも閉じる。
 hit:subscribe({ "mouse.exited", "mouse.exited.global" }, close_popup)
 
 -- 表示は上の分散通知で追従するので、ここでは Spotify に命令を送るだけにする。
@@ -851,16 +887,15 @@ local function spotify_command(command)
 	sbar.exec(script.command(command))
 end
 
--- ウィンドウの表示は open で行う。-g -j の自動起動で隠れているときも前面に出て、
--- ウィンドウを閉じただけのときも開き直す。名前 (open -a Spotify) ではなく
--- Home Manager Apps のパスで指定する (名前だと更新用の一時コピーに解決されることがある)。
+-- ウィンドウの表示は open で行う。-g -j の自動起動で隠れているときも前面に出て、ウィンドウを閉じただけのときも開き直す。
+-- 名前の open -a Spotify ではなく Home Manager Apps のパスで指定する。名前だと更新用の一時コピーに解決されることがある。
 local SPOTIFY_APP = HOME .. "/Applications/Home Manager Apps/Spotify.app"
 
 -- SketchyBar にはダブルクリックのイベントがなく、クリックが 2 回届くだけなので、
 -- 1 回目のクリックの再生/一時停止を DOUBLE_CLICK_INTERVAL 秒だけ待つ。そのため、再生/一時停止はクリックからこの秒数だけ遅れる。
 -- macOS の既定のダブルクリックの間隔は約 0.5 秒だが、再生/一時停止の遅れを抑えるため短くしてある。
 local DOUBLE_CLICK_INTERVAL = 0.3
--- Spotify 専用の workspace (modules/aerospace.nix の on-window-detected で Spotify を移す先)
+-- Spotify 専用の workspace。modules/aerospace.nix の on-window-detected で Spotify を移す先。
 local SPOTIFY_WORKSPACE = "F"
 local DOUBLE_CLICK_COMMAND = string.format(
 	'[ "$(aerospace list-workspaces --focused)" = %q ] && aerospace workspace-back-and-forth || open %q',
@@ -884,13 +919,15 @@ hit:subscribe("mouse.clicked", function(env)
 	end
 end)
 
--- トラックパッドは 1 回のスワイプで多数のイベントが出る (慣性スクロール含む) ので、
+-- トラックパッドは 1 回のスワイプで、慣性スクロールを含め多数のイベントが出るので、
 -- 一度反応したら SCROLL_COOLDOWN 秒は無視して、1 スワイプで 1 曲だけ動かす。
 -- SCROLL_DELTA の符号は、上スクロールが正。
 local SCROLL_COOLDOWN = 1.0
 local PREVIOUS_REFRESH_DELAY = 0.4 -- 秒
 local scroll_cooldown = ui.timer()
 
+-- 前の曲のとき、曲の途中なら、Spotify は同じ曲の先頭に戻すシークをする。シークでは分散通知が来ないので、
+-- Spotify が位置を戻すのを少し待って、実際の位置に合わせ直す。別の曲に戻った場合は通知が来る。
 hit:subscribe("mouse.scrolled", function(env)
 	local delta = tonumber(env.SCROLL_DELTA)
 	if not delta or delta == 0 or scroll_cooldown.pending then
@@ -900,15 +937,13 @@ hit:subscribe("mouse.scrolled", function(env)
 	local previous = delta > 0
 	spotify_command(previous and "previous track" or "next track")
 	if previous then
-		-- 曲の途中なら、Spotify は同じ曲の先頭に戻す (シーク)。シークでは分散通知が来ないので、
-		-- 少し待って (Spotify が位置を戻すのを待つ)、実際の位置に合わせ直す。別の曲に戻った場合は通知が来る。
 		sbar.delay(PREVIOUS_REFRESH_DELAY, function()
 			refresh_position()
 		end)
 	end
 end)
 
--- 起動時 (再読み込み含む) に既に再生中でも拾えるよう、現在の状態を一度だけ取得する
+-- 起動時、再読み込みを含め、既に再生中でも拾えるよう、現在の状態を一度だけ取得する。
 sbar.exec(script.SNAPSHOT_COMMAND, function(out)
 	local state, track_id, meta, timing = script.parse_snapshot(out)
 	if state then

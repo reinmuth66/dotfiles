@@ -1,47 +1,60 @@
 -- アルバム画像の代表色から、Spotify のポップアップの配色を決める。
--- 入力は ImageMagick の色の頻度表を "個数,R,G,B;個数,R,G,B;..." にした文字列 (items/spotify.lua の download_command)。
--- 背景の色相 (hue) は、最大の 1 色だけに引きずられないよう、有彩色の色相を重み付けして円周上で平均する。
--- 背景の明るさは、画像の明るさ (L*) が dark と light のどちらの背景に近いかで決める (閾値を置かず、両側から等距離)。
--- 棒グラフの色相 (accent) は、白系の色を候補にしない (文字の色と同系統になり、棒の上の文字が読めなくなるため)。
--- 再生済みと未再生の棒は色相をそろえ、1 本の棒として見せる (背景と同系統でなくてよい)。
--- 棒の上に曲名とアーティストが重なるので、再生済みの棒は文字が読める範囲でできるだけ背景から離し (bar_luminances)、
--- 未再生は背景と再生済みの間に置く。どちらも不透明で描く (items 側の棒の不透明度は 1)。
--- 無彩色の画像 (アクセントが見つからない) では nil を返す。呼び出し側は default に戻す。
+-- 入力は ImageMagick の色の頻度表を "個数,R,G,B;個数,R,G,B;..." にした文字列で、items/spotify/artwork.lua の download_command が作る。
+-- 背景の色相は、最大の 1 色だけに引きずられないよう、有彩色の色相を重み付けして円周上で平均する。
+-- 背景の明るさは、画像の明るさ L* が dark と light のどちらの背景に近いかで決める。閾値は置かず、両側から等距離で判定する。
+-- 棒グラフの色相の accent は、白系の色を候補にしない。文字の色と同系統になり、棒の上の文字が読めなくなるため。
+-- 再生済みと未再生の棒は色相をそろえ、1 本の棒として見せる。背景と同系統でなくてよい。
+-- 棒の上に曲名とアーティストが重なるので、再生済みの棒は文字が読める範囲でできるだけ背景から離す。bar_luminances が決める。
+-- 未再生は背景と再生済みの間に置く。どちらも不透明で、items 側の棒の不透明度は 1。
+-- 無彩色の画像でアクセントが見つからないときは nil を返す。呼び出し側は default に戻す。
 
 local colors = require("colors")
 
 local M = {}
 
--- 調整用の定数
+-- 調整用の定数。
+-- 色の候補にする彩度と明るさの下限。BASE_ の 2 つは背景の色相の候補用で、アクセントより緩くする。
+-- BASE_MIN_VALUE は、暗い空や夜の画像でも、その色を背景に使えるようにする値。
 local MIN_SATURATION = 0.3
 local MIN_VALUE = 0.25
-local BASE_MIN_SATURATION = 0.15 -- アクセントより緩くする
-local BASE_MIN_VALUE = 0.1 -- 暗い空や夜の画像でも、その色を背景に使えるようにする
--- 棒グラフの色のスコアは、Android の Palette API の Target と同じ方式。占有率は、最も多い色に対する割合 (0〜1。目標は 1)。
--- 重みは Palette の既定 (VIBRANT) とは違う (淡い色に偏らないよう、彩度を重くしてある)。
--- 占有率も重く見て、画像の見た目に効いている色を選ぶ (小さな差し色が選ばれると不自然になる)
+local BASE_MIN_SATURATION = 0.15
+local BASE_MIN_VALUE = 0.1
+
+-- 棒グラフの色のスコアは、Android の Palette API の Target と同じ方式。占有率は、最も多い色に対する割合で、0〜1 の値。目標は 1。
+-- 重みは Palette の既定の VIBRANT とは違い、淡い色に偏らないよう、彩度を重くしてある。
+-- 占有率も重く見て、画像の見た目に効いている色を選ぶ。小さな差し色が選ばれると不自然になる。
+-- ACCENT_TARGET_LIGHTNESS は、白っぽい色や黒っぽい色を避ける値。実際の明るさは bar_luminances が決める。
+-- ACCENT_MIN_HUE_GAP の 0.15 は 54 度。MIN_SHARE は、小さな差し色を拾わない下限。
+-- ACCENT_MAX_SATURATION は、派手になりすぎないようにする上限。
+-- HUE_MIN_CONCENTRATION は、補色どうしが打ち消し合うと平均が定まらないので、これ未満なら最大の色の色相にする。
 local ACCENT_WEIGHT_SATURATION = 0.4
 local ACCENT_WEIGHT_LIGHTNESS = 0.2
 local ACCENT_WEIGHT_POPULATION = 0.4
 local ACCENT_TARGET_SATURATION = 1.0
-local ACCENT_TARGET_LIGHTNESS = 0.5 -- 白っぽい色や黒っぽい色を避ける。実際の明るさは bar_luminances が決める
-local ACCENT_MIN_HUE_GAP = 0.15 -- 0.15 = 54 度
-local MIN_SHARE = 0.02 -- 小さな差し色を拾わない
-local ACCENT_MAX_SATURATION = 0.7 -- 派手になりすぎないように
+local ACCENT_TARGET_LIGHTNESS = 0.5
+local ACCENT_MIN_HUE_GAP = 0.15
+local MIN_SHARE = 0.02
+local ACCENT_MAX_SATURATION = 0.7
 local ACCENT_FALLBACK_SATURATION = 0.5
-local HUE_MIN_CONCENTRATION = 0.3 -- 補色どうしが打ち消し合うと平均が定まらないので、これ未満なら最大の色の色相にする
-local BG_ALPHA = 0xff -- 透過させない
-local BORDER_ALPHA = 0xff -- 透過させない
-local BORDER_SATURATION = 0.22 -- アクセントより控えめにする
+local HUE_MIN_CONCENTRATION = 0.3
+
+-- 背景と枠は透過させない。BORDER_SATURATION は、アクセントより控えめにする。
+local BG_ALPHA = 0xff
+local BORDER_ALPHA = 0xff
+local BORDER_SATURATION = 0.22
+
 local TEXT_CONTRAST = 7
 local SUBTEXT_CONTRAST = 4.5
--- 棒の上に文字が重なるので、文字が埋もれない範囲で棒を明るくする
+
+-- 棒の上に文字が重なるので、文字が埋もれない範囲で棒を明るくする。
+-- PLAYED_MIN_SATURATION は、未再生との差を、明るさだけでなく鮮やかさでも出す値。
+-- BAR_MIN_STEP は、文字の条件で背景と再生済みの差が潰れないようにする値。
 local PLAYED_TEXT_CONTRAST = 4.5
 local PLAYED_SUBTEXT_CONTRAST = 3
 local UNPLAYED_STEP = 0.35
-local PLAYED_MIN_SATURATION = 0.45 -- 未再生との差を、明るさだけでなく鮮やかさでも出す
+local PLAYED_MIN_SATURATION = 0.45
 local UNPLAYED_SATURATION_SCALE = 0.6
-local BAR_MIN_STEP = 1.5 -- 文字の条件で潰れないように
+local BAR_MIN_STEP = 1.5
 
 -- 中間の明るさの背景は、アクセントの色が出ないので、dark と light のどちらかに寄せる。
 local THEMES = {
@@ -132,13 +145,13 @@ local function parse(text)
 	return list
 end
 
--- 色相 (0〜1 の輪) の距離。0〜0.5。
+-- 0〜1 の輪にした色相の距離。0〜0.5。
 local function hue_distance(a, b)
 	local d = math.abs(a - b) % 1
 	return math.min(d, 1 - d)
 end
 
--- RGB (0〜255) の HSL の明るさと彩度
+-- 0〜255 の RGB から求める HSL の明るさと彩度。
 local function rgb_to_hsl(r, g, b)
 	r, g, b = r / 255, g / 255, b / 255
 	local max, min = math.max(r, g, b), math.min(r, g, b)
@@ -215,7 +228,7 @@ local function score(c, top_share)
 		+ ACCENT_WEIGHT_POPULATION * c.share / top_share
 end
 
--- なければ nil。min_gap を渡すと、refs (すでに選んだ色) のどれかと色相の距離が min_gap 未満の色は候補から外す。
+-- なければ nil。min_gap を渡すと、refs に渡したすでに選んだ色のどれかと色相の距離が min_gap 未満の色は候補から外す。
 local function pick_accent(swatches, refs, min_gap)
 	local top_share = max_share(swatches)
 	local best, best_score
@@ -236,12 +249,12 @@ local function pick_accent(swatches, refs, min_gap)
 	return best
 end
 
--- CIE L* (知覚の明るさ。0〜100)
+-- CIE L* で知覚の明るさ。0〜100。
 local function lightness(lum)
 	return lum > 0.008856 and 116 * lum ^ (1 / 3) - 16 or 903.3 * lum
 end
 
--- 明るさ (HSV の V) を最大にしても届かないときは、届くまで彩度を下げる (白に近づける)。
+-- 明るさ HSV の V を最大にしても届かないときは、届くまで彩度を下げて白に近づける。
 local function at_luminance(h, s, target)
 	while true do
 		local lo, hi = 0, 1
@@ -283,13 +296,13 @@ local function fit_contrast(color, bg, ratio, light)
 	end
 end
 
--- alpha は捨てる (cava の設定の色)。items/spotify.lua も使う
+-- alpha は捨てる。cava の設定の色に使う。items/spotify.lua も使う。
 local function hex(color)
 	return string.format("#%06x", color % 0x1000000)
 end
 M.hex = hex
 
--- 戻り値は (未再生, 再生済み) の相対輝度。UNPLAYED_STEP は、背景と再生済みの間 (コントラスト比の対数) の、背景からの位置。
+-- 戻り値は未再生と再生済みの相対輝度。UNPLAYED_STEP は、背景と再生済みの間をコントラスト比の対数で見たときの、背景からの位置。
 local function bar_luminances(bg, text, subtext, light)
 	local lb, lt, ls = luminance(bg[1], bg[2], bg[3]) + 0.05, luminance(text[1], text[2], text[3]) + 0.05, luminance(subtext[1], subtext[2], subtext[3]) + 0.05
 	local lp
@@ -302,7 +315,7 @@ local function bar_luminances(bg, text, subtext, light)
 	return lu - 0.05, lp - 0.05
 end
 
--- 背景と枠線は透過させない (colors.popup。半透明の枠 0x44ffffff を、黒の上に重ねた色 0x444444 にしてある)。
+-- 背景と枠線は透過させない。colors.popup は、半透明の枠 0x44ffffff を黒の上に重ねた色 0x444444 にしてある。
 M.default = {
 	bg = colors.popup.bg,
 	border = colors.popup.border,

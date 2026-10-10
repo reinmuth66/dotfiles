@@ -11,8 +11,9 @@ local LABEL_GAP = 10
 
 local PILL_PADDING = 6
 local PILL_GAP = 10
--- bracket の範囲は item の padding を含むので、bracket の左右の端から pill までの余白も
--- この値 (PILL_GAP の半分) になる。そのため端に spacer は置かない。
+
+-- bracket の範囲は item の padding を含むので、端から pill までの余白も PILL_GAP の半分になる。
+-- そのため端に spacer は置かない。
 local ITEM_PADDING = PILL_GAP / 2
 local PILL_MARGIN_Y = PILL_GAP / 2
 local PILL_HEIGHT = colors.bracket.height - 2 * PILL_MARGIN_Y
@@ -67,9 +68,9 @@ local function highlight(sid, focused_sid)
 	end
 end
 
+-- 表示中の workspace は増減するので、最初は隠しておく。
 local function add_space(sid)
 	local space = ui.add_item("space." .. sid, "left", {
-		-- 表示中の workspace は増減するので、最初は隠しておく
 		drawing = false,
 		padding_left = ITEM_PADDING,
 		padding_right = ITEM_PADDING,
@@ -137,9 +138,9 @@ local function with_focused(callback)
 	end)
 end
 
--- イベントの購読は、space の item ごとではなく、この非表示の item で 1 回だけ行う。
--- ハンドラはどの item でも同じ処理 (全 workspace を見る) なので、space の item ごとに購読すると、
--- 1 回のイベントで aerospace の問い合わせが item の数だけ重なる。
+-- 購読は space の item ごとではなく、この非表示の item で 1 回だけ行う。
+-- ハンドラはどの item でも全 workspace を見る同じ処理なので、item ごとに購読すると、
+-- 1 回のイベントで aerospace への問い合わせが item の数だけ重なる。
 local watcher = ui.add_item("aerospace.watcher", "left", { drawing = false })
 watcher:subscribe("aerospace_workspace_change", on_workspace_change)
 watcher:subscribe("aerospace_monitor_change", on_monitor_change)

@@ -1,6 +1,6 @@
--- Spotify に AppleScript を送るコマンドと、その出力や分散通知の読み取り (items/spotify.lua と items/spotify/artwork.lua が使う)。
--- 状態、曲の ID、曲名、アーティスト、再生位置、曲の長さは、どの経路でも apply (items/spotify.lua) に渡す形
--- (state, track_id, meta, timing) にそろえる。meta は { title, artist }、timing は { position, duration } (どちらも秒)。
+-- Spotify に AppleScript を送るコマンドと、その出力や分散通知の読み取り。items/spotify.lua と items/spotify/artwork.lua が使う。
+-- 状態、曲の ID、曲名、アーティスト、再生位置、曲の長さは、どの経路でも items/spotify.lua の apply に渡す
+-- state, track_id, meta, timing の形にそろえる。meta は { title, artist }、timing は { position, duration } で、どちらも秒。
 
 local M = {}
 
@@ -9,7 +9,7 @@ function M.command(script)
 	return string.format([[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to %s' 2>/dev/null]], script)
 end
 
--- 分散通知の Player State ("Playing" / "Paused") に合わせる。それ以外 (停止など) は nil
+-- 分散通知の Player State の "Playing" と "Paused" に合わせる。それ以外は停止などで nil。
 local PLAYER_STATE = { playing = "Playing", paused = "Paused" }
 
 -- 曲の長さはミリ秒。取れなければ nil。
@@ -41,7 +41,7 @@ M.SNAPSHOT_COMMAND = M.command(
 	"(player state as text) & tab & (id of current track) & tab & (name of current track) & tab & (artist of current track) & tab & (player position as text) & tab & (duration of current track as text)"
 )
 
--- 状態が読めない (停止中など) ときは nil。
+-- 状態が読めないとき、停止中などは nil。
 function M.parse_snapshot(out)
 	if type(out) ~= "string" then
 		return nil
@@ -55,7 +55,7 @@ function M.parse_snapshot(out)
 	return state, track_id, { title = title, artist = artist }, parse_timing(position, duration)
 end
 
--- Player State はそのまま ("Playing" / "Paused" 以外も来る)。Playback Position は秒 (小数)、Duration はミリ秒 (実機で確認)。
+-- Player State はそのまま渡す。"Playing" と "Paused" 以外も来る。Playback Position は秒の小数、Duration はミリ秒。実機で確認した。
 function M.parse_notification(info)
 	local position, duration = tonumber(info["Playback Position"]), tonumber(info["Duration"])
 	local timing = nil

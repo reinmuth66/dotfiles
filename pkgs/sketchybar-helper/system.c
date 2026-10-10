@@ -6,18 +6,18 @@
 #include <sys/statvfs.h>
 #include <sys/sysctl.h>
 
-// CPU・メモリ・ディスクの使用状況を一定間隔で測り、
+// CPU、メモリ、ディスクの使用状況を一定間隔で測り、
 // SketchyBar の system_stats イベントに環境変数として渡す。
 // 測定はカーネルの API を直接呼ぶだけで、プロセスを起動しない。
-// 描画や書式は Lua (items/system.lua) が決めるので、ここでは生の値だけを送る。
+// 描画や書式は items/system.lua の Lua が決めるので、ここでは生の値だけを送る。
 //
-// 値の測り方は bottom (btm。pkgs/btm-window が表示する) に合わせて、popup の数字が btm と一致するようにしている
-// (btm が使う sysinfo クレートの macOS 実装と同じ式)。
+// 値の測り方は bottom の btm に合わせて、popup の数字が btm と一致するようにしている。btm は pkgs/btm-window が表示する。
+// btm が使う sysinfo クレートの macOS 実装と同じ式。
 
 #define INTERVAL 1.0
 // 秒。割り込みをまとめて、省電力にする
 #define TOLERANCE 0.2
-// btm の disk widget は "/" だけを表示する設定。APFS のコンテナ (ディスク全体) の空きが取れる
+// btm の disk widget は "/" だけを表示する設定。APFS のコンテナ、つまりディスク全体の空きが取れる。
 #define DISK_PATH "/"
 #define MAX_CPUS 256
 
@@ -30,8 +30,9 @@ static int64_t cpu_prev_busy[MAX_CPUS];
 static int32_t cpu_prev_idle[MAX_CPUS];
 static bool cpu_has_prev;
 
-// sysinfo の global_cpu_usage と同じく、コアごとの使用率 (busy / (busy + idle)。f32) を出して、その平均を取る。
+// sysinfo の global_cpu_usage と同じく、コアごとの使用率を busy / (busy + idle) の f32 で出して、その平均を取る。
 // 全コアの tick を合計して割るのとは、わずかに値が違う。
+// total が 0 で使用率が NaN になるコアは、足さずに 0 として扱う。
 static float cpu_usage(void) {
   natural_t count;
   processor_info_array_t info;
@@ -52,7 +53,7 @@ static float cpu_usage(void) {
       int64_t in_use = busy - cpu_prev_busy[i];
       int64_t total = in_use + ((int64_t)idle - cpu_prev_idle[i]);
       float usage = (float)in_use / (float)total * 100.0f;
-      if (usage == usage) // NaN (total が 0) は 0 にする
+      if (usage == usage)
         sum += usage;
     }
     cpu_prev_busy[i] = busy;
@@ -64,7 +65,7 @@ static float cpu_usage(void) {
   return sum / (float)count;
 }
 
-// アクティビティモニタの「使用メモリ」と同じ内訳: アプリ + 確保済み + 圧縮
+// アクティビティモニタの "使用メモリ" と同じ内訳で、アプリ + 確保済み + 圧縮。
 static uint64_t memory_used(void) {
   vm_statistics64_data_t vm;
   mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
@@ -77,8 +78,8 @@ static uint64_t memory_used(void) {
   return pages * page_size;
 }
 
-// メモリ圧力 (1: normal、2: warn、4: critical)。memory_pressure コマンドと同じカーネルの値で、プロセスを起動せずに読める。
-// 読めなかったときは 0
+// メモリ圧力は 1 が normal、2 が warn、4 が critical。memory_pressure コマンドと同じカーネルの値で、プロセスを起動せずに読める。
+// 読めなかったときは 0。
 static int memory_pressure(void) {
   int level = 0;
   size_t length = sizeof(level);
@@ -87,8 +88,8 @@ static int memory_pressure(void) {
   return level;
 }
 
-// btm の disk widget の Free / Total と同じ値 (statvfs の空きブロック数 x ブロックサイズ)。
-// macOS の「消せるキャッシュ」は空きに含めない
+// btm の disk widget の Free と Total と同じ値で、statvfs の空きブロック数 x ブロックサイズ。
+// macOS の "消せるキャッシュ" は空きに含めない。
 static void disk_usage(uint64_t *free_bytes, uint64_t *total_bytes) {
   struct statvfs fs;
   *free_bytes = *total_bytes = 0;
@@ -98,6 +99,7 @@ static void disk_usage(uint64_t *free_bytes, uint64_t *total_bytes) {
   *total_bytes = (uint64_t)fs.f_blocks * fs.f_frsize;
 }
 
+// CPU は f32 の値をそのまま送る。%.9g で桁を失わない。Lua で丸めるときに、btm と同じ値から丸める。
 static void sample(CFRunLoopTimerRef timer, void *info) {
   float cpu = cpu_usage();
   uint64_t mem_used = memory_used();
@@ -105,7 +107,6 @@ static void sample(CFRunLoopTimerRef timer, void *info) {
   uint64_t disk_free, disk_total;
   disk_usage(&disk_free, &disk_total);
 
-  // CPU は f32 の値をそのまま (%.9g で桁を失わない) 送る。Lua で丸めるときに、btm と同じ値から丸める
   char message[256];
   snprintf(message, sizeof(message),
            "--trigger system_stats CPU=%.9g "
@@ -116,13 +117,13 @@ static void sample(CFRunLoopTimerRef timer, void *info) {
   sketchybar(message);
 }
 
+// 最初の cpu_usage は基準値を取るだけ。増分が要る CPU は、2 回目から意味を持つ。
 int main(void) {
   host = mach_host_self();
   host_page_size(host, &page_size);
   size_t length = sizeof(mem_total);
   sysctlbyname("hw.memsize", &mem_total, &length, NULL, 0);
 
-  // 最初の測定は基準値を取るだけ (増分が要る CPU は、2 回目から意味を持つ)
   cpu_usage();
 
   CFRunLoopTimerRef timer = CFRunLoopTimerCreate(

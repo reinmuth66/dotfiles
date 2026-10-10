@@ -1,14 +1,16 @@
--- 入力 (スクロール、右クリック、クリック) の受け方と、それに対する操作の部品。
--- ui.lua が ui.scroll_accumulator / ui.pin / ui.toggle_settings として再エクスポートするので、呼び出し側は ui を通して使う。
+-- 入力、つまりスクロール、右クリック、クリックの受け方と、それに対する操作の部品。
+-- ui.lua が ui.scroll_accumulator と ui.pin と ui.toggle_settings として再エクスポートするので、呼び出し側は ui を通して使う。
 
 local async = require("ui.async")
 
 local M = {}
 
--- 前面かどうかは、System Settings のウィンドウ (最前面の 1 枚) のタイトルが title_pattern を含むかで見る
--- (アクセシビリティ。実機で、タイトルが "Wi‑Fi" / "Bluetooth" で取れることを確認)。
--- タイトルは表示言語に依存するので、取れない・一致しないときは、閉じずに開く (前面へ出す) だけにする。
--- 最後のウィンドウを閉じるとシステム設定のアプリ自体が終了する (実機で確認)。
+-- 前面かどうかは、System Settings の最前面のウィンドウのタイトルが title_pattern を含むかで見る。
+-- アクセシビリティで取る。実機で、タイトルが "Wi‑Fi" と "Bluetooth" で取れることを確認した。
+-- タイトルは表示言語に依存するので、取れない、または一致しないときは、閉じずに開いて前面へ出すだけにする。
+-- 最後のウィンドウを閉じるとシステム設定のアプリ自体が終了する。実機で確認した。
+-- 起動していないときの osascript の確認は約 1.6 秒かかるので、約 0.02 秒の pgrep で先に見て、
+-- 起動していなければ確認せずにすぐ開く。起動中の確認は約 0.13 秒。
 function M.toggle_settings(url, title_pattern)
 	local check = string.format(
 		[[tell application "System Events"
@@ -22,8 +24,6 @@ end tell]],
 		title_pattern
 	)
 	local close = [[tell application "System Events" to tell process "System Settings" to click (value of attribute "AXCloseButton" of window 1)]]
-	-- 起動していないときの確認 (osascript) は約 1.6 秒かかるので、pgrep (約 0.02 秒) で先に見て、
-	-- 起動していなければ確認せずにすぐ開く (起動中の確認は約 0.13 秒)
 	local command = string.format(
 		"if pgrep -qx 'System Settings' && [ \"$(osascript -e '%s' 2>/dev/null)\" = close ]; then osascript -e '%s' >/dev/null 2>&1; else open '%s'; fi",
 		check,
@@ -33,9 +33,8 @@ end tell]],
 	sbar.exec(command)
 end
 
--- sign は向き (上スクロールが正の delta)、ticks は達した目盛りの数。返した関数の delta 以外の引数は、そのまま
--- on_ticks に渡る。トラックパッドは 1 回のスワイプで多数のイベントが出る (慣性スクロール含む) ので、
--- イベントごとには反応せず、目盛りに達するまでは何もしない。
+-- sign は向きで、上スクロールが正の delta。ticks は達した目盛りの数。返した関数の delta 以外の引数は、そのまま on_ticks に渡る。
+-- トラックパッドは 1 回のスワイプで慣性スクロールを含め多数のイベントが出るので、イベントごとには反応せず、目盛りに達するまでは何もしない。
 function M.scroll_accumulator(threshold, idle, on_ticks)
 	local sum = 0
 	local idle_timer = async.timer()
@@ -67,7 +66,7 @@ function M.scroll_accumulator(threshold, idle, on_ticks)
 end
 
 -- ピン留め中は、閉じる側が pin.active を見て、マウスが外れてもポップアップを閉じない。
--- on_change(active) は、状態が変わったときに呼ぶ。
+-- on_change は、状態が変わったときに active を渡して呼ぶ。
 function M.pin(on_change)
 	local pin = { active = false }
 

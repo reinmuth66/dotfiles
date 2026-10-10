@@ -1,5 +1,5 @@
--- 無彩色の色 (ARGB) はここにまとめる。
--- Spotify のポップアップの配色は、アルバム画像から palette.lua が決める (colors.popup の色は、決められないときの既定)。
+-- 無彩色の色は ARGB でここにまとめる。
+-- Spotify のポップアップの配色は palette.lua がアルバム画像から決める。colors.popup は決められないときの既定。
 local black = 0xff000000
 local white = 0xffffffff
 local light_gray = 0xffdddddd
@@ -26,11 +26,11 @@ return {
 	},
 
 	-- 壁紙のポップアップは、この色のまま使う。
+	-- 背景と枠は透過させない。枠は colors.bracket.border_color の 0x44ffffff を、黒に重ねた色にしてある。
 	popup = {
 		border_width = 1,
 		corner_radius = 5,
 		bg = black,
-		-- 背景と枠は透過させない。bracket の半透明の枠 (colors.bracket.border_color の 0x44ffffff) を、黒の上に重ねた色にしてある。
 		border = 0xff444444,
 	},
 

@@ -1,14 +1,13 @@
 local colors = require("colors")
 local ui = require("ui")
 
--- 字面は箱の外にはみ出すと見切れるので、字面の最大幅
--- (実測 13.5。advance は 10.8 しかない) を切り上げた値にする。
--- 字面は箱の左端 + padding_left から描かれるので (spotify.lua と同じ)、状態ごとの padding_left で
--- 字面の幅 (on 9.5 / off 12.0) を箱の中の中央に寄せる。
--- 実測値 (Hack Nerd Font Bold 18pt): フォントやサイズを変えたら再測定が必要。
+-- 字面は箱の外にはみ出すと見切れるので、字面の最大幅を切り上げた値にする。実測は 13.5 で、advance は 10.8 しかない。
+-- 字面は箱の左端 + padding_left から描かれるので、spotify.lua と同じく、状態ごとの padding_left で
+-- 字面の幅を箱の中の中央に寄せる。幅は on が 9.5、off が 12.0。
+-- 実測は Hack Nerd Font Bold 18pt で、フォントやサイズを変えたら再測定する。
 local ICON_WIDTH = 14
 
--- 接続中デバイスがあるときは、アイコンは on と同じまま白の濃さだけで表す (白 / 少し薄い)。オフはアイコンも変える
+-- 接続中のデバイスがあるときは on と同じアイコンのまま、白の濃さだけで表す。接続中が白、on が少し薄い。オフはアイコンも変える。
 local STATES = {
 	connected = { icon = "󰂯", color = colors.white, pad = 2 }, -- nf-md-bluetooth
 	on = { icon = "󰂯", color = colors.dim, pad = 2 }, -- nf-md-bluetooth
@@ -30,12 +29,12 @@ local bluetooth = ui.add_item("bluetooth", "right", {
 	label = { drawing = false },
 })
 
--- 接続・切断・電源の切り替えで届く。何も変わらなくても数秒おきに届く (実機で確認) ので、
--- 状態が前回と同じなら何もしない。電源専用の通知 (IOBluetoothHostController...) は届かない。
+-- 接続、切断、電源の切り替えで届く。何も変わらなくても数秒おきに届くことを実機で確認したので、
+-- 状態が前回と同じなら何もしない。電源専用の通知 IOBluetoothHostController... は届かない。
 sbar.add("event", "bluetooth_status", "com.apple.bluetooth.status")
 
--- 電源オフのときは device_connected 自体が無くなる。接続中のデバイスは、通知の約 0.3 秒後には
--- system_profiler の出力に反映されている (実機で確認)。
+-- 電源オフのときは device_connected 自体が無くなる。
+-- 接続中のデバイスは、通知の約 0.3 秒後には system_profiler の出力に反映される。実機で確認した。
 local COMMAND = [[system_profiler SPBluetoothDataType -json | jq -r '.SPBluetoothDataType[0] | if .controller_properties.controller_state == "attrib_on" then (if ((.device_connected // []) | length) > 0 then "connected" else "on" end) else "off" end']]
 
 local SETTLE = 0.4
@@ -73,7 +72,7 @@ bluetooth:subscribe("bluetooth_status", on_status)
 bluetooth:subscribe({ "system_woke", "routine", "forced" }, update)
 update()
 
--- bracket と、クリックを受ける領域は、items/network.lua が作る (Wi-Fi と Bluetooth を 1 つの bracket にまとめる)
+-- bracket とクリックを受ける領域は、Wi-Fi と Bluetooth を 1 つの bracket にまとめる items/network.lua が作る。
 return {
 	item = bluetooth,
 	icon_width = ICON_WIDTH,

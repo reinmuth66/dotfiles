@@ -1,6 +1,7 @@
--- Spotify のアルバム画像の取得とキャッシュ (items/spotify.lua が使う)。
+-- Spotify のアルバム画像の取得とキャッシュ。items/spotify.lua が使う。
 -- 画像は、osascript で引いた artwork url から取得する。使う側は、M.load で曲の画像を用意させ、
--- 準備できたら on_ready(files, histogram) を受け取る。files.small が画像のパス、histogram が色の頻度表 (palette.lua の入力)。
+-- 準備できたら on_ready に files と histogram を渡して受け取る。
+-- files.small が画像のパス、histogram が palette.lua の入力になる色の頻度表。
 
 local paths = require("paths")
 local fs = require("items.spotify.fs")
@@ -9,23 +10,25 @@ local script = require("items.spotify.script")
 local M = {}
 
 local CACHE_DIR = paths.cache .. "/spotify"
--- 表示サイズとは独立の固定値で、使う側が scale (表示サイズ / ART_PX) で縮める。
--- Retina (2 倍) なら、表示サイズが 48 まで足りる。変えるときは、キャッシュ (CACHE_DIR) を消すこと (古い解像度の画像が残るため)。
+-- 表示サイズとは独立の固定値で、使う側が scale として 表示サイズ / ART_PX で縮める。
+-- Retina の 2 倍なら、表示サイズが 48 まで足りる。変えるときは、古い解像度の画像が残るため、CACHE_DIR のキャッシュを消すこと。
 local ART_PX = 96
 M.ART_PX = ART_PX
 
--- 1 枚の画像につき、アイコン用の画像 (<ID>.jpg) と色の頻度表 (<ID>.colors) の 2 ファイルを、画像の ID (artwork url の末尾) で持つ。
--- 画像の大きさ (ART_PX) は固定なので、ファイル名には含めない (表示サイズ = 画像の実ピクセル * scale)。
+-- 1 枚の画像につき、アイコン用の画像 <ID>.jpg と色の頻度表 <ID>.colors の 2 ファイルを、画像の ID で持つ。ID は artwork url の末尾。
+-- 画像の大きさ ART_PX は固定なので、ファイル名には含めない。表示サイズは画像の実ピクセル * scale。
 -- キャッシュの確認を Lua で行うので、キャッシュにある画像では、取得のためのシェルを起動しない。
--- 取得は画像の ID ごとに 1 本だけ走らせる (同じアルバムの曲を続けて切り替えると、同じ画像の取得が重なる。
--- 重なった要求は、走っている取得の完了を待つ)。取得は、curl の出力を中間ファイルなしで magick に渡し、
--- 1 回のデコードで画像と頻度表を出す。出力は一時ファイルに書いて、最後に mv で置く (途中の状態が見えない)。
+-- 取得は画像の ID ごとに 1 本だけ走らせる。同じアルバムの曲を続けて切り替えると、同じ画像の取得が重なるため、
+-- 重なった要求は、走っている取得の完了を待つ。
+-- 取得は、curl の出力を中間ファイルなしで magick に渡し、1 回のデコードで画像と頻度表を出す。
+-- 出力は一時ファイルに書いて、最後に mv で置くので、途中の状態が見えない。
+
 local COLOR_SWATCHES = 32
 local COLOR_SAMPLE_PX = 48
 
 local ARTWORK_URL_COMMAND = script.command("get artwork url of current track")
 
--- curl か magick が失敗したら (pipefail)、何も置かない。
+-- curl か magick が失敗したら、pipefail で何も置かない。
 local function download_command(key, url)
 	return string.format(
 		[[
@@ -74,12 +77,13 @@ local function cached_artwork(key)
 	return nil
 end
 
--- 古い画像の掃除は、読み込み時 (再読み込み含む) に 1 回だけ行う (取得と重ならない)
+-- 古い画像の掃除は、再読み込みを含め読み込み時に 1 回だけ行う。取得と重ならない。
 sbar.exec(string.format("find %q -type f -mtime +30 -delete 2>/dev/null", CACHE_DIR))
 
 local downloads = {}
 
--- 失敗したら done(nil)。
+-- 失敗したら done に nil を渡す。
+-- 色の頻度表だけ作れなかったときも、画像は出す。配色は固定色に戻る。
 local function ensure_artwork(key, url, done)
 	local files, histogram = cached_artwork(key)
 	if files then
@@ -96,7 +100,6 @@ local function ensure_artwork(key, url, done)
 		downloads[key] = nil
 		local ready, ready_histogram = cached_artwork(key)
 		if not ready then
-			-- 色の頻度表だけ作れなかったときも、画像は出す (配色は固定色に戻る)
 			local partial = artwork_files(key)
 			if fs.has_content(partial.small) then
 				ready, ready_histogram = partial, ""
@@ -108,7 +111,7 @@ local function ensure_artwork(key, url, done)
 	end)
 end
 
--- 画像を出せた曲だけ覚える (取得に失敗した曲は覚えない。誤った url を取っても、使い回さない)。
+-- 画像を出せた曲だけ覚える。取得に失敗した曲は覚えない。誤った url を取っても、使い回さない。
 local artwork_of_track = {}
 
 local function resolve_artwork(track_id, done)
@@ -127,10 +130,12 @@ end
 -- 曲が変わった・停止した場合は、古い取得の結果を捨てるのに使う
 local current_track = nil
 
--- 取得に失敗したとき (ネットワークや osascript の一時的な失敗) は、少し待って取り直す。
+-- 取得に失敗したとき、つまりネットワークや osascript の一時的な失敗は、少し待って取り直す。
 local ARTWORK_ATTEMPTS = 3
 local ARTWORK_RETRY_DELAY = 0.5 -- 秒
 
+-- 取り直しても失敗し続けたら、current_track を nil に戻す。次のイベントで再試行する。
+-- 取得中に曲が変わった・停止した場合は、結果を捨てる。
 local function load_artwork(track_id, on_ready, attempt)
 	attempt = attempt or 1
 	current_track = track_id
@@ -142,11 +147,10 @@ local function load_artwork(track_id, on_ready, attempt)
 				end
 			end)
 		else
-			current_track = nil -- 次のイベントで再試行する
+			current_track = nil
 		end
 	end
 	resolve_artwork(track_id, function(artwork)
-		-- 取得中に曲が変わった・停止した場合は捨てる
 		if current_track ~= track_id then
 			return
 		end
@@ -168,9 +172,9 @@ local function load_artwork(track_id, on_ready, attempt)
 	end)
 end
 
--- 取得中に曲が変わった (別の曲で load された)、または clear された場合は、呼ばない。
--- 色の頻度表だけ作れなかったときは、histogram は "" (配色は固定色に戻る)。
--- 取得に失敗し続けたときは、current を nil に戻す (次のイベントで再試行できる)。
+-- 取得中に曲が変わって別の曲で load された、または clear された場合は、呼ばない。
+-- 色の頻度表だけ作れなかったときは、histogram は空文字列で、配色は固定色に戻る。
+-- 取得に失敗し続けたときは、current を nil に戻す。次のイベントで再試行できる。
 function M.load(track_id, on_ready)
 	load_artwork(track_id, on_ready, 1)
 end

@@ -1,14 +1,14 @@
--- ノッチの真下 (position "center") をクリックすると、壁紙のサムネイルをポップアップで並べ、
--- 選んだ画像を壁紙にする。ノッチの下にも item を置け、クリックを受けられる (実機で確認)。
+-- ノッチの真下、position "center" をクリックすると、壁紙のサムネイルをポップアップで並べ、選んだ画像を壁紙にする。
+-- ノッチの下にも item を置け、クリックを受けられることを実機で確認した。
 -- ノッチの item は透明で、ノッチと同じ幅。ポップアップはバーの下端から下へ、ノッチの中央にそろえて開く。
--- 壁紙は WALLPAPER_DIR (リポジトリの外。画像を git に入れないため) の jpg / jpeg / png を、ファイル名順に並べる。
+-- 壁紙は WALLPAPER_DIR の jpg、jpeg、png をファイル名順に並べる。画像を git に入れないため、リポジトリの外に置く。
 -- ポップアップに同時に出すのは VISIBLE 枚まで。それより多いときは、ポップアップの上でスクロールすると、
--- 表示する範囲が 1 枚ずつずれる (端まで行ったら反対側へ回る)。
--- ポップアップを開くときは、いまの壁紙が中央に来るように範囲を合わせる (画像が VISIBLE 枚より多いとき)。
--- ノッチとサムネイルのどれの上にもマウスがなくなったら、少し待って自動で閉じる (CLOSE_DELAY)。
--- サムネイルは imagemagick (extraPackages) で作り、CACHE_DIR に置く。元の画像より新しければ作り直さない。
--- 壁紙の設定は System Events (osascript) で行う。初回は、sketchybar に System Events の操作の許可が要る。
--- すべてのデスクトップ (Space) に同じ画像を設定する。
+-- 表示する範囲が 1 枚ずつずれる。端まで行ったら反対側へ回る。
+-- ポップアップを開くときは、画像が VISIBLE 枚より多ければ、いまの壁紙が中央に来るように範囲を合わせる。
+-- ノッチとサムネイルのどれの上にもマウスがなくなったら、CLOSE_DELAY だけ待って自動で閉じる。
+-- サムネイルは extraPackages の imagemagick で作り、CACHE_DIR に置く。元の画像より新しければ作り直さない。
+-- 壁紙の設定は System Events の osascript で行う。初回は、sketchybar に System Events の操作の許可が要る。
+-- すべてのデスクトップ、Space に同じ画像を設定する。
 
 local ui = require("ui")
 local colors = require("colors")
@@ -17,14 +17,14 @@ local paths = require("paths")
 local WALLPAPER_DIR = paths.home .. "/Pictures/wallpaper"
 local CACHE_DIR = paths.cache .. "/wallpaper"
 
--- 表示サイズは pt。キャッシュは 2 倍の解像度 (px) で作る。
+-- 表示サイズは pt。キャッシュは 2 倍の解像度の px で作る。
 local THUMB_WIDTH = 128
 local THUMB_HEIGHT = 72
 local THUMB_SCALE = 0.5
 local VISIBLE = 5
 
--- トラックパッドは 1 回のスワイプで多数のイベントが出るため、スクロールの量を足し合わせる (ui.scroll_accumulator)。
--- 上スクロール (delta > 0) で前の画像、下スクロール (delta < 0) で次の画像が見える。逆にするなら SCROLL_DIRECTION を -1 にする。
+-- トラックパッドは 1 回のスワイプで多数のイベントが出るため、スクロールの量を足し合わせる。ui.scroll_accumulator を使う。
+-- 上スクロールの delta > 0 で前の画像、下スクロールの delta < 0 で次の画像が見える。逆にするなら SCROLL_DIRECTION を -1 にする。
 local SCROLL_THRESHOLD = 5
 local SCROLL_IDLE = 0.3
 local SCROLL_DIRECTION = 1
@@ -54,7 +54,7 @@ local notch = ui.add_item("wallpaper", "center", {
 	},
 })
 
--- 画像がなければ何も出力しない (ポップアップは空のまま)。
+-- 画像がなければ何も出力せず、ポップアップは空のまま。
 local LIST_COMMAND = string.format(
 	[[mkdir -p "%s"
 for f in "%s"/*.jpg "%s"/*.jpeg "%s"/*.png; do
@@ -76,8 +76,8 @@ done]],
 	THUMB_HEIGHT * 2
 )
 
+-- AppleScript の文字列に入れるので、" と \ をエスケープする。
 local function set_wallpaper(path)
-	-- AppleScript の文字列に入れるので、" と \ をエスケープする
 	local escaped = path:gsub("\\", "\\\\"):gsub('"', '\\"')
 	local script = 'tell application "System Events" to tell every desktop to set picture to "' .. escaped .. '"'
 	sbar.exec("osascript -e '" .. script:gsub("'", "'\\''") .. "'")
@@ -85,8 +85,8 @@ end
 
 local popup_open = false
 
--- マウスが ノッチ → ポップアップのサムネイル と渡るとき、一瞬どの item の上にもない (entered の前に exited が来る) ので、
--- exited ですぐには閉じず、CLOSE_DELAY 秒待つ。その間に別の item に入ったら (entered)、閉じるのをやめる。
+-- マウスがノッチからポップアップのサムネイルへ渡るとき、一瞬どの item の上にもない。entered の前に exited が来るため、
+-- exited ですぐには閉じず、CLOSE_DELAY 秒待つ。その間に別の item に入ったら entered で、閉じるのをやめる。
 local CLOSE_DELAY = 0.25
 local close_timer = ui.timer()
 
@@ -113,11 +113,13 @@ local function watch_hover(item)
 	item:subscribe("mouse.exited", schedule_close)
 end
 
--- first は、いちばん左に出す画像の一覧の添字 (0 始まり)。i 番目の item は (first + i - 1) 番目の画像を出す。
 local entries = {}
 local slots = {}
+
+-- first は、いちばん左に出す画像の一覧の添字で、0 始まり。i 番目の item は first + i - 1 番目の画像を出す。
 local first = 0
--- 最後に選んだ画像のパス。System Events から、いまの壁紙のパスが取れなかった (一覧にない) ときの代わりにする
+
+-- 最後に選んだ画像のパス。System Events から、いまの壁紙のパスが取れなかった、つまり一覧にないときの代わりにする。
 local chosen_path = nil
 
 local function entry_at(slot_index)
@@ -130,14 +132,14 @@ local function render()
 	end
 end
 
+-- 最後まで行ったら最初へ戻る。逆向きも同じ。
 local scroll_by_ticks = ui.scroll_accumulator(SCROLL_THRESHOLD, SCROLL_IDLE, function(sign, ticks)
-	-- 最後まで行ったら最初へ戻る (逆向きも同じ)
 	first = (first - SCROLL_DIRECTION * sign * ticks) % #entries
 	render()
 end)
 
+-- 全部がポップアップに収まるときは、ずらす必要がない。
 local function scroll(delta)
-	-- 全部がポップアップに収まるときは、ずらす必要がない
 	if #entries <= VISIBLE then
 		return
 	end
@@ -146,7 +148,7 @@ end
 
 -- サムネイルの間と両端の余白は、padding ではなく透明な item で埋める。padding はマウスイベントを受けないが、
 -- item は受けるので、余白の上でもスクロールでき、ポップアップの上にいる判定になる。
--- 余白の item は作った後に変更しない (再描画されないので、mouse.exited が落ちにくい)。
+-- 余白の item は作った後に変更しない。再描画されないので、mouse.exited が落ちにくい。
 local function add_pad(index)
 	local pad = sbar.add("item", "wallpaper.pad." .. index, {
 		position = "popup.wallpaper",
@@ -207,7 +209,7 @@ end)
 
 -- メインのディスプレイの現在のデスクトップ
 local CURRENT_COMMAND = [[osascript -e 'tell application "System Events" to get picture of current desktop']]
--- 中央の item の、左から数えた位置 (0 始まり)
+-- 中央の item の、左から数えた位置で、0 始まり。
 local CENTER = math.floor((VISIBLE - 1) / 2)
 
 local function index_of(path)
@@ -243,6 +245,6 @@ notch:subscribe("mouse.clicked", function()
 	end
 end)
 
--- バーの外へ出たとき (mouse.exited.global) も、ノッチとポップアップの外へ出たときと同じ扱いにする
+-- バーの外へ出たときの mouse.exited.global も、ノッチとポップアップの外へ出たときと同じ扱いにする。
 watch_hover(notch)
 notch:subscribe("mouse.exited.global", schedule_close)
