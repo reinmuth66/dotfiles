@@ -17,28 +17,23 @@ local paths = require("paths")
 local WALLPAPER_DIR = paths.home .. "/Pictures/wallpaper"
 local CACHE_DIR = paths.cache .. "/wallpaper"
 
--- サムネイルの表示サイズ (pt)。キャッシュは 2 倍の解像度 (px) で作る。
+-- 表示サイズは pt。キャッシュは 2 倍の解像度 (px) で作る。
 local THUMB_WIDTH = 128
 local THUMB_HEIGHT = 72
 local THUMB_SCALE = 0.5
--- ポップアップに同時に並べる枚数。画像がこれより多いときは、スクロールで表示する範囲をずらす
 local VISIBLE = 5
 
--- スクロールの量 (delta) を足し合わせ、SCROLL_THRESHOLD に達するごとに表示を 1 枚ずらす
--- (トラックパッドは 1 回のスワイプで多数のイベントが出るため。ui.scroll_accumulator。items/volume.lua と同じ方式)。
--- SCROLL_IDLE 秒スクロールが止まったら、足し合わせた量を捨てる。
+-- トラックパッドは 1 回のスワイプで多数のイベントが出るため、スクロールの量を足し合わせる (ui.scroll_accumulator)。
 -- 上スクロール (delta > 0) で前の画像、下スクロール (delta < 0) で次の画像が見える。逆にするなら SCROLL_DIRECTION を -1 にする。
 local SCROLL_THRESHOLD = 5
 local SCROLL_IDLE = 0.3
 local SCROLL_DIRECTION = 1
 
 local POPUP_PADDING = 6
--- ポップアップの高さ (サムネイルの上下にも余白を残す)。item の上下もこの高さになり、余白でもマウスを受ける
+-- item の上下もこの高さになり、余白でもマウスを受ける
 local POPUP_HEIGHT = THUMB_HEIGHT + 2 * POPUP_PADDING
 local POPUP_BORDER = colors.popup.border_width
 
--- ノッチと同じ幅の透明な item が、クリックを受け、ポップアップの持ち主にもなる。
--- ポップアップはこの item の中央にそろえて、バーの下端から下へ開く。
 local notch = ui.add_item("wallpaper", "center", {
 	icon = { drawing = false },
 	label = { string = "", width = ui.notch_width, padding_left = 0, padding_right = 0 },
@@ -59,7 +54,6 @@ local notch = ui.add_item("wallpaper", "center", {
 	},
 })
 
--- 画像の一覧とサムネイルの作成を 1 回のシェルで行い、"画像\tサムネイル" の行を受け取る。
 -- 画像がなければ何も出力しない (ポップアップは空のまま)。
 local LIST_COMMAND = string.format(
 	[[mkdir -p "%s"
@@ -114,13 +108,11 @@ local function schedule_close()
 	end)
 end
 
--- ノッチとサムネイルのどれかの上にいる間は開いたままにし、すべてから外れたら閉じる
 local function watch_hover(item)
 	item:subscribe("mouse.entered", cancel_close)
 	item:subscribe("mouse.exited", schedule_close)
 end
 
--- 画像の一覧 ({ path, thumb } の並び) と、ポップアップに並べる item (左から順)。
 -- first は、いちばん左に出す画像の一覧の添字 (0 始まり)。i 番目の item は (first + i - 1) 番目の画像を出す。
 local entries = {}
 local slots = {}
@@ -204,7 +196,6 @@ sbar.exec(LIST_COMMAND, function(output)
 			entries[#entries + 1] = { path = path, thumb = thumb }
 		end
 	end
-	-- 余白 | サムネイル | 余白 | サムネイル | ... | 余白 の順に並べる
 	for i = 1, math.min(VISIBLE, #entries) do
 		add_pad(i - 1)
 		add_slot(i)
@@ -214,7 +205,7 @@ sbar.exec(LIST_COMMAND, function(output)
 	end
 end)
 
--- いまの壁紙 (メインのディスプレイの現在のデスクトップ) のパスを返すコマンド
+-- メインのディスプレイの現在のデスクトップ
 local CURRENT_COMMAND = [[osascript -e 'tell application "System Events" to get picture of current desktop']]
 -- 中央の item の、左から数えた位置 (0 始まり)
 local CENTER = math.floor((VISIBLE - 1) / 2)
@@ -228,7 +219,6 @@ local function index_of(path)
 	return nil
 end
 
--- いまの壁紙を中央に合わせてから、ポップアップを開く。画像が VISIBLE 枚以下のときは、並びを変えない。
 -- 範囲を合わせてから開くので、開いた後に画像が入れ替わって見えることはない。
 local function open()
 	sbar.exec(CURRENT_COMMAND, function(output)
@@ -253,6 +243,6 @@ notch:subscribe("mouse.clicked", function()
 	end
 end)
 
--- ノッチとポップアップの外へ出たら閉じる。バーの外へ出たとき (mouse.exited.global) も同じ扱いにする
+-- バーの外へ出たとき (mouse.exited.global) も、ノッチとポップアップの外へ出たときと同じ扱いにする
 watch_hover(notch)
 notch:subscribe("mouse.exited.global", schedule_close)

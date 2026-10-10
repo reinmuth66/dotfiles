@@ -1,6 +1,6 @@
 local colors = require("colors")
 
--- icon と label で同じフォント。sbar.default に渡す表を共有しないよう、呼ぶたびに新しい表を返す
+-- sbar.default に渡す表を共有しないよう、呼ぶたびに新しい表を返す
 local function font()
 	return { family = "Hack Nerd Font", style = "Bold", size = 13.0 }
 end

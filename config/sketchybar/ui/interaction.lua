@@ -5,7 +5,6 @@ local async = require("ui.async")
 
 local M = {}
 
--- システム設定の画面を開く。その画面がすでに前面に出ているときは、閉じる (トグル)。
 -- 前面かどうかは、System Settings のウィンドウ (最前面の 1 枚) のタイトルが title_pattern を含むかで見る
 -- (アクセシビリティ。実機で、タイトルが "Wi‑Fi" / "Bluetooth" で取れることを確認)。
 -- タイトルは表示言語に依存するので、取れない・一致しないときは、閉じずに開く (前面へ出す) だけにする。
@@ -34,12 +33,9 @@ end tell]],
 	sbar.exec(command)
 end
 
--- スクロールの量 (delta) を足し合わせ、threshold に達するごとに on_ticks(sign, ticks, ...) を呼ぶ関数を返す。
 -- sign は向き (上スクロールが正の delta)、ticks は達した目盛りの数。返した関数の delta 以外の引数は、そのまま
 -- on_ticks に渡る。トラックパッドは 1 回のスワイプで多数のイベントが出る (慣性スクロール含む) ので、
 -- イベントごとには反応せず、目盛りに達するまでは何もしない。
--- 向きが変わったら、逆向きの分は持ち越さない。idle 秒スクロールが止まったら、足し合わせた量を捨てる
--- (次の操作に持ち越さない)。量 0 のイベントは無視する。
 function M.scroll_accumulator(threshold, idle, on_ticks)
 	local sum = 0
 	local idle_timer = async.timer()
@@ -70,9 +66,8 @@ function M.scroll_accumulator(threshold, idle, on_ticks)
 	end
 end
 
--- 右クリックでのピン留め。ピン留め中は、マウスが外れてもポップアップを閉じない (閉じる側が pin.active を見る)。
--- もう一度右クリックすると外す (toggle)。on_change(active) は、状態が変わったときに呼ぶ
--- (ピン留め中を bracket の枠線の色などで示す)。
+-- ピン留め中は、閉じる側が pin.active を見て、マウスが外れてもポップアップを閉じない。
+-- on_change(active) は、状態が変わったときに呼ぶ。
 function M.pin(on_change)
 	local pin = { active = false }
 
@@ -81,7 +76,6 @@ function M.pin(on_change)
 		on_change(active)
 	end
 
-	-- 右クリックの処理。ポップアップが開いていないときは、ピン留めしない。外すのはいつでもできる
 	function pin.toggle(popup_open)
 		if pin.active then
 			pin.set(false)

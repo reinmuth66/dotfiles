@@ -2,7 +2,7 @@
 
 local M = {}
 
--- ファイルの中身を全部読む。開けなければ nil (空のファイルは "")
+-- 開けなければ nil (空のファイルは "")
 function M.read(path)
 	local f = io.open(path, "rb")
 	if not f then
@@ -13,7 +13,6 @@ function M.read(path)
 	return text
 end
 
--- ファイルがあって、空でなければ true
 function M.has_content(path)
 	local f = io.open(path, "rb")
 	if not f then
@@ -24,7 +23,7 @@ function M.has_content(path)
 	return size ~= nil and size > 0
 end
 
--- cava に渡すファイル (設定、制御、進捗、音声) へ、同期的に書く (シェルの起動を待たない)。書けたら true
+-- 同期的に書く (シェルの起動を待たない)。書けたら true
 function M.write(path, text)
 	local f = io.open(path, "w")
 	if not f then

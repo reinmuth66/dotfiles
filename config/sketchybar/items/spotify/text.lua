@@ -7,12 +7,12 @@
 -- 100pt などの大きな値で測ると、実際の表示 (11〜14pt) より 1 割以上狭く出る。必ず表示と同じ大きさ付近で測ること。
 -- 曲名・アーティスト名のサンプル 38 件で、実測 (11、12、14pt) との差は -3.9%〜+4.8% (平均 -0.2%〜+2.3%)。
 -- 過小な見積もりの分は TEXT_MARGIN で吸収する。
-local EM_WIDE = 0.923 -- 全角 (かな・漢字・ハングル・全角記号など)
-local EM_OTHER = 0.6 -- ASCII 以外の半角
-local EM_REF_SIZE = 12 -- 表を測った大きさ (pt)
+local EM_WIDE = 0.923
+local EM_OTHER = 0.6
+local EM_REF_SIZE = 12
 local EM_PER_PT = 0.01 -- 大きさが 1pt 小さいと、幅が増える割合
 
--- ASCII の文字の幅。0x20 (空白) から 0x7E (~) までの 95 個で、1 行に 10 個ずつ (最後の行だけ 5 個)。
+-- 0x20 (空白) から 0x7E (~) までの 95 個。
 -- 数値のリストにせず文字列にしているのは、フォーマッタ (stylua) に 1 個 1 行へ展開されないため。
 local EM_ASCII_TEXT = [[
 0.258 0.356 0.569 0.671 0.671 1.036 0.744 0.348 0.429 0.429
@@ -44,8 +44,7 @@ end
 
 local M = {}
 
--- 長い文字列は、size (pt) の文字が width (pt) に収まる所で切って "..." を付ける
--- (utf8.len が nil なら不正なバイト列なのでそのまま使う)
+-- utf8.len が nil なら不正なバイト列なのでそのまま使う
 -- 大きさが基準 (EM_REF_SIZE) と違う分の、間隔の変化の補正 (size が小さいほど、1em あたりの幅が広い) は、半角だけにかける。
 -- 全角は大きさによらず一律 EM_WIDE (8pt と 12pt で CoreText が測った値が同じ)。
 function M.truncate(text, size, width)
@@ -55,7 +54,7 @@ function M.truncate(text, size, width)
 	local spacing = 1 + EM_PER_PT * (EM_REF_SIZE - size)
 	local limit = (width - TEXT_MARGIN) / size
 	local total = 0
-	local cut = 1 -- "..." を付けても収まる、最後の切れ目 (バイト位置)
+	local cut = 1 -- バイト位置
 	for pos, code in utf8.codes(text) do
 		if total + EM_ELLIPSIS * spacing <= limit then
 			cut = pos

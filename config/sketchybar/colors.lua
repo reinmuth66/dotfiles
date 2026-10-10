@@ -3,13 +3,13 @@
 local black = 0xff000000
 local white = 0xffffffff
 local light_gray = 0xffdddddd
-local dim = 0x99ffffff -- 無効・未接続・未起動の表示。白の約 60%
+local dim = 0x99ffffff
 
 return {
 	white = white,
 	transparent = 0x00000000,
 	dim = dim,
-	pinned_border = light_gray, -- ピン留め中の bracket の枠線 (space.bg_focused と同じ)
+	pinned_border = light_gray, -- space.bg_focused と同じ
 
 	space = {
 		fg = dim,
@@ -25,7 +25,6 @@ return {
 		height = 34,
 	},
 
-	-- 形と、既定の色。Spotify のポップアップは、画像から配色を決める (palette.lua。palette.default がここの色を使う)。
 	-- 壁紙のポップアップは、この色のまま使う。
 	popup = {
 		border_width = 1,
@@ -36,11 +35,10 @@ return {
 	},
 
 	spotify = {
-		overlay_paused = 0x99000000, -- 一時停止中に画像へ重ねる覆い
+		overlay_paused = 0x99000000,
 		bracket_bg = black,
 	},
 
-	-- 使用状況の警告色 (system のポップアップの CPU、RAM、Disk)
 	status = {
 		normal = white,
 		warn = 0xffffb454,

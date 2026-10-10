@@ -1,13 +1,12 @@
 local colors = require("colors")
 local ui = require("ui")
 
--- アイコンの箱の幅 (padding を含む全幅)。字面は箱の外にはみ出すと見切れるので、字面の幅
+-- 字面は箱の外にはみ出すと見切れるので、字面の幅
 -- (実測 17.5。advance は 10.8 しかない。どのグリフも同じ幅で、左端から始まる) を切り上げた値にする。
 -- 字面は箱の左端 + padding_left から描かれる (spotify.lua と同じ) ので、padding_left は 0 のままでよい。
 -- 実測値 (Hack Nerd Font Bold 18pt): フォントやサイズを変えたら再測定が必要。
 local ICON_WIDTH = 18
 
--- 接続中は信号の強さで 4 段階 (扇形の 1〜4)、接続していない (alert) とオフは薄くする。
 -- 形はすべて扇形にそろえてある。
 local LEVEL_ICONS = {
 	"󰤟", -- nf-md-wifi_strength_1
@@ -36,8 +35,8 @@ local wifi = ui.add_item("wifi", "right", {
 
 local current
 
--- 標準メニューバーの Wi-Fi 項目の説明文 (アクセシビリティ。例: "Wi‑Fi、接続済み、3本") から、
--- 標準の表示と同じ線の数を読む。SketchyBar のプロセスから取れる (実機で確認。約 0.13 秒)。
+-- 説明文の例: "Wi‑Fi、接続済み、3本" (標準メニューバーの Wi-Fi 項目。アクセシビリティ)。
+-- SketchyBar のプロセスから取れる (実機で確認。約 0.13 秒)。
 -- 項目の位置は変わるので、説明文に "Wi" を含むものを探す。説明文は表示言語に依存するので、
 -- 数字を取れなければ、強さ不明として最大のアイコンにする。
 local SIGNAL_SCRIPT = [[tell application "System Events" to tell process "ControlCenter"
@@ -47,9 +46,7 @@ if d contains "Wi" then return d
 end repeat
 end tell]]
 
--- en0 が Wi-Fi (networksetup -listallhardwareports で確認)。IP があれば接続中、なければ電源で
--- オフと未接続を分ける。ipconfig は IP が無いと何も出力しない。
--- 線の数は、接続中のときだけ読む。
+-- en0 が Wi-Fi (networksetup -listallhardwareports で確認)。ipconfig は IP が無いと何も出力しない。
 local COMMAND = [[
 ip=$(ipconfig getifaddr en0)
 echo "ip=$ip"
@@ -97,5 +94,5 @@ return {
 	item = wifi,
 	icon_width = ICON_WIDTH,
 	settings_url = SETTINGS_URL,
-	title_pattern = "Wi", -- システム設定のウィンドウのタイトルに含まれる文字 (ui.toggle_settings)
+	title_pattern = "Wi",
 }

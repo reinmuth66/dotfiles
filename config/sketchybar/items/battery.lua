@@ -1,7 +1,6 @@
 local ui = require("ui")
 
--- 中身で最も高いアイコンの字面の高さ (px)。Hack Nerd Font Bold 18pt を CoreText で実測 (15.0)。
--- label (13pt、9.7) はこれより低い。bracket の上下の余白と、左右の余白をそろえるのに使う。
+-- 中身で最も高いアイコンの字面の高さ。Hack Nerd Font Bold 18pt を CoreText で実測 (15.0。label の 13pt は 9.7)。
 -- フォントやサイズを変えたら再測定が必要。
 local GLYPH_HEIGHT = 15
 
@@ -12,7 +11,6 @@ local GLYPH_HEIGHT = 15
 -- "45%" が 27px、"100%" が 34px。1桁は "05%" のように 0 埋めして2桁として扱う。
 -- フォントやサイズ、label の padding を変えたら再測定が必要。
 --
--- 数字の位置は、label の左揃え (align = "left") と padding_left (px、整数) で決める。
 -- 字面は label の左端 + padding_left から描かれ、padding_left を変えても label の幅 (34) と item の幅は変わらない
 -- (実機で確認)。sketchybar の label には x_offset がない。
 -- 3桁 ("100%") は幅いっぱいなので 3。2桁 ("45%") は余りの 7px を左右に分けると、左に 3.5px 足す位置 (6.5) が中央で、

@@ -7,7 +7,6 @@ local snapshot_path = paths.home
 
 local LABEL = {
 	font_size = 11,
-	-- bracket の右端からテキストまでの余白。他の bracket と同じ値にそろえる。
 	-- 右端の item なので label 自身の padding_right は 0 にし(add_label)、余白はここだけで決める。
 	central_padding_right = ui.bracket_padding,
 }
@@ -33,7 +32,6 @@ local BAR = {
 -- outline と nub は、互いの padding_right が同じ値のときに隙間なく隣接する
 -- (sketchybar の実機検証で確認した挙動)。outline 側は NUB.gap をそのまま使う。
 
--- battery と同じく、1 桁は "05%" のように 0 埋めして 2 桁として扱う。
 -- ラベル幅は "100%" が収まる 3 桁用に常に固定する(central/peripheral で共有)。
 -- 幅が桁数で変わると左隣の item が動き、右隣の Spotify のポップアップとの隙間(items/spotify.lua)が
 -- 変わるため、桁数にかかわらず固定する。
@@ -135,16 +133,12 @@ end
 -- peripheral の label/nub/outline を差し込むことで、peripheral 側は
 -- 「central グループの合計幅(group_offset)ぶん padding_right を引くだけ」で
 -- central の真下に重なる。
--- group_offset 以下の値はラベル幅(LABEL_WIDTH)から導く。ラベル幅は常に固定なので、
--- これらは作成時に決まる定数で、更新のたびに設定し直す必要はない
--- (central_nub/central_outline は central_label の幅に合わせて sketchybar が配置する)。
+-- central_nub/central_outline は central_label の幅に合わせて sketchybar が配置する。
 local GROUP_OFFSET = LABEL_WIDTH + NUB.width + BAR.width
 local PERIPHERAL_OUTLINE_PADDING_RIGHT = NUB.gap - GROUP_OFFSET
 -- central_fill は peripheral_outline の直後に追加されるので、その値を基準に計算する。
--- この値自体は inset に依存しない構造上の絶対基準(0%位置)。
 local CENTRAL_FILL_BASE_PADDING_RIGHT = PERIPHERAL_OUTLINE_PADDING_RIGHT - BAR.border_width
--- 実際に描画する central_fill の 0%位置。左右均等に inset 分内側へ後退させる
--- (上下の height 計算と同じ考え方)。
+-- 左右均等に inset 分内側へ後退させる (上下の height 計算と同じ考え方)。
 local CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT = CENTRAL_FILL_BASE_PADDING_RIGHT - BAR.inset
 
 local central_label = add_label("central", LABEL_WIDTH, LABEL.central_padding_right, ROW_OFFSET)
@@ -168,17 +162,15 @@ local peripheral =
 -- 左隣の bracket(ime)との実測の隙間が、他の bracket 間と同じ(通常の spacer を挟んだとき)に
 -- なるよう詰める(ui.close_gap)。
 -- spacer は bracket より後に作ること(実機検証。幅は自動にしないと効かない: ui.add_spacer)。
-local GAP_SETTLE_DELAY = 0.3 -- レイアウト反映を待つ秒数
+local GAP_SETTLE_DELAY = 0.3
 
 ui.add_bracket("zmk_battery.bracket", { "/zmk_battery\\..*/" })
 
--- bracket 全体でクリックを受ける透明な item。位置と幅は、表示内容(塗りバーの幅)に
--- 応じて apply_hit()が毎回 set()し直す。bracket より後に作ること(メンバーに含めない)。
+-- bracket より後に作ること(メンバーに含めない)。
 local hit = ui.add_hit_region("zmk_battery.hit", 0, 0, 0, { drawing = false })
 
 local gap_spacer = ui.add_spacer("right", ui.bracket_gap, "zmk_battery_gap")
 
--- 連続して呼ばれたときは最後の 1 回だけ測る
 local gap_timer = ui.timer()
 
 local function settle_gap()
@@ -192,7 +184,6 @@ local function settle_gap()
 	end)
 end
 
--- スナップショットにペリフェラルがないとき(片側だけのキーボードなど)にだけ使う。
 -- 未接続のときは隠さず、暗い色で表示する(apply_group)。
 local function hide_group(group)
 	group.nub:set({ drawing = false })
@@ -216,13 +207,8 @@ local function fill_width_for(level)
 	return trunc(inner_width * clamped_level / 100)
 end
 
--- グループを表示状態にし、塗りバーの幅/padding_right を反映する共通処理。
--- 値が最新でないとき(state.current が false)は、スナップショットに残っている
--- 最後のレベルのまま暗い色にする。
--- level が nil(一度も値が取れていない)ときは、塗りバーを空にしてラベルを"--%" にする
--- ("--%" は "05%" と同じ 3 文字なので、固定幅に収まる)。
--- fill_padding_right_for には「fill_width を受け取って padding_right を返す関数」を渡す
--- (central/peripheral で塗りバーの位置計算だけが異なるため)。
+-- "--%" は "05%" と同じ 3 文字なので、固定幅に収まる。
+-- central/peripheral で塗りバーの位置計算だけが異なるため、fill_padding_right_for で渡す。
 local function apply_group(group, state, fill_padding_right_for)
 	local color = state.current and colors.white or colors.dim
 	local fill_width = state.level and fill_width_for(state.level) or 0
@@ -243,18 +229,14 @@ local function apply_group(group, state, fill_padding_right_for)
 		label = { string = text, color = color, padding_right = LABEL_PADDING_RIGHT[#text - 1] },
 	})
 
-	-- hit layer の位置計算に使う、このグループが sketchybar の配置を進める幅
-	-- (width 指定の item は width の分だけ進む。ui.hit_region_geometry)。
+	-- width 指定の item は width の分だけ配置が進む (ui.hit_region_geometry)。
 	local chain_width = LABEL_WIDTH + NUB.width + BAR.width + fill_width
 
 	return fill_padding_right, chain_width
 end
 
--- central_fill の直近の padding_right。peripheral_fill の位置合わせに使う。
--- (central は常に表示するので、更新のたびに計算し直される。)
 local last_central_fill_padding_right = CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT
 
--- apply_central/apply_peripheral は、そのグループの chain_width を返す。
 local function apply_central(state)
 	local fill_padding_right, chain_width = apply_group(central, state, function(fill_width)
 		return CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT - fill_width
@@ -270,8 +252,6 @@ local function apply_peripheral(state)
 	return chain_width
 end
 
--- hit layer を bracket 全体に合わせる。bracket の幅は、左端の outline の左余白から
--- 右端(ラベルの右余白の外側)までで、central_padding_right には依らない。
 local function apply_hit(chain_width)
 	local bracket_width = LABEL_WIDTH + NUB.width + NUB.gap + BAR.width + ui.bracket_padding
 	local geometry = ui.hit_region_geometry(chain_width, 0, bracket_width)
@@ -280,12 +260,10 @@ local function apply_hit(chain_width)
 	return bracket_width
 end
 
--- 直近に反映したときの chain_width と bracket_width。apply_gap が前回との差分を取るための基準。
 -- 最初の update より前は、item が全て非表示で比べる基準がないので nil
 -- (その間のずれは settle_gap が測って詰める)。
 local last_chain_width, last_bracket_width
 
--- 左隣との隙間を、測定を待たずに保つ。
 -- 隣の item の位置は、この bracket の中で sketchybar が配置を進めた幅(chain_width)と、
 -- bracket の背景の幅(bracket_width)の差で決まる。バーが変わると両者は別々に変わるので、
 -- 隙間は「chain_width の増分 - bracket_width の増分」だけ変わる(実機で確認。fill を 1px 細くすると
@@ -294,8 +272,6 @@ local last_chain_width, last_bracket_width
 -- settle_gap は、このモデルで拾えない誤差(ペリフェラルの有無の切り替えなど)を直す役に回る。
 -- ui.close_gap と同じく、spacer の現在値に対する差分で更新するので、
 -- settle_gap が先に補正していても二重にならない。
--- current_padding_right は、バッチを始める前に問い合わせた spacer の現在値
--- (バッチの途中では問い合わせられない)。
 local function apply_gap(chain_width, bracket_width, current_padding_right)
 	if last_chain_width ~= nil then
 		local delta = (chain_width - last_chain_width) - (bracket_width - last_bracket_width)
@@ -304,7 +280,6 @@ local function apply_gap(chain_width, bracket_width, current_padding_right)
 	last_chain_width, last_bracket_width = chain_width, bracket_width
 end
 
--- fields(snapshot の 1 行 = {id, levelPercent, valueStatus}。なければ nil)から、表示に使う状態を作る。
 -- zmk-battery-center は、未接続のときも levelPercent に最後のレベルを残し、valueStatus を
 -- "stale" にする(connectionStatus が unknown/disconnected、または直近の読み取りが失敗したとき)。
 -- 値がまだ一度も取れていなければ levelPercent が null で、valueStatus は "unavailable" になる。

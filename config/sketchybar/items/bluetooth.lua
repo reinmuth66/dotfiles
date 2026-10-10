@@ -1,7 +1,7 @@
 local colors = require("colors")
 local ui = require("ui")
 
--- アイコンの箱の幅 (padding を含む全幅)。字面は箱の外にはみ出すと見切れるので、字面の最大幅
+-- 字面は箱の外にはみ出すと見切れるので、字面の最大幅
 -- (実測 13.5。advance は 10.8 しかない) を切り上げた値にする。
 -- 字面は箱の左端 + padding_left から描かれるので (spotify.lua と同じ)、状態ごとの padding_left で
 -- 字面の幅 (on 9.5 / off 12.0) を箱の中の中央に寄せる。
@@ -78,5 +78,5 @@ return {
 	item = bluetooth,
 	icon_width = ICON_WIDTH,
 	settings_url = SETTINGS_URL,
-	title_pattern = "Bluetooth", -- システム設定のウィンドウのタイトルに含まれる文字 (ui.toggle_settings)
+	title_pattern = "Bluetooth",
 }

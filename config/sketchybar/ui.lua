@@ -5,15 +5,13 @@ local colors = require("colors")
 
 local M = {}
 
--- bracket 同士の間隔。bracket の範囲は中の item の padding を含むため、
+-- bracket の範囲は中の item の padding を含むため、
 -- 何も挟まないと隣の bracket と背景が接してしまう。
 M.bracket_gap = 6
 
--- bracket の背景の端から中身までの既定の余白。add_bracket の padding に渡す。
 -- 端の item は、アイコンとラベルの内側の padding を 0 にしておくこと。
 M.bracket_padding = 8
 
--- bracket の上下の端から、高さ content_height の中身までの余白 (px)。中身は縦中央に置かれる。
 -- これを add_bracket の padding に渡すと、上下と左右の余白がそろう。
 -- content_height には、見える字面の高さを使う (行の高さではない)。
 function M.vertical_margin(content_height)
@@ -37,16 +35,9 @@ function M.add_item(name, position, props)
 	return sbar.add("item", name, merge(props or {}, { position = position }))
 end
 
--- members には item (add_item の戻り値)、item 名、"/正規表現/" のいずれかを並べる。
--- 背景は colors.bracket を既定にし、props.background で上書きできる。
 -- 背景を描かず範囲の測定だけに使うときは { background = { drawing = false } } を渡す。
 --
--- padding は bracket の背景の端から中身までの余白 (px)。数値なら左右同じ、
--- { left = n, right = n } なら片側だけ指定でき、省略した側は変更しない。
--- bracket の範囲は item の padding を含む (実機検証) ので、実際には端の item の
--- padding を設定している:
---   right: 最も右の item (members の先頭) の padding_right
---   left : 最も左の item (members の末尾) の padding_left
+-- bracket の範囲は item の padding を含む (実機検証) ので、padding は端の item の padding として設定する。
 -- members は右から左の並び順で、item オブジェクトで渡すこと
 -- (名前や正規表現では item を特定できないため、padding を指定するとエラーにする)。
 -- 上下2段を重ねる zmk_battery のように、描画位置と並びの順序が一致しない item には使えない。
@@ -80,13 +71,12 @@ function M.add_bracket(name, members, props, padding)
 	)
 end
 
--- add_spacer が描画する幅 (空のラベルが 1px の幅を持つ。実機で測定)。
+-- 空のラベルが 1px の幅を持つ (実機で測定)。
 -- spacer の padding_right を width にしても、見た目の隙間は width + 1 になる。
 local SPACER_RENDERED_WIDTH = 1
 
 local spacer_count = 0
 
--- 幅 width の空白を作る item。name を省くと連番で命名する。
 -- 幅を固定した(width を指定した) item は、負の padding_right が隣へ伝わらない
 -- (実機検証)。後から padding_right を負にして隙間を詰められるよう、
 -- 幅は自動のまま、空のラベルを持たせ padding_right で width を表す。
@@ -103,11 +93,11 @@ function M.add_spacer(position, width, name)
 	})
 end
 
--- 内蔵ディスプレイのノッチの幅 (pt)。bar.lua の notch_width と items/wallpaper.lua に使う。
+-- bar.lua の notch_width と items/wallpaper.lua に使う。
 -- NSScreen の frame 幅 - auxiliaryTopLeftArea 幅 - auxiliaryTopRightArea 幅 (1710 - 751 - 750) で実測した。
 M.notch_width = 209
 
--- バーの高さ。bar.lua の height に使う (ノッチとの間隔もここから決める)。
+-- bar.lua の height に使う (ノッチとの間隔もここから決める)。
 M.bar_height = 40
 
 -- ノッチと bracket の間隔は、bracket の上下の余白 (バーの高さ - bracket の高さ) / 2 と同じにする。
@@ -120,7 +110,6 @@ local NOTCH_GAP = (M.bar_height - colors.bracket.height) / 2
 -- 右の起点 959 pt / 実測の右端 960 pt)。
 local NOTCH_ORIGIN_OFFSET = { q = 1, e = -1 }
 
--- ノッチの脇 (position "q" = 左、"e" = 右) の item とノッチの間隔 (NOTCH_GAP) を作る spacer。
 -- ノッチに最も近い位置に置くので、その側の item より先に追加すること。
 -- 見た目の隙間は 幅 + SPACER_RENDERED_WIDTH + 起点のずれ になるので、上のずれを幅から引いて
 -- 実測のノッチの縁からの間隔をそろえる ("q" は NOTCH_GAP - 2、"e" は NOTCH_GAP)。
@@ -130,9 +119,6 @@ function M.add_notch_spacer(position, name)
 	return M.add_spacer(position, NOTCH_GAP - SPACER_RENDERED_WIDTH - offset, name)
 end
 
--- 操作 (ホバー・クリック・スクロール) を受けるための、透明で静的な item。
--- right (または q、e) の item とその bracket の真上に重なり、bracket 全体、またはその一部の範囲で反応する。
---
 -- マウスイベントは、カーソルの下にあるウィンドウに届く。SketchyBar は、マウスイベントを購読している
 -- item が再描画されるたびに、その item のマウス追跡領域を張り直す。このとき mouse.exited が
 -- 届かなくなることがあり (実機で再現)、ホバーで開いたポップアップが閉じなくなる。
@@ -146,9 +132,7 @@ end
 -- そのため、この item は width を使わず icon.width で幅を確保し、padding で隣の item の位置を変えない
 -- (padding_left + padding_right + 幅 = 0。hit_region_geometry)。
 --
--- bracket の端から from〜to (px) の範囲を覆う。bracket 全体なら from = 0、to = bracket の幅。
 -- bracket の中の item が分かれていて、範囲ごとに別の操作を受けたいときは、範囲ごとに作る (items/network.lua)。
--- chain_width は、bracket の中の item が配置を進める幅の合計 (hit_region_geometry)。
 -- 重ねる item より後 (かつ bracket より後) に追加すること (ウィンドウは後に追加した item が上になる)。
 -- 重ねる item が "q" (ノッチの左) のときは props.position = "q" を渡す (配置は right と同じ右から左で、端は右端)。
 -- "e" (ノッチの右) のときは props.position = "e" を渡す (配置は left と同じ左から右で、端は左端)。
@@ -170,9 +154,7 @@ end
 -- chain_width は、bracket の中の item が配置を右から左へ進める幅の合計。
 -- width を指定した item は、後続の配置を width の分しか進めない (padding は数えられない) ので、
 -- 幅を指定した item の width を合計する (幅が自動の item は含めない。実機で検証)。
--- bracket の右端から範囲の右端 (from) の位置までを負の padding_right で戻し、
--- padding_left で範囲の左端 (to) から配置の続き (chain_width) まで進めて、隣の位置を元に戻す。
--- (padding_left + padding_right + 幅 = 0)。幅が変わるときは、この値を set し直す。
+-- padding_left + padding_right + 幅 = 0 になる。幅が変わるときは、この値を set し直す。
 function M.hit_region_geometry(chain_width, from, to)
 	return {
 		padding_left = chain_width - to,
@@ -181,9 +163,8 @@ function M.hit_region_geometry(chain_width, from, to)
 	}
 end
 
--- バーの中にポップアップを出すための、空の item (anchor)。ポップアップの持ち主を、アイコンや隣の item に被らない
--- 位置の空の item にする。opts.align は、持ち主のどちら側の端にポップアップをそろえるか
--- ("left" なら持ち主の左端にそろって右へ伸び、"right" なら右端にそろって左へ伸びる。伸びる先の他の item は覆う)。
+-- アイコンや隣の item に被らない位置の空の item (anchor) を、ポップアップの持ち主にする。
+-- opts.align: "left" なら持ち主の左端にそろって右へ伸び、"right" なら右端にそろって左へ伸びる (伸びる先の他の item は覆う)。
 -- ポップアップは既定でバーの下端から下に出る。y_offset を負にして上へ戻し、バーの縦の中央に置く
 -- (上端が (バーの高さ - opts.height) / 2 になる)。ポップアップの枠線 (opts.background.border_width) の分だけ
 -- 中身が下にずれる (実機で、枠線 1 のとき中身の上端が 5 pt、枠線 0 のとき 4 pt) ので、その分も上げる。
@@ -212,12 +193,10 @@ end
 local POPUP_FONT_FAMILY = ".AppleSystemUIFont"
 local POPUP_FONT_STYLE = "Bold" -- 欧文は System Font Bold、日本語は W6 になる (Regular なら W4)
 
--- features は OpenType の機能タグ (カンマ区切り)。時刻には等幅数字の "tnum" を渡す
 function M.popup_font(size, features)
 	return { family = POPUP_FONT_FAMILY, style = POPUP_FONT_STYLE, size = size, features = features }
 end
 
--- bounding_rects はディスプレイ名をキーにした表。先頭の 1 つを使う。
 -- 非表示の item は origin が (-9999, -9999) になるので、画面外なら nil を返す。
 function M.visible_rect(name)
 	local rects = sbar.query(name).bounding_rects
@@ -229,12 +208,9 @@ function M.visible_rect(name)
 	return nil
 end
 
--- 隣り合う left (左) と right (右) の見た目上の隙間が、通常の spacer (add_spacer の
--- width が spacing のもの) を挟んだときと同じになるよう、2 つの間に置いた spacer の
--- padding_right を調整する。見た目の隙間は spacing + SPACER_RENDERED_WIDTH。
--- left / right には bracket 名も渡せる。
+-- 見た目の隙間が、通常の spacer を挟んだとき (spacing + SPACER_RENDERED_WIDTH) と同じになるよう、
+-- 間に置いた spacer の padding_right を調整する。
 -- 実測値に対する差分で更新するので、何度呼んでも収束する。
--- どちらかが非表示なら spacer を spacing (通常の間隔) に戻す。
 -- レイアウトの反映は非同期なので、呼び出し側は変更の少し後に呼ぶこと。
 function M.close_gap(opts)
 	local spacer = opts.spacer

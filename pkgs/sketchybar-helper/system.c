@@ -15,24 +15,23 @@
 // (btm が使う sysinfo クレートの macOS 実装と同じ式)。
 
 #define INTERVAL 1.0
-// タイマーの許容誤差 (秒)。割り込みをまとめて、省電力にする
+// 秒。割り込みをまとめて、省電力にする
 #define TOLERANCE 0.2
-// ディスクの空き容量を測るボリューム (btm の disk widget は "/" だけを表示する設定)。APFS のコンテナ (ディスク全体) の空きが取れる
+// btm の disk widget は "/" だけを表示する設定。APFS のコンテナ (ディスク全体) の空きが取れる
 #define DISK_PATH "/"
-// CPU のコアの数の上限
 #define MAX_CPUS 256
 
 static mach_port_t host;
 static vm_size_t page_size;
 static uint64_t mem_total;
 
-// コアごとの、前回の tick (busy は user + system + nice)。sysinfo と同じく i32 の tick を i64 で足す
+// sysinfo と同じく i32 の tick を i64 で足す
 static int64_t cpu_prev_busy[MAX_CPUS];
 static int32_t cpu_prev_idle[MAX_CPUS];
 static bool cpu_has_prev;
 
-// 前回からの CPU 使用率 (0〜100)。sysinfo の global_cpu_usage と同じく、コアごとの使用率
-// (busy / (busy + idle)。f32) を出して、その平均を取る。全コアの tick を合計して割るのとは、わずかに値が違う。
+// sysinfo の global_cpu_usage と同じく、コアごとの使用率 (busy / (busy + idle)。f32) を出して、その平均を取る。
+// 全コアの tick を合計して割るのとは、わずかに値が違う。
 static float cpu_usage(void) {
   natural_t count;
   processor_info_array_t info;

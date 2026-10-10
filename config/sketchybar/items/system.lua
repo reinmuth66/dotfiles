@@ -7,31 +7,29 @@ local ui = require("ui")
 -- 測定は helper がカーネルの API を直接呼ぶだけなので軽い。ポップアップが閉じている間は、描画の指示 (set) は出さない。
 -- 数字は bottom (btm。pkgs/btm-window が表示する) と同じ値・同じ書式にしてある (値の測り方は pkgs/sketchybar-helper/system.c)。
 
--- アイコンのサイズ (pt)。sketchybar-app-font の :activity_monitor: は、字面がほぼ一辺 SIZE の正方形になる
+-- sketchybar-app-font の :activity_monitor: は、字面がほぼ一辺 SIZE の正方形になる
 -- (CoreText の CTLineGetImageBounds で実測。幅は SIZE x 0.998、高さは SIZE x 0.962。20pt で 19.96 x 19.24、16pt で 15.97 x 15.39)。
 -- pill (PILL_SIZE = 24) の縁とアイコンの隙間が約 4 pt になる 16。フォントやサイズを変えたら再測定が必要。
 local SIZE = 16
 
--- ポップアップの高さ (pt)。バー (ui.bar_height) の中に収める。
+-- バー (ui.bar_height) の中に収める。
 local POPUP_HEIGHT = 32
--- ポップアップの余白 (pt)。上下・左右・item 同士の見た目の余白をこの値にそろえる (ui.bracket_padding と同じ 8)。
+-- 上下・左右・item 同士の見た目の余白をこの値にそろえる (ui.bracket_padding と同じ 8)。
 -- 縦は 中身の字面の高さ (GLYPH_HEIGHT。tallest は CPU・Disk のアイコンで実測 13.5〜14.5 に y_offset 1 を足して 15)
 -- を POPUP_HEIGHT の縦中央に置くので、(32 - 15) / 2 = 8.5 になる (整数に丸めると 8 と 9)。
 -- 横は item の padding で作る。label は固定幅で、字面の右に約 1 pt の余りがある (実測。"07%" は 24 の箱に字面 23.0) ので、
 -- item 同士の間と右端は、その分を引く。
 local POPUP_MARGIN = 8
 local LABEL_SLACK = 1
--- アイコン (歯車の円) とポップアップの見た目の間隔 (pt)。spacer は 幅 + 1 pt 描かれる (ui.add_spacer) ので、幅は 1 引く
+-- spacer は 幅 + 1 pt 描かれる (ui.add_spacer) ので、spacer の幅は 1 引く
 local POPUP_GAP = 4
 
--- helper が送るイベント。helper が起動するより先に登録しておく (未登録のイベントは --trigger できない)
+-- helper が起動するより先に登録しておく (未登録のイベントは --trigger できない)
 sbar.add("event", "system_stats")
 
--- ノッチの左隣 (position "q") に置く。ノッチとの間隔は spacer で作る (ui.add_notch_spacer)。
 -- ノッチに最も近い位置に置くので、gear より先に追加する。
 ui.add_notch_spacer("q", "system.notch_gap")
 
--- bracket は、高さが colors.bracket.height で、角の半径は高さの半分にする。
 -- 円の中にアイコンが同心で収まるよう、アイコンの左右に余白 (ICON_PADDING) を取る。
 -- pill (btm の窓の状態を示す円の背景。set_btm_state の付近を参照) は、bracket と同心にして、
 -- 縁との隙間を上下 PILL_MARGIN にする (aerospace の pill、spotify の画像と同じ 5 pt)。
@@ -44,8 +42,6 @@ local ICON_PADDING = (PILL_SIZE - SIZE) / 2
 
 -- item の width は指定しない。width を指定した item の後は、配置が width の分しか進まず、bracket の padding が
 -- 数えられないので、隣の item が padding の分だけ重なる (ui.add_hit_region の説明)。幅は icon.width で決める。
--- item の背景 (pill) は icon.width の箱と同じ大きさ (PILL_SIZE) になり、bracket の範囲との隙間は item の padding
--- (上下は PILL_MARGIN、左右は SIDE_MARGIN。左右は ui.add_bracket の padding で設定する) で作る。item の幅 + padding は bracket の幅と同じ。
 -- icon.width は padding を含む箱の全幅 (spotify.lua)。
 local gear = ui.add_item("system", "q", {
 	icon = {
@@ -58,7 +54,6 @@ local gear = ui.add_item("system", "q", {
 		padding_right = 0,
 	},
 	label = { drawing = false },
-	-- pill。普段は描かない (set_btm_state で色を変える)
 	background = {
 		drawing = false,
 		height = PILL_SIZE,
@@ -70,15 +65,14 @@ local bracket = ui.add_bracket("system.bracket", { gear }, {
 	background = { corner_radius = colors.bracket.height / 2 },
 }, SIDE_MARGIN)
 
--- bracket 全体でマウス操作を受ける (ui.add_hit_region)。item の幅は自動なので、配置が進む幅 (chain) は
--- bracket の幅と同じ
+-- item の幅は自動なので、配置が進む幅 (chain) は bracket の幅と同じ
 local hit = ui.add_hit_region("system.hit", BRACKET_WIDTH, 0, BRACKET_WIDTH, { position = "q" })
 
 -- 数字の書式は btm (src/utils/data_units.rs、conversion.rs) と同じ。
 -- 10 進接頭辞 (1 KB = 1000 B) で、値は 1 回の割り算で出す (btm の get_decimal_bytes、get_unit_prefix)
 local DECIMAL_BYTES = { { 1e12, "TB" }, { 1e9, "GB" }, { 1e6, "MB" }, { 1e3, "KB" } }
 
--- ディスクの使用量・総容量 (byte)。btm の disk widget と同じ「325GB」の形
+-- btm の disk widget と同じ「325GB」の形
 local function format_disk(bytes)
 	for _, entry in ipairs(DECIMAL_BYTES) do
 		if bytes >= entry[1] then
@@ -88,14 +82,12 @@ local function format_disk(bytes)
 	return string.format("%.0f%s", bytes, "B")
 end
 
--- ポップアップは、バーの中の、アイコンの左隣に、左へ伸ばして出す (バーの下には出さない)。アイコンや隣の item に被らないよう、
--- ポップアップの持ち主は、アイコンの左に置いた空の item (anchor) にする。align = "right" は持ち主の右端にそろう
--- (ui.add_popup_anchor。バーの縦の中央に置くための y_offset もそこで決まる)。
+-- アイコンや隣の item に被らないよう、ポップアップの持ち主は、アイコンの左に置いた空の item (anchor) にする
+-- (ui.add_popup_anchor)。
 ui.add_spacer("q", POPUP_GAP - 1)
 local anchor = ui.add_popup_anchor("system.anchor", "q", {
 	align = "right",
 	height = POPUP_HEIGHT,
-	-- 背景は他の bracket (colors.bracket) と同じ色・枠線・角の丸み。高さは popup.height で決まる
 	background = {
 		color = colors.bracket.color,
 		border_color = colors.bracket.border_color,
@@ -104,15 +96,14 @@ local anchor = ui.add_popup_anchor("system.anchor", "q", {
 	},
 })
 
--- ポップアップは CPU、RAM、Disk の 3 つの item を横に並べる。数字の見せ方は battery.lua と同じ:
--- アイコン (18pt の Nerd Font のグリフ) + 数字 (13pt)。桁が変わっても隣の item がずれないよう、label の幅を固定する。
+-- 数字の見せ方は battery.lua と同じ。桁が変わっても隣の item がずれないよう、label の幅を固定する。
 -- 実測値 (Hack Nerd Font Bold 13pt): label の固定幅は内側の padding_left(3) を含む。
 -- "45%" / "100%" の順に 27 / 34 px。"245GB/500GB" (最も長い形) は 89 px。
 -- 1 桁は "05%" のように 0 埋めして 2 桁として扱う。フォントやサイズ、label の padding を変えたら再測定が必要。
 local PERCENT_WIDTH_BY_DIGITS = { [2] = 27, [3] = 34 }
 local DISK_WIDTH = 89
 
--- アイコンの箱の幅 (padding を含む全幅)。字面は advance (10.8) より広く、箱の外にはみ出すと数字に重なる
+-- 字面は advance (10.8) より広く、箱の外にはみ出すと数字に重なる
 -- (wifi.lua、bluetooth.lua と同じ)。字面は箱の左端から描かれるので、字面の幅 (実測。CTLineGetImageBounds、
 -- Hack Nerd Font Bold 18pt。CPU 13.5、RAM 18.7、Disk 14.5) に、字面の右端と数字の間の余白 3.9 を足して切り上げた値にする。
 -- 3.9 は battery.lua の見た目の余白 (advance 10.8 - 字面の右端 9.9 + icon の padding_right 3) と同じ。
@@ -121,8 +112,6 @@ local CPU_ICON_WIDTH = 18
 local RAM_ICON_WIDTH = 23
 local DISK_ICON_WIDTH = 19
 
--- padding_left / padding_right は item の外側の余白。左端の item だけ左に POPUP_MARGIN、右端の item だけ右に
--- POPUP_MARGIN - LABEL_SLACK、間も POPUP_MARGIN - LABEL_SLACK にして、見た目をそろえる。
 local function add_stat(name, icon, icon_width, width, padding_left, padding_right)
 	return sbar.add("item", "system." .. name, {
 		position = "popup.system.anchor",
@@ -146,7 +135,6 @@ local cpu_item = add_stat("cpu", "\u{f035b}", CPU_ICON_WIDTH, PERCENT_WIDTH_BY_D
 local ram_item = add_stat("ram", "\u{efc5}", RAM_ICON_WIDTH, PERCENT_WIDTH_BY_DIGITS[2], 0, EDGE_PADDING)
 local disk_item = add_stat("disk", "\u{f0c7}", DISK_ICON_WIDTH, DISK_WIDTH, 0, EDGE_PADDING)
 
--- 0 埋めした整数の % と、その桁数に応じた label の幅
 local function percent_label(value)
 	local text = string.format("%02.0f%%", value)
 	return { string = text, width = PERCENT_WIDTH_BY_DIGITS[#text - 1] }
@@ -160,7 +148,7 @@ local PRESSURE_COLORS = {
 	[4] = colors.status.critical,
 }
 
--- 使用率 (%) の閾値。瞬間値で判定する (平滑化はしない)。以上で warn、critical の色にする。
+-- 瞬間値で判定する (平滑化はしない)。
 --   CPU : warn は Apple のサポート記事 (継続的に 70% 超は高負荷) による。critical の 90% は目安。
 --   Disk: 空き 20% 以下で warn、10% 以下で critical (macOS の「空きを 10〜20% 保つ」目安と、Zabbix の既定 90%)。
 local CPU_THRESHOLDS = { warn = 70, critical = 90 }
@@ -175,7 +163,6 @@ local function threshold_color(value, thresholds)
 	return colors.status.normal
 end
 
--- アイコンと label の色をそろえて、item の設定にする
 local function colored(label, color)
 	label.color = color
 	return { icon = { color = color }, label = label }
@@ -184,7 +171,6 @@ end
 local last_env
 local popup_open = false
 
--- 値がそろわないとき (起動直後など) は、その回の描画を飛ばす
 local function render()
 	if last_env == nil then
 		return
@@ -225,13 +211,11 @@ hit:subscribe("mouse.entered", function()
 	anchor:set({ popup = { drawing = true } })
 end)
 
--- 右クリックでピン留めした状態 (ui.pin)。ピン留め中は、マウスが外れてもポップアップを閉じない。
--- ピン留め中は bracket の枠線が colors.pinned_border になる (spotify.lua と同じ)。
 local pin = ui.pin(function(active)
 	bracket:set({ background = { border_color = active and colors.pinned_border or colors.bracket.border_color } })
 end)
 
--- バーの外へ出たときは mouse.exited.global でも閉じる。ピン留め中は閉じない
+-- バーの外へ出たときは mouse.exited.global でも閉じる
 hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	if pin.active then
 		return
@@ -240,18 +224,12 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	anchor:set({ popup = { drawing = false } })
 end)
 
--- btm の窓 (pkgs/btm-window) の開閉。起動中なら SIGUSR1 を送り、窓が最前面なら閉じ、そうでなければ前に出させる。
--- 起動していなければ起動する。窓は AeroSpace の管理外で、今の workspace の上に重なる (workspace は切り替わらない)。
+-- btm の窓 (pkgs/btm-window) は AeroSpace の管理外で、今の workspace の上に重なる (workspace は切り替わらない)。
 local BTM_APP_NAME = "btm-window"
 local TOGGLE_BTM_COMMAND = string.format("pkill -USR1 -x %s || { nohup %s >/dev/null 2>&1 & }", BTM_APP_NAME, BTM_APP_NAME)
 
--- btm の窓の状態を、bracket の中の pill (gear の背景) の色で示す。bracket の背景は変えない。
---   最前面: aerospace の workspace (items/aerospace.lua の highlight) と同じく色を反転する。
---           pill を colors.space.bg_focused に、アイコンを colors.space.fg_focused にする。
---   起動中だが最前面ではない: pill を colors.dim に、アイコンを colors.space.fg_focused にする。
---   起動していない: pill は描かず、アイコンは普段の色。
+-- 最前面のときは、aerospace の workspace (items/aerospace.lua の highlight) と同じく色を反転する。
 -- 窓が最前面になる・外れる・閉じるのは、どれも front_app_switched (INFO は前面になったアプリ名) で分かる。
--- 最前面でないときだけ、起動しているかを pgrep で調べる。
 
 local function set_btm_state(state)
 	local pill_color = {

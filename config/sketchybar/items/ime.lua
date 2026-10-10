@@ -1,7 +1,7 @@
 local ui = require("ui")
 
--- 英大文字の字面の高さ (px)。Hack Nerd Font Bold 16pt を CoreText で実測 (11.7)。
--- bracket の上下の余白と、左右の余白をそろえるのに使う。フォントやサイズを変えたら再測定が必要。
+-- 英大文字の字面の高さ。Hack Nerd Font Bold 16pt を CoreText で実測 (11.7)。
+-- フォントやサイズを変えたら再測定が必要。
 local GLYPH_HEIGHT = 12
 
 local ime = ui.add_item("ime", "right", {

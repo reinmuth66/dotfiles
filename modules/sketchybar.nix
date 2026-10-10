@@ -6,7 +6,6 @@
 }:
 
 let
-  # pkgs/sketchybar-helper/<name>.c をビルドして sketchybar-<name>-helper にする
   mkHelper = pkgs.callPackage ../pkgs/sketchybar-helper { };
 
   mkHelperAgent =
@@ -26,7 +25,6 @@ let
       };
     };
 
-  # pkgs/sketchybar-helper/<name>.c の名前。それぞれ launchd の agent になる
   helperNames = [
     "clock"
     "system"

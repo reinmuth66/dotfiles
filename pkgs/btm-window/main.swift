@@ -10,7 +10,7 @@ import SwiftTerm
 // AeroSpace の管理下だと、窓が閉じるたびに、AeroSpace がその窓の workspace へフォーカスを寄せ直し、
 // 元の workspace に戻した後でも、workspace が何度も切り替わった。
 //
-// 開閉は SIGUSR1 で受け付ける (config/sketchybar/items/system.lua): 窓が最前面なら閉じ、そうでなければ前面に出す。
+// 開閉は SIGUSR1 で受け付ける (config/sketchybar/items/system.lua)。
 
 // 起動直後の SIGUSR1 で、既定の動作 (プロセスの終了) にならないよう、最初に無視する。受け付けるのは下の DispatchSource
 signal(SIGUSR1, SIG_IGN)
@@ -63,7 +63,6 @@ final class Window: NSWindow {
     override func accessibilitySubrole() -> NSAccessibility.Subrole? { .systemFloatingWindow }
 }
 
-// 端末ビューを置く入れ物。背景の着色も受け持つ (makeContainer の説明を参照)。
 // 窓の大きさは行・桁の整数倍とは限らず、端末ビューをそのまま広げると、行・桁に満たない余りが、下と右にだけ空く。
 // 上下左右に等しく分けて、中央に置く。
 @MainActor
@@ -77,7 +76,6 @@ final class Container: NSView {
 
     func centerTerminal() {
         guard let terminal, bounds.width >= 1, bounds.height >= 1 else { return }
-        // いったん全体に広げて、SwiftTerm に行・桁数を決めさせ、実際に使う大きさを聞く
         terminal.frame = bounds
         let used = terminal.getOptimalFrameSize()
         // 余りの半分を 0.5pt (Retina の 1px) 単位で切り捨てて、余白にする。切り捨てるので、余白を除いた大きさは
@@ -115,7 +113,6 @@ final class Host: NSObject, NSApplicationDelegate, LocalProcessTerminalViewDeleg
         exit(1)
     }
 
-    // マウスカーソルのある画面の、メニューバー (sketchybar の場所) と Dock を除いた範囲に、余白を空けて置く
     func targetFrame() -> NSRect {
         let mouse = NSEvent.mouseLocation
         let screen = NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main
@@ -129,7 +126,6 @@ final class Host: NSObject, NSApplicationDelegate, LocalProcessTerminalViewDeleg
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    // 最前面で見えているなら閉じ、そうでなければ (他のアプリの後ろにあるなど) 前に出す
     func toggle() {
         if NSApp.isActive, window?.isKeyWindow == true {
             terminal?.terminate()
