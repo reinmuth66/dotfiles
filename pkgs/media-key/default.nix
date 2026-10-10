@@ -12,19 +12,15 @@ stdenvNoCC.mkDerivation {
   # darwin の fixup は Mach-O を署名し直す。swiftc (ld) が付けた ad-hoc 署名のままでよい
   dontFixup = true;
 
-  buildPhase = ''
-    runHook preBuild
-    unset SDKROOT DEVELOPER_DIR NIX_CFLAGS_COMPILE NIX_LDFLAGS NIX_CFLAGS_LINK
-    export HOME=$TMPDIR
-    /usr/bin/swiftc -module-cache-path $TMPDIR/swift-module-cache -O -swift-version 6 \
-      -framework AppKit ${./main.swift} -o media-key
-    runHook postBuild
-  '';
+  dontBuild = true;
 
   installPhase = ''
     runHook preInstall
+    unset SDKROOT DEVELOPER_DIR NIX_CFLAGS_COMPILE NIX_LDFLAGS NIX_CFLAGS_LINK
+    export HOME=$TMPDIR
     mkdir -p $out/bin
-    cp media-key $out/bin/media-key
+    /usr/bin/swiftc -module-cache-path $TMPDIR/swift-module-cache -O -swift-version 6 \
+      -framework AppKit ${./main.swift} -o $out/bin/media-key
     runHook postInstall
   '';
 }

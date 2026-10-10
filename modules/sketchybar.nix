@@ -11,16 +11,12 @@ let
 
       buildInputs = [ pkgs.apple-sdk_15 ];
 
-      buildPhase = ''
-        runHook preBuild
-        $CC -std=c99 -O2 ${name}.c -framework CoreFoundation -o ${name}-helper
-        runHook postBuild
-      '';
+      dontBuild = true;
 
       installPhase = ''
         runHook preInstall
         mkdir -p $out/bin
-        cp ${name}-helper $out/bin/sketchybar-${name}-helper
+        $CC -std=c99 -O2 ${name}.c -framework CoreFoundation -o $out/bin/sketchybar-${name}-helper
         runHook postInstall
       '';
     };

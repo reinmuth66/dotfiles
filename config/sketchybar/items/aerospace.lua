@@ -136,22 +136,25 @@ end
 
 ui.add_bracket("space.bracket", members)
 
-local app_watcher = ui.add_item("aerospace.app_watcher", "left", { drawing = false })
-app_watcher:subscribe("front_app_switched", function()
+-- フォーカス中の workspace の名前を取って、callback(名前) を呼ぶ (取れなかったときは呼ばない)
+local function with_focused(callback)
 	sbar.exec("aerospace list-workspaces --focused", function(focused)
 		focused = focused and focused:match("%S+")
 		if focused == nil then
 			return
 		end
+		callback(focused)
+	end)
+end
+
+local app_watcher = ui.add_item("aerospace.app_watcher", "left", { drawing = false })
+app_watcher:subscribe("front_app_switched", function()
+	with_focused(function(focused)
 		refresh_space(focused, true)
 	end)
 end)
 
-sbar.exec("aerospace list-workspaces --focused", function(focused)
-	focused = focused and focused:match("%S+")
-	if focused == nil then
-		return
-	end
+with_focused(function(focused)
 	for sid, _ in pairs(spaces) do
 		highlight(sid, focused)
 		refresh_space(sid, sid == focused)

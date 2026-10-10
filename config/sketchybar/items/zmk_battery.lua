@@ -183,20 +183,15 @@ ui.add_bracket("zmk_battery.bracket", { "/zmk_battery\\..*/" })
 
 -- bracket全体でクリックを受ける透明なitem。位置と幅は、表示内容(塗りバーの幅)に
 -- 応じてapply_hit()が毎回set()し直す。bracketより後に作ること(メンバーに含めない)。
-local hit = ui.add_hit_layer_over("zmk_battery.hit", 0, 0, { drawing = false })
+local hit = ui.add_hit_region("zmk_battery.hit", 0, 0, 0, { drawing = false })
 
 local gap_spacer = ui.add_spacer("right", ui.bracket_gap, "zmk_battery_gap")
 
 -- 連続して呼ばれたときは最後の1回だけ測る
-local gap_generation = 0
+local gap_timer = ui.timer()
 
 local function settle_gap()
-	gap_generation = gap_generation + 1
-	local id = gap_generation
-	sbar.delay(GAP_SETTLE_DELAY, function()
-		if id ~= gap_generation then
-			return
-		end
+	gap_timer.start(GAP_SETTLE_DELAY, function()
 		ui.close_gap({
 			left = "ime.bracket",
 			right = "zmk_battery.bracket",
@@ -277,7 +272,7 @@ local function apply_group(group, state, fill_padding_right_for, label_width)
 	})
 
 	-- hit layerの位置計算に使う、このグループがsketchybarの配置を進める幅
-	-- (width指定のitemはwidthの分だけ進む。ui.hit_layer_geometry)。
+	-- (width指定のitemはwidthの分だけ進む。ui.hit_region_geometry)。
 	local chain_width = label_width + NUB.width + BAR.width + fill_width
 
 	return fill_padding_right, chain_width
@@ -307,7 +302,7 @@ end
 -- 右端(ラベルの右余白の外側)までで、central_padding_rightには依らない。
 local function apply_hit(chain_width, layout)
 	local bracket_width = layout.label_width + NUB.width + NUB.gap + BAR.width + ui.bracket_padding
-	local geometry = ui.hit_layer_geometry(chain_width, bracket_width)
+	local geometry = ui.hit_region_geometry(chain_width, 0, bracket_width)
 	geometry.drawing = true
 	hit:set(geometry)
 	return bracket_width

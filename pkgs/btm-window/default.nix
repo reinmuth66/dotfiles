@@ -71,21 +71,17 @@ stdenvNoCC.mkDerivation {
   # darwin の fixup は Mach-O を署名し直す。swiftc (ld) が付けた ad-hoc 署名のままでよい
   dontFixup = true;
 
-  buildPhase = ''
-    runHook preBuild
-    ${swiftEnv}
-
-    substitute ${./main.swift} main.swift --replace-fail @btm@ ${bottom}/bin/btm
-    $swiftc -O -swift-version 6 -I ${swifttermLib}/lib -L ${swifttermLib}/lib -lSwiftTerm \
-      -framework AppKit -framework Metal -framework MetalKit -framework QuartzCore \
-      main.swift -o btm-window
-    runHook postBuild
-  '';
+  dontBuild = true;
 
   installPhase = ''
     runHook preInstall
+    ${swiftEnv}
+
+    substitute ${./main.swift} main.swift --replace-fail @btm@ ${bottom}/bin/btm
     mkdir -p $out/bin
-    cp btm-window $out/bin/btm-window
+    $swiftc -O -swift-version 6 -I ${swifttermLib}/lib -L ${swifttermLib}/lib -lSwiftTerm \
+      -framework AppKit -framework Metal -framework MetalKit -framework QuartzCore \
+      main.swift -o $out/bin/btm-window
     runHook postInstall
   '';
 }

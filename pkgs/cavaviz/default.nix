@@ -60,8 +60,7 @@ let
   });
 in
 stdenvNoCC.mkDerivation {
-  pname = "cavaviz";
-  version = cava.version;
+  name = "cavaviz";
 
   dontUnpack = true;
   # darwin の fixup は Mach-O を ad-hoc で署名し直し、下で付けた指定要件を上書きしてしまう

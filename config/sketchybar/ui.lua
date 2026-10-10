@@ -131,7 +131,7 @@ function M.add_notch_spacer(position, name)
 end
 
 -- 操作 (ホバー・クリック・スクロール) を受けるための、透明で静的な item。
--- right (または q) の item (width を指定したもの) とその bracket の真上に重なり、bracket 全体で反応する。
+-- right (または q、e) の item とその bracket の真上に重なり、bracket 全体、またはその一部の範囲で反応する。
 --
 -- マウスイベントは、カーソルの下にあるウィンドウに届く。SketchyBar は、マウスイベントを購読している
 -- item が再描画されるたびに、その item のマウス追跡領域を張り直す。このとき mouse.exited が
@@ -140,26 +140,21 @@ end
 -- bracket の背景 (item の padding の部分) は item のウィンドウに含まれないが、この item は
 -- padding まで覆うので、bracket 全体で反応する。
 --
--- target_width は重ねる item の width、padding は add_bracket で item に付けた左右の padding。
--- 重ねる item より後に追加すること (ウィンドウは後に追加した item が上になる)。
--- 購読は呼び出し側で行う。作った後は背景などを変更しないこと (再描画されると上の問題が戻る)。
---
 -- 位置は、自分の padding を負の値にして合わせる。実機検証した SketchyBar の配置の癖:
 --   - width を指定した item の後は、配置が width の分しか進まない (padding は数えられない)。
 --   - 自分の width を指定すると、負の padding が隣へ伝わらず隙間ができる。
--- そのため、この item は width を使わず icon.width で幅を確保し、右へ target_width、左へ
--- 2 * padding を戻して、隣の item の位置を変えない (padding_left + padding_right + 幅 = 0)。
-function M.add_hit_layer(name, target_width, padding, props)
-	return M.add_hit_layer_over(name, target_width, target_width + 2 * padding, props)
-end
-
--- bracket の中に複数の item が並ぶ (幅が違う、または重なっている) ときの add_hit_layer。
--- 位置と幅は hit_layer_geometry で決める。
--- 重ねる item より後 (かつ bracket より後) に追加すること。
--- 重ねる item が "q" (ノッチの左) のときは props.position = "q" を渡す (配置は right と同じ右から左)。
--- "e" (ノッチの右) のときは props.position = "e" を渡す (配置は left と同じ左から右)。
-function M.add_hit_layer_over(name, chain_width, bracket_width, props)
-	local layer = M.hit_layer_geometry(chain_width, bracket_width)
+-- そのため、この item は width を使わず icon.width で幅を確保し、padding で隣の item の位置を変えない
+-- (padding_left + padding_right + 幅 = 0。hit_region_geometry)。
+--
+-- bracket の端から from〜to (px) の範囲を覆う。bracket 全体なら from = 0、to = bracket の幅。
+-- bracket の中の item が分かれていて、範囲ごとに別の操作を受けたいときは、範囲ごとに作る (items/network.lua)。
+-- chain_width は、bracket の中の item が配置を進める幅の合計 (hit_region_geometry)。
+-- 重ねる item より後 (かつ bracket より後) に追加すること (ウィンドウは後に追加した item が上になる)。
+-- 重ねる item が "q" (ノッチの左) のときは props.position = "q" を渡す (配置は right と同じ右から左で、端は右端)。
+-- "e" (ノッチの右) のときは props.position = "e" を渡す (配置は left と同じ左から右で、端は左端)。
+-- 購読は呼び出し側で行う。作った後は背景などを変更しないこと (再描画されると上の問題が戻る)。
+function M.add_hit_region(name, chain_width, from, to, props)
+	local layer = M.hit_region_geometry(chain_width, from, to)
 	layer.label = { drawing = false }
 	layer.background = { drawing = true, color = colors.transparent }
 	local position = props and props.position or "right"
@@ -171,7 +166,7 @@ function M.add_hit_layer_over(name, chain_width, bracket_width, props)
 end
 
 -- bracket の右端から from〜to (px) の範囲を覆い、隣の item の位置を変えない hit の padding と幅。
--- bracket 全体なら from = 0、to = bracket の幅 (hit_layer_geometry)。
+-- bracket 全体なら from = 0、to = bracket の幅。
 -- chain_width は、bracket の中の item が配置を右から左へ進める幅の合計。
 -- width を指定した item は、後続の配置を width の分しか進めない (padding は数えられない) ので、
 -- 幅を指定した item の width を合計する (幅が自動の item は含めない。実機で検証)。
@@ -186,17 +181,28 @@ function M.hit_region_geometry(chain_width, from, to)
 	}
 end
 
-function M.hit_layer_geometry(chain_width, bracket_width)
-	return M.hit_region_geometry(chain_width, 0, bracket_width)
-end
-
--- bracket の中の item が分かれていて、範囲ごとに別の操作を受けたいときの hit。
--- bracket の右端から from〜to (px) の範囲を覆う。重ねる item より後 (かつ bracket より後) に追加すること。
-function M.add_hit_region(name, chain_width, from, to, props)
-	local layer = M.hit_region_geometry(chain_width, from, to)
-	layer.label = { drawing = false }
-	layer.background = { drawing = true, color = colors.transparent }
-	return M.add_item(name, "right", merge(layer, props))
+-- バーの中にポップアップを出すための、空の item (anchor)。ポップアップの持ち主を、アイコンや隣の item に被らない
+-- 位置の空の item にする。opts.align は、持ち主のどちら側の端にポップアップをそろえるか
+-- ("left" なら持ち主の左端にそろって右へ伸び、"right" なら右端にそろって左へ伸びる。伸びる先の他の item は覆う)。
+-- ポップアップは既定でバーの下端から下に出る。y_offset を負にして上へ戻し、バーの縦の中央に置く
+-- (上端が (バーの高さ - opts.height) / 2 になる)。ポップアップの枠線 (opts.background.border_width) の分だけ
+-- 中身が下にずれる (実機で、枠線 1 のとき中身の上端が 5 pt、枠線 0 のとき 4 pt) ので、その分も上げる。
+-- opts.height は中身の高さ、opts.background は popup の背景 (border_width を含める)。
+function M.add_popup_anchor(name, position, opts)
+	return M.add_item(name, position, {
+		width = 1,
+		padding_left = 0,
+		padding_right = 0,
+		icon = { drawing = false },
+		label = { drawing = false },
+		popup = {
+			align = opts.align,
+			horizontal = true,
+			height = opts.height,
+			y_offset = -(M.bar_height + opts.height) / 2 - opts.background.border_width,
+			background = opts.background,
+		},
+	})
 end
 
 -- ポップアップの文字は、メニューバーと同じシステムフォントにする。
@@ -242,7 +248,7 @@ end
 
 -- bounding_rects はディスプレイ名をキーにした表。先頭の 1 つを使う。
 -- 非表示の item は origin が (-9999, -9999) になるので、画面外なら nil を返す。
-local function visible_rect(name)
+function M.visible_rect(name)
 	local rects = sbar.query(name).bounding_rects
 	for _, rect in pairs(rects or {}) do
 		if rect.origin[1] >= 0 then
@@ -262,8 +268,8 @@ end
 function M.close_gap(opts)
 	local spacer = opts.spacer
 	local spacing = opts.spacing
-	local left = visible_rect(opts.left)
-	local right = visible_rect(opts.right)
+	local left = M.visible_rect(opts.left)
+	local right = M.visible_rect(opts.right)
 
 	if left == nil or right == nil then
 		spacer:set({ padding_right = spacing })
@@ -273,6 +279,92 @@ function M.close_gap(opts)
 	local gap = right.origin[1] - (left.origin[1] + left.size[1])
 	local current = sbar.query(spacer.name).geometry.padding_right
 	spacer:set({ padding_right = current - (gap - (spacing + SPACER_RENDERED_WIDTH)) })
+end
+
+-- 取り消せる遅延実行。start は前の予約を取り消して新しく予約する (連続して呼ばれたときは最後の 1 回だけ実行される)。
+-- cancel は予約を取り消す。pending は、予約が残っている (まだ実行も取り消しもされていない) 間 true。
+function M.timer()
+	local generation = 0
+	local timer = { pending = false }
+
+	function timer.start(delay, fn)
+		generation = generation + 1
+		local id = generation
+		timer.pending = true
+		sbar.delay(delay, function()
+			if id ~= generation then
+				return
+			end
+			timer.pending = false
+			fn()
+		end)
+	end
+
+	function timer.cancel()
+		generation = generation + 1
+		timer.pending = false
+	end
+
+	return timer
+end
+
+-- スクロールの量 (delta) を足し合わせ、threshold に達するごとに on_ticks(sign, ticks, ...) を呼ぶ関数を返す。
+-- sign は向き (上スクロールが正の delta)、ticks は達した目盛りの数。返した関数の delta 以外の引数は、そのまま
+-- on_ticks に渡る。トラックパッドは 1 回のスワイプで多数のイベントが出る (慣性スクロール含む) ので、
+-- イベントごとには反応せず、目盛りに達するまでは何もしない。
+-- 向きが変わったら、逆向きの分は持ち越さない。idle 秒スクロールが止まったら、足し合わせた量を捨てる
+-- (次の操作に持ち越さない)。量 0 のイベントは無視する。
+function M.scroll_accumulator(threshold, idle, on_ticks)
+	local sum = 0
+	local idle_timer = M.timer()
+
+	return function(delta, ...)
+		delta = tonumber(delta)
+		if not delta or delta == 0 then
+			return
+		end
+
+		if sum * delta < 0 then
+			sum = 0
+		end
+		sum = sum + delta
+
+		idle_timer.start(idle, function()
+			sum = 0
+		end)
+
+		local ticks = math.floor(math.abs(sum) / threshold)
+		if ticks == 0 then
+			return
+		end
+		local sign = sum > 0 and 1 or -1
+		sum = sum - sign * ticks * threshold
+
+		on_ticks(sign, ticks, ...)
+	end
+end
+
+-- 右クリックでのピン留め。ピン留め中は、マウスが外れてもポップアップを閉じない (閉じる側が pin.active を見る)。
+-- もう一度右クリックすると外す (toggle)。on_change(active) は、状態が変わったときに呼ぶ
+-- (ピン留め中を bracket の枠線の色などで示す)。
+function M.pin(on_change)
+	local pin = { active = false }
+
+	function pin.set(active)
+		pin.active = active
+		on_change(active)
+	end
+
+	-- 右クリックの処理。ポップアップが開いていないときは、ピン留めしない。外すのはいつでもできる
+	function pin.toggle(popup_open)
+		if pin.active then
+			pin.set(false)
+		elseif popup_open then
+			pin.set(true)
+		end
+	end
+
+	return pin
 end
 
 return M

@@ -15,8 +15,8 @@ local LEVEL_ICONS = {
 	"󰤥", -- nf-md-wifi_strength_3
 	"󰤨", -- nf-md-wifi_strength_4
 }
-local DISCONNECTED = { icon = "󰤫", color = colors.dim } -- nf-md-wifi_strength_alert_outline
-local OFF = { icon = "󰤭", color = colors.dim } -- nf-md-wifi_strength_off
+local DISCONNECTED = { key = "disconnected", icon = "󰤫", color = colors.dim } -- nf-md-wifi_strength_alert_outline
+local OFF = { key = "off", icon = "󰤭", color = colors.dim } -- nf-md-wifi_strength_off
 
 local SETTINGS_URL = "x-apple.systempreferences:com.apple.wifi-settings-extension"
 
@@ -73,9 +73,9 @@ local function update()
 			local level = bars and math.max(1, math.min(bars + 1, #LEVEL_ICONS)) or #LEVEL_ICONS
 			state = { key = "connected" .. level, icon = LEVEL_ICONS[level], color = colors.white }
 		elseif out:match("power=Off") then
-			state = { key = "off", icon = OFF.icon, color = OFF.color }
+			state = OFF
 		else
-			state = { key = "disconnected", icon = DISCONNECTED.icon, color = DISCONNECTED.color }
+			state = DISCONNECTED
 		end
 
 		if state.key == current then

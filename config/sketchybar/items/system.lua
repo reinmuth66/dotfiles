@@ -43,7 +43,7 @@ local BRACKET_WIDTH = PILL_SIZE + 2 * SIDE_MARGIN
 local ICON_PADDING = (PILL_SIZE - SIZE) / 2
 
 -- item の width は指定しない。width を指定した item の後は、配置が width の分しか進まず、bracket の padding が
--- 数えられないので、隣の item が padding の分だけ重なる (ui.add_hit_layer の説明)。幅は icon.width で決める。
+-- 数えられないので、隣の item が padding の分だけ重なる (ui.add_hit_region の説明)。幅は icon.width で決める。
 -- item の背景 (pill) は icon.width の箱と同じ大きさ (PILL_SIZE) になり、bracket の範囲との隙間は item の padding
 -- (上下は PILL_MARGIN、左右は SIDE_MARGIN。左右は ui.add_bracket の padding で設定する) で作る。item の幅 + padding は bracket の幅と同じ。
 -- icon.width は padding を含む箱の全幅 (spotify.lua)。
@@ -70,53 +70,37 @@ local bracket = ui.add_bracket("system.bracket", { gear }, {
 	background = { corner_radius = colors.bracket.height / 2 },
 }, SIDE_MARGIN)
 
--- bracket 全体でマウス操作を受ける (ui.add_hit_layer_over)。item の幅は自動なので、配置が進む幅 (chain) は
+-- bracket 全体でマウス操作を受ける (ui.add_hit_region)。item の幅は自動なので、配置が進む幅 (chain) は
 -- bracket の幅と同じ
-local hit = ui.add_hit_layer_over("system.hit", BRACKET_WIDTH, BRACKET_WIDTH, { position = "q" })
+local hit = ui.add_hit_region("system.hit", BRACKET_WIDTH, 0, BRACKET_WIDTH, { position = "q" })
 
 -- 数字の書式は btm (src/utils/data_units.rs、conversion.rs) と同じ。
 -- 10 進接頭辞 (1 KB = 1000 B) で、値は 1 回の割り算で出す (btm の get_decimal_bytes、get_unit_prefix)
 local DECIMAL_BYTES = { { 1e12, "TB" }, { 1e9, "GB" }, { 1e6, "MB" }, { 1e3, "KB" } }
 
-local function split_unit(value, units, base_unit)
-	for _, entry in ipairs(units) do
-		if value >= entry[1] then
-			return value / entry[1], entry[2]
-		end
-	end
-	return value, base_unit
-end
-
 -- ディスクの使用量・総容量 (byte)。btm の disk widget と同じ「325GB」の形
 local function format_disk(bytes)
-	local value, unit = split_unit(bytes, DECIMAL_BYTES, "B")
-	return string.format("%.0f%s", value, unit)
+	for _, entry in ipairs(DECIMAL_BYTES) do
+		if bytes >= entry[1] then
+			return string.format("%.0f%s", bytes / entry[1], entry[2])
+		end
+	end
+	return string.format("%.0f%s", bytes, "B")
 end
 
 -- ポップアップは、バーの中の、アイコンの左隣に、左へ伸ばして出す (バーの下には出さない)。アイコンや隣の item に被らないよう、
--- ポップアップの持ち主は、アイコンの左に置いた空の item (anchor) にする。align = "right" は持ち主の右端にそろう。
--- ポップアップは既定でバーの下端から下に出る。y_offset を負にして上へ戻し、バーの縦の中央に置く
--- (上端が (バーの高さ - POPUP_HEIGHT) / 2 になる)。ポップアップの枠線 (border_width) の分だけ中身が下にずれる
--- (実機で、枠線 1 のとき中身の上端が 5 pt、枠線 0 のとき 4 pt) ので、その分も上げる。
+-- ポップアップの持ち主は、アイコンの左に置いた空の item (anchor) にする。align = "right" は持ち主の右端にそろう
+-- (ui.add_popup_anchor。バーの縦の中央に置くための y_offset もそこで決まる)。
 ui.add_spacer("q", POPUP_GAP - 1)
-local anchor = ui.add_item("system.anchor", "q", {
-	width = 1,
-	padding_left = 0,
-	padding_right = 0,
-	icon = { drawing = false },
-	label = { drawing = false },
-	popup = {
-		align = "right",
-		horizontal = true,
-		height = POPUP_HEIGHT,
-		y_offset = -(ui.bar_height + POPUP_HEIGHT) / 2 - colors.bracket.border_width,
-		-- 背景は他の bracket (colors.bracket) と同じ色・枠線・角の丸み。高さは popup.height で決まる
-		background = {
-			color = colors.bracket.color,
-			border_color = colors.bracket.border_color,
-			border_width = colors.bracket.border_width,
-			corner_radius = colors.bracket.corner_radius,
-		},
+local anchor = ui.add_popup_anchor("system.anchor", "q", {
+	align = "right",
+	height = POPUP_HEIGHT,
+	-- 背景は他の bracket (colors.bracket) と同じ色・枠線・角の丸み。高さは popup.height で決まる
+	background = {
+		color = colors.bracket.color,
+		border_color = colors.bracket.border_color,
+		border_width = colors.bracket.border_width,
+		corner_radius = colors.bracket.corner_radius,
 	},
 })
 
@@ -241,19 +225,15 @@ hit:subscribe("mouse.entered", function()
 	anchor:set({ popup = { drawing = true } })
 end)
 
--- 右クリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない。
--- もう一度右クリックすると外す。ピン留め中は bracket の枠線が colors.pinned_border になる (spotify.lua と同じ)。
-local pinned = false
-
--- ピン留めの状態を変え、bracket の枠線の色で示す
-local function set_pinned(value)
-	pinned = value
-	bracket:set({ background = { border_color = value and colors.pinned_border or colors.bracket.border_color } })
-end
+-- 右クリックでピン留めした状態 (ui.pin)。ピン留め中は、マウスが外れてもポップアップを閉じない。
+-- ピン留め中は bracket の枠線が colors.pinned_border になる (spotify.lua と同じ)。
+local pin = ui.pin(function(active)
+	bracket:set({ background = { border_color = active and colors.pinned_border or colors.bracket.border_color } })
+end)
 
 -- バーの外へ出たときは mouse.exited.global でも閉じる。ピン留め中は閉じない
 hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
-	if pinned then
+	if pin.active then
 		return
 	end
 	popup_open = false
@@ -262,7 +242,8 @@ end)
 
 -- btm の窓 (pkgs/btm-window) の開閉。起動中なら SIGUSR1 を送り、窓が最前面なら閉じ、そうでなければ前に出させる。
 -- 起動していなければ起動する。窓は AeroSpace の管理外で、今の workspace の上に重なる (workspace は切り替わらない)。
-local TOGGLE_BTM_COMMAND = "pkill -USR1 -x btm-window || { nohup btm-window >/dev/null 2>&1 & }"
+local BTM_APP_NAME = "btm-window"
+local TOGGLE_BTM_COMMAND = string.format("pkill -USR1 -x %s || { nohup %s >/dev/null 2>&1 & }", BTM_APP_NAME, BTM_APP_NAME)
 
 -- btm の窓の状態を、bracket の中の pill (gear の背景) の色で示す。bracket の背景は変えない。
 --   最前面: aerospace の workspace (items/aerospace.lua の highlight) と同じく色を反転する。
@@ -271,7 +252,6 @@ local TOGGLE_BTM_COMMAND = "pkill -USR1 -x btm-window || { nohup btm-window >/de
 --   起動していない: pill は描かず、アイコンは普段の色。
 -- 窓が最前面になる・外れる・閉じるのは、どれも front_app_switched (INFO は前面になったアプリ名) で分かる。
 -- 最前面でないときだけ、起動しているかを pgrep で調べる。
-local BTM_APP_NAME = "btm-window"
 
 local function set_btm_state(state)
 	local pill_color = {
@@ -308,11 +288,6 @@ hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
 		sbar.exec(TOGGLE_BTM_COMMAND)
 	elseif env.BUTTON == "right" then
-		-- ポップアップが開いていないときは、ピン留めしない。外すのはいつでもできる
-		if pinned then
-			set_pinned(false)
-		elseif popup_open then
-			set_pinned(true)
-		end
+		pin.toggle(popup_open)
 	end
 end)

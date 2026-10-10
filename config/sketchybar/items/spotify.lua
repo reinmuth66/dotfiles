@@ -23,7 +23,7 @@
 -- ポップアップを開くときは、フェードインと、上から下ろす動きをつける (popup_look。棒グラフの窓は対象外)。
 -- 色の頻度表は画像と同じ所にキャッシュし (.colors)、棒グラフの色は動いている cava に SIGUSR2 で伝える。
 -- マウス操作は、bracket 全体を覆う透明な item (hit) が受ける。画像の item は再描画が多く、
--- マウスを購読させると mouse.exited が届かずポップアップが閉じなくなることがあるため (ui.add_hit_layer)。
+-- マウスを購読させると mouse.exited が届かずポップアップが閉じなくなることがあるため (ui.add_hit_region)。
 
 local ui = require("ui")
 local colors = require("colors")
@@ -47,40 +47,33 @@ end
 -- 縦は、曲名 (上) + アーティスト (下)。
 -- y_offset は、ポップアップの縦の中央からの距離 (上が正)。
 -- ポップアップはバーの高さの中に収め、bracket (colors.bracket.height) と同じ高さにする。
--- 幅は 235 pt (POPUP_BG_WIDTH): 2 * POPUP_PADDING + TEXT_WIDTH + 右の枠。
+-- 幅は 235 pt (棒グラフの窓の幅。modules/cavaviz.nix の sdl_width): 2 * POPUP_PADDING + TEXT_WIDTH + 右の枠。
 -- 右隣の network bracket との隙間を、他の bracket 間と同じ 7 pt にするための幅。network の左端は battery と zmk_battery の
 -- ラベル幅 (どちらも常に 3 桁用の幅で固定) だけで決まり 1243 pt になるので、ポップアップの右端 (開始 + 235) との差が 7 pt になる。
 -- items/system.lua のポップアップの幅 (実測で 233 pt。CPU 60 + RAM 57 + Disk 115 + 右の枠 1) とは 2 pt 違う。
 local POPUP_PADDING = 6
-local TEXT_WIDTH = 222 -- POPUP_BG_WIDTH を 235 に保つ値 (POPUP_PADDING を変えたら合わせる)
+local TEXT_WIDTH = 222 -- 窓の幅を 235 に保つ値 (POPUP_PADDING を変えたら合わせる)
 local POPUP_BORDER = colors.popup.border_width
 local POPUP_HEIGHT = colors.bracket.height - 2 * POPUP_BORDER -- 中身の高さ (偶数にする)
 -- Spotify の bracket とポップアップの間隔 (pt)
 local POPUP_GAP = 4
 
--- サウンドビジュアライザ (棒グラフ)。cava の窓はポップアップの背景全体 (POPUP_BG_WIDTH x POPUP_BG_HEIGHT) と同じ位置と大きさで、
--- 背景、枠、棒グラフを描く。棒は、左右に VIZ_SIDE_MARGIN、上下に VIZ_MARGIN の余白 (枠の内側) を残して伸びて、
+-- サウンドビジュアライザ (棒グラフ)。cava の窓はポップアップの背景全体 (235 x POPUP_BG_HEIGHT) と同じ位置と大きさで、
+-- 背景、枠、棒グラフを描く。棒は、左右に 6 pt、上下に 4 pt の余白 (枠の内側) を残して伸びて、
 -- 曲名などの文字の後ろにも入る (文字は SketchyBar が窓の上に描く)。文字の領域 (TEXT_WIDTH) より棒の領域のほうが広い。
 -- ポップアップの背景は、中身 (POPUP_HEIGHT の高さの帯) の左端から始まり、右と上下に枠の太さの分だけ広がる
 -- (左は広がらない。SketchyBar の popup.c の popup_calculate_bounds)。
--- 棒の領域の位置と大きさ (窓の左上から VIZ_BAR_LEFT, VIZ_Y, VIZ_WIDTH, VIZ_HEIGHT)、角の半径 (colors.popup)、
--- 枠の太さは、pkgs/cavaviz/popup.frag の定数と同じ値にする。
--- 設定 (棒の数、感度など) は modules/cavaviz.nix。ここでは窓の位置と大きさだけを決める。
-local VIZ_MARGIN = 4
-local POPUP_BG_WIDTH = 2 * POPUP_PADDING + TEXT_WIDTH + POPUP_BORDER -- 中身の幅 + 右の枠
+-- 棒の領域 (窓の左上から x = 6, y = 4, 幅 = 235 - 6 - POPUP_BORDER - 6 = 222, 高さ = POPUP_BG_HEIGHT - 2 * 4 = 26)、
+-- 角の半径 (colors.popup)、枠の太さは、pkgs/cavaviz/popup.frag の定数と同じ値にする。
+-- 設定 (棒の数、感度、窓の大きさなど) は modules/cavaviz.nix。窓の大きさ (235 x POPUP_BG_HEIGHT = 34) は
+-- そこで sdl_width / sdl_height に書いてあるので、変えるときは合わせる。ここでは窓の位置だけを決める。
 local POPUP_BG_HEIGHT = POPUP_HEIGHT + 2 * POPUP_BORDER
-local VIZ_SIDE_MARGIN = 6
 local VIZ_LEFT = POPUP_PADDING -- 窓の左端から、文字の領域 (spotify.viz の空き) の左端まで。窓の位置を空きから求めるのに使う
-local VIZ_BAR_LEFT = VIZ_SIDE_MARGIN
-local VIZ_WIDTH = POPUP_BG_WIDTH - VIZ_BAR_LEFT - POPUP_BORDER - VIZ_SIDE_MARGIN
-local VIZ_Y = VIZ_MARGIN
-local VIZ_HEIGHT = POPUP_BG_HEIGHT - 2 * VIZ_MARGIN
 local VIZ_APP = HOME .. "/Applications/Home Manager Apps/CavaViz.app"
 local VIZ_CONFIG_HOME = HOME .. "/.config/cavaviz"
 local VIZ_TEMPLATE = VIZ_CONFIG_HOME .. "/config.template"
 local VIZ_RUNTIME_DIR = CACHE_ROOT .. "/cavaviz"
 local VIZ_CONFIG = VIZ_RUNTIME_DIR .. "/config"
-local VIZ_LOG = VIZ_RUNTIME_DIR .. "/stderr.log"
 local VIZ_SLOT_RETRIES = 20 -- ポップアップが描かれて、空きの位置が取れるまで待つ回数
 local VIZ_SLOT_INTERVAL = 0.05 -- その間隔 (秒)
 local VIZ_KILL_AGAIN = 0.6 -- 起動の直後に止めたとき、遅れて起動した窓を止め直すまでの秒数 (open は約 0.3 秒かかる)
@@ -178,35 +171,24 @@ local bracket = ui.add_bracket("spotify.bracket", { spotify }, {
 }, BRACKET_PADDING)
 
 -- bracket の範囲 (spotify の幅 + 左右の padding) 全体でマウス操作を受ける
-local hit = ui.add_hit_layer("spotify.hit", SIZE, BRACKET_PADDING, { position = "e" })
+local hit = ui.add_hit_region("spotify.hit", SIZE, 0, SIZE + 2 * BRACKET_PADDING, { position = "e" })
 
 -- ポップアップは、バーの中の、bracket の右隣に出す (バーの下には出さない)。bracket や画像に被らないよう、
 -- ポップアップの持ち主は、bracket の右に置いた空の item (anchor) にする。align = "left" は持ち主の左端にそろい、
--- ポップアップは右へ伸びる (右にある他の item は覆う)。items/system.lua のポップアップと同じ作り。
--- ポップアップは既定でバーの下端から下に出る。y_offset を負にして上へ戻し、バーの縦の中央に置く
--- (上端が (バーの高さ - POPUP_HEIGHT) / 2 になる)。枠線 (border_width) の分だけ中身が下にずれるので、その分も上げる。
+-- ポップアップは右へ伸びる (右にある他の item は覆う)。items/system.lua のポップアップと同じ作り (ui.add_popup_anchor)。
 -- hit の padding_right (-2 * BRACKET_PADDING) の分、hit の次の item は bracket の右端より内側 (画像の位置) から始まる
 -- (左右反転した q 側での実測。これがないと、ポップアップが bracket に 6 pt 入り込む)。その分も spacer に足して、bracket の右端から
 -- POPUP_GAP だけ離す。
 ui.add_spacer("e", POPUP_GAP - 1 + 2 * BRACKET_PADDING)
-local anchor = ui.add_item("spotify.anchor", "e", {
-	width = 1,
-	padding_left = 0,
-	padding_right = 0,
-	icon = { drawing = false },
-	label = { drawing = false },
-	popup = {
-		align = "left",
-		horizontal = true,
-		height = POPUP_HEIGHT,
-		y_offset = -(ui.bar_height + POPUP_HEIGHT) / 2 - POPUP_BORDER,
-		-- 起動直後の初期値。画像が読めたら apply_palette が配色ごとに上書きする
-		background = {
-			color = palette.default.bg,
-			border_color = palette.default.border,
-			border_width = colors.popup.border_width,
-			corner_radius = colors.popup.corner_radius,
-		},
+local anchor = ui.add_popup_anchor("spotify.anchor", "e", {
+	align = "left",
+	height = POPUP_HEIGHT,
+	-- 起動直後の初期値。画像が読めたら apply_palette が配色ごとに上書きする
+	background = {
+		color = palette.default.bg,
+		border_color = palette.default.border,
+		border_width = colors.popup.border_width,
+		corner_radius = colors.popup.corner_radius,
 	},
 })
 
@@ -257,7 +239,6 @@ for _, row in ipairs(ROWS) do
 			icon = { drawing = false },
 			label = {
 				font = popup_font(row.size),
-				color = row.color,
 				padding_left = 0,
 				padding_right = 0,
 				-- 棒グラフの上に文字が載るので、影を付けて輪郭を出す
@@ -577,9 +558,9 @@ local function popup_fade_out()
 end
 
 local fading_out = false -- 閉じるアニメーションの途中 (close_popup が重ねて呼ばれても、やり直さない)
--- 右クリックでピン留めした状態。ピン留め中は、マウスが外れてもポップアップを閉じない (close_popup)。
--- もう一度右クリックすると外す。ピン留め中は bracket の枠線が colors.pinned_border になる。曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
-local pinned = false
+-- 右クリックでピン留めした状態 (ui.pin)。ピン留め中は、マウスが外れてもポップアップを閉じない (close_popup)。
+-- ピン留め中は bracket の枠線が colors.pinned_border になる (update_border)。曲情報がなくなってポップアップが閉じるとき (show_icon) にも外す。
+local pin
 
 -- Spotify が最前面のとき、bracket の枠線を太く明るくして、画像の周りにリングを作る (items/system.lua の pill と同じ配色)。
 -- bracket の背景は黒のままなので、リングと画像の間には、黒い隙間 (BRACKET_PADDING - RING_WIDTH) ができる。
@@ -590,7 +571,7 @@ local ring_active = false
 
 local function update_border()
 	local color = colors.bracket.border_color
-	if pinned then
+	if pin.active then
 		color = colors.pinned_border
 	elseif ring_active then
 		color = RING_COLOR
@@ -600,11 +581,8 @@ local function update_border()
 	})
 end
 
--- ピン留めの状態を変え、bracket の枠線の色で示す
-local function set_pinned(value)
-	pinned = value
-	update_border()
-end
+-- ピン留めの状態が変わったら、bracket の枠線の色で示す
+pin = ui.pin(update_border)
 
 -- ポップアップを開く。ホバーの瞬間にアニメーションを始め、実際の位置は取得できしだい、アニメーションなしで合わせる
 -- (開いている間にバーが古い位置から伸びないように)。
@@ -654,7 +632,7 @@ end
 -- ポップアップは、逆向きのアニメーションが終わってから閉じる。その間に開き直されたら (open_id が変わる) 閉じない。
 -- mouse.exited と mouse.exited.global が続けて来ても、1 回だけ行う。ピン留め中は閉じない。
 local function close_popup()
-	if pinned then
+	if pin.active then
 		return
 	end
 	local was_open = popup_open
@@ -733,7 +711,7 @@ end
 -- cava は tap がある間だけ音声を収録する。一時停止中は VIZ_AUDIO を "off" にして tap を解放し (棒は 0 に落ち、最小の高さの棒の色で
 -- 再生位置だけを見せる)、再生が始まったら "on" にして作り直す (write_audio)。起動時の中身も、そのときの再生状態にする。
 -- 窓は画面外に隠して準備しておき、アニメーションの終わりに出す。
--- 起動のたびに、窓の位置と大きさと配色を設定のひな形 (VIZ_TEMPLATE の @X@ @Y@ @W@ @H@ @FG@ @PLAYED@ @BG@ @BORDER@) に入れて、
+-- 起動のたびに、窓の位置と配色を設定のひな形 (VIZ_TEMPLATE の @X@ @Y@ @FG@ @PLAYED@ @BG@ @BORDER@) に入れて、
 -- キャッシュに書き出す。
 -- 音声の取得 (Core Audio tap) の許可は CavaViz.app に付いているので、sketchybar の子プロセスにせず、
 -- open で起動する (pkgs/cavaviz/default.nix を参照)。
@@ -773,11 +751,9 @@ end
 -- 窓の位置は、起動のたびに画面外に置く (VIZ_HIDDEN_POS)。実際の位置は、準備ができてから制御ファイルで指示する。
 local function viz_sed_args()
 	return string.format(
-		"-e 's/@X@/%d/' -e 's/@Y@/%d/' -e 's/@W@/%d/' -e 's/@H@/%d/' -e 's/@FG@/%s/' -e 's/@PLAYED@/%s/' -e 's/@BG@/%s/' -e 's/@BORDER@/%s/'",
+		"-e 's/@X@/%d/' -e 's/@Y@/%d/' -e 's/@FG@/%s/' -e 's/@PLAYED@/%s/' -e 's/@BG@/%s/' -e 's/@BORDER@/%s/'",
 		VIZ_HIDDEN_POS,
 		VIZ_HIDDEN_POS,
-		POPUP_BG_WIDTH,
-		POPUP_BG_HEIGHT,
 		viz.fg,
 		viz.played,
 		viz.bg,
@@ -785,15 +761,9 @@ local function viz_sed_args()
 	)
 end
 
--- 空きの画面上の位置。ポップアップが描かれる前は、origin が (-9999, -9999) になる。
+-- 空きの画面上の位置。ポップアップが描かれる前は、origin が (-9999, -9999) になり、nil を返す (ui.visible_rect)。
 local function viz_slot()
-	local rects = sbar.query("spotify.viz").bounding_rects
-	for _, rect in pairs(rects or {}) do
-		if rect.origin[1] >= 0 then
-			return rect
-		end
-	end
-	return nil
+	return ui.visible_rect("spotify.viz")
 end
 
 -- 窓の左上の位置 (ポップアップの背景の左上)。x は空き (文字の領域) の左端から VIZ_LEFT 戻った位置、
@@ -828,7 +798,7 @@ end
 local VIZ_START = [[
 sed %s %q > %q \
 	&& printf %%s %q > %q \
-	&& open -n -a %q --env XDG_CONFIG_HOME=%q --env CAVAVIZ_CONTROL=%q --env CAVAVIZ_PROGRESS=%q --env CAVAVIZ_AUDIO=%q --env CAVAVIZ_READY_BIN="$(command -v sketchybar)" --env CAVAVIZ_READY_EVENT=%s --env CAVAVIZ_READY_ID=%d --stderr %q --args -p %q
+	&& open -n -a %q --env XDG_CONFIG_HOME=%q --env CAVAVIZ_CONTROL=%q --env CAVAVIZ_PROGRESS=%q --env CAVAVIZ_AUDIO=%q --env CAVAVIZ_READY_BIN="$(command -v sketchybar)" --env CAVAVIZ_READY_EVENT=%s --env CAVAVIZ_READY_ID=%d --stderr /dev/null --args -p %q
 ]]
 
 -- 音声の収録を入り切りする。cava は 100ms ごとに見て、tap を作る / 解放する。
@@ -854,7 +824,6 @@ local function viz_launch(id)
 			VIZ_AUDIO,
 			VIZ_READY_EVENT,
 			id,
-			VIZ_LOG,
 			VIZ_CONFIG
 		)
 	)
@@ -1060,7 +1029,7 @@ end
 local function show_icon()
 	showing_art = false
 	update_ring()
-	set_pinned(false)
+	pin.set(false)
 	popup_open = false
 	viz_stop()
 	spotify:set({
@@ -1350,32 +1319,21 @@ local DOUBLE_CLICK_COMMAND = string.format(
 	SPOTIFY_WORKSPACE,
 	SPOTIFY_APP
 )
-local click_id = 0
-local click_pending = false
+local click_timer = ui.timer()
 
 hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "left" then
-		if click_pending then
-			click_pending = false
+		if click_timer.pending then
+			click_timer.cancel()
 			sbar.exec(DOUBLE_CLICK_COMMAND)
 			return
 		end
-		click_pending = true
-		click_id = click_id + 1
-		local id = click_id
-		sbar.delay(DOUBLE_CLICK_INTERVAL, function()
-			if click_pending and id == click_id then
-				click_pending = false
-				spotify_command("playpause")
-			end
+		click_timer.start(DOUBLE_CLICK_INTERVAL, function()
+			spotify_command("playpause")
 		end)
 	elseif env.BUTTON == "right" then
-		-- ポップアップが開いていない (曲情報がない) ときは、ピン留めしない。外すのはいつでもできる
-		if pinned then
-			set_pinned(false)
-		elseif popup_open then
-			set_pinned(true)
-		end
+		-- ポップアップが開いていない (曲情報がない) ときは、ピン留めしない
+		pin.toggle(popup_open)
 	end
 end)
 

@@ -26,7 +26,7 @@ local THUMB_SCALE = 0.5
 local VISIBLE = 5
 
 -- スクロールの量 (delta) を足し合わせ、SCROLL_THRESHOLD に達するごとに表示を 1 枚ずらす
--- (トラックパッドは 1 回のスワイプで多数のイベントが出るため。items/volume.lua と同じ方式)。
+-- (トラックパッドは 1 回のスワイプで多数のイベントが出るため。ui.scroll_accumulator。items/volume.lua と同じ方式)。
 -- SCROLL_IDLE 秒スクロールが止まったら、足し合わせた量を捨てる。
 -- 上スクロール (delta > 0) で前の画像、下スクロール (delta < 0) で次の画像が見える。逆にするなら SCROLL_DIRECTION を -1 にする。
 local SCROLL_THRESHOLD = 5
@@ -95,23 +95,21 @@ local popup_open = false
 -- マウスが ノッチ → ポップアップのサムネイル と渡るとき、一瞬どの item の上にもない (entered の前に exited が来る) ので、
 -- exited ですぐには閉じず、CLOSE_DELAY 秒待つ。その間に別の item に入ったら (entered)、閉じるのをやめる。
 local CLOSE_DELAY = 0.25
-local close_generation = 0
+local close_timer = ui.timer()
 
 local function close()
-	close_generation = close_generation + 1
+	close_timer.cancel()
 	popup_open = false
 	notch:set({ popup = { drawing = false } })
 end
 
 local function cancel_close()
-	close_generation = close_generation + 1
+	close_timer.cancel()
 end
 
 local function schedule_close()
-	close_generation = close_generation + 1
-	local generation = close_generation
-	sbar.delay(CLOSE_DELAY, function()
-		if generation == close_generation and popup_open then
+	close_timer.start(CLOSE_DELAY, function()
+		if popup_open then
 			close()
 		end
 	end)
@@ -141,43 +139,18 @@ local function render()
 	end
 end
 
-local scroll_sum = 0
-local scroll_generation = 0
+local scroll_by_ticks = ui.scroll_accumulator(SCROLL_THRESHOLD, SCROLL_IDLE, function(sign, ticks)
+	-- 最後まで行ったら最初へ戻る (逆向きも同じ)
+	first = (first - SCROLL_DIRECTION * sign * ticks) % #entries
+	render()
+end)
 
 local function scroll(delta)
 	-- 全部がポップアップに収まるときは、ずらす必要がない
 	if #entries <= VISIBLE then
 		return
 	end
-	delta = tonumber(delta)
-	if not delta or delta == 0 then
-		return
-	end
-
-	-- 向きが変わったら、逆向きの分は持ち越さない
-	if scroll_sum * delta < 0 then
-		scroll_sum = 0
-	end
-	scroll_sum = scroll_sum + delta
-
-	scroll_generation = scroll_generation + 1
-	local generation = scroll_generation
-	sbar.delay(SCROLL_IDLE, function()
-		if generation == scroll_generation then
-			scroll_sum = 0
-		end
-	end)
-
-	local ticks = math.floor(math.abs(scroll_sum) / SCROLL_THRESHOLD)
-	if ticks == 0 then
-		return
-	end
-	local sign = scroll_sum > 0 and 1 or -1
-	scroll_sum = scroll_sum - sign * ticks * SCROLL_THRESHOLD
-
-	-- 最後まで行ったら最初へ戻る (逆向きも同じ)
-	first = (first - SCROLL_DIRECTION * sign * ticks) % #entries
-	render()
+	scroll_by_ticks(delta)
 end
 
 -- サムネイルの間と両端の余白は、padding ではなく透明な item で埋める。padding はマウスイベントを受けないが、

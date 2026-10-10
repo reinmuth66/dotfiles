@@ -16,16 +16,17 @@ let
   # (読み取り専用のストアでも動く。実機で確認済み)。
   shaders = "${pkgs.cava.src}/output/shaders";
 
-  # sdl_x / sdl_y はポップアップを開くたびに変わるので、@X@ などのまま置いておき (幅と高さも @W@ @H@ にして、
-  # 大きさは spotify.lua の POPUP_BG_WIDTH / POPUP_BG_HEIGHT に合わせる)、
+  # sdl_x / sdl_y はポップアップを開くたびに変わるので、@X@ などのまま置いておき、
   # spotify.lua が置き換えて、キャッシュに書き出したものを cava に渡す。
+  # 窓の大きさ (sdl_width / sdl_height) は固定なので、ここに書く。spotify.lua の POPUP_PADDING / TEXT_WIDTH / POPUP_BORDER /
+  # POPUP_HEIGHT から決まる、ポップアップの背景の大きさ (235 x 34 pt) に合わせる。
   settings = {
     general = {
       framerate = 30;
       bars = 32;
       lower_cutoff_freq = 40;
       higher_cutoff_freq = 12000;
-      # 棒は、棒を描く領域の幅 (popup.frag の VIZ の幅 = spotify.lua の VIZ_WIDTH = 222) の両端に、最初の棒の左端と
+      # 棒は、棒を描く領域の幅 (popup.frag の VIZ の幅 = spotify.lua の TEXT_WIDTH = 222) の両端に、最初の棒の左端と
       # 最後の棒の右端が合うように並ぶ。棒の幅は (領域の幅 - (bars - 1) × bar_spacing) / bars になる (bar_width は使われない)。
       # cava は、bars × bar_width + (bars - 1) × bar_spacing が窓の幅 (ポップアップの幅) を超えると、
       # "window is too narrow" で終了する。
@@ -47,8 +48,8 @@ let
       # mono は、左から右へ低音から高音の順に並べる (stereo だと、低音が左右の端、高音が中央の鏡像になる)
       channels = "mono";
       mono_option = "average";
-      sdl_width = "@W@";
-      sdl_height = "@H@";
+      sdl_width = 235;
+      sdl_height = 34;
       sdl_x = "@X@";
       sdl_y = "@Y@";
     };

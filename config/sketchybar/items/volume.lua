@@ -24,7 +24,6 @@ local FONT_SIZE = 20.0
 -- 他は y_offset = 1 なので、差の 0.69 を引いて 0.31 になり、整数に切り捨てて 0 にする。
 local Y_OFFSET = 0
 
-local MUTED = { icon = "󰖁" } -- nf-md-volume_off
 local HEADPHONES = { icon = "󰋋" } -- nf-md-headphones
 
 -- 音量が (上限 %, 字面) の段階。上から順に見て、最初に音量が上限以下になったものを使う
@@ -34,6 +33,9 @@ local LEVELS = {
 	{ max = 66, icon = "󰖀" }, -- nf-md-volume_medium
 	{ max = 100, icon = "󰕾" }, -- nf-md-volume_high
 }
+
+-- mute の字面は、音量 0 と同じ
+local MUTED = LEVELS[1]
 
 -- 出力先の名前 (小文字にしたもの) に含まれる文字 -> 専用の字面。上から順に見て、最初に一致したものを使う。
 -- Hack Nerd Font にイヤホンの字面は無いので、Beats もヘッドホンと同じ字面にしている。
@@ -136,39 +138,10 @@ end
 -- クリックの直前に量 0 のスクロールが届くと推測している (音量が変わらないまま mute だけ解除されていた) ので、
 -- 目盛りに達するまでは音量を設定しない。
 -- 何もしないと、mute 中の右クリックが、スクロールで解除された後にクリックで mute し直してしまう。
-local scroll_sum = 0
-local scroll_generation = 0
-
-local function scroll(delta, fine)
-	delta = tonumber(delta)
-	if not delta or delta == 0 then
-		return
-	end
-
-	-- 向きが変わったら、逆向きの分は持ち越さない
-	if scroll_sum * delta < 0 then
-		scroll_sum = 0
-	end
-	scroll_sum = scroll_sum + delta
-
-	-- SCROLL_IDLE 秒の間、次のイベントが来なければ捨てる
-	scroll_generation = scroll_generation + 1
-	local generation = scroll_generation
-	sbar.delay(SCROLL_IDLE, function()
-		if generation == scroll_generation then
-			scroll_sum = 0
-		end
-	end)
-
-	local ticks = math.floor(math.abs(scroll_sum) / SCROLL_THRESHOLD)
-	if ticks == 0 then
-		return
-	end
-	local sign = scroll_sum > 0 and 1 or -1
-	scroll_sum = scroll_sum - sign * ticks * SCROLL_THRESHOLD
-
+-- 積算の仕組みは ui.scroll_accumulator。fine は scroll の 2 番目の引数で、そのまま渡る。
+local scroll = ui.scroll_accumulator(SCROLL_THRESHOLD, SCROLL_IDLE, function(sign, ticks, fine)
 	sbar.exec(string.format("media-key %s %d%s", sign > 0 and "up" or "down", ticks, fine and " fine" or ""), update)
-end
+end)
 
 -- bracket と、クリックを受ける領域は、items/network.lua が作る (Wi-Fi、Bluetooth とまとめて 1 つの bracket にする)
 return {
