@@ -42,7 +42,9 @@ for _, entry in ipairs({ { wifi_hit, wifi }, { bluetooth_hit, bluetooth } }) do
 	end)
 end
 
--- 左クリックでサウンド設定、右クリックで mute の切り替え、スクロールで音量 (ctrl で細かく)
+-- 左クリックでサウンド設定、右クリックで mute の切り替え、スクロールで音量 (option で細かく)
+-- ctrl は使えない: 「スクロールジェスチャと修飾キーで拡大」(アクセシビリティ > ズーム) が有効だと、
+-- ctrl+スクロールは macOS が先に奪い、sketchybar に届かない (既定の修飾キーが ctrl)。
 volume_hit:subscribe("mouse.clicked", function(env)
 	if env.BUTTON == "right" then
 		volume.toggle_mute()
@@ -52,5 +54,5 @@ volume_hit:subscribe("mouse.clicked", function(env)
 end)
 
 volume_hit:subscribe("mouse.scrolled", function(env)
-	volume.scroll(env.INFO.delta, env.INFO.modifier == "ctrl")
+	volume.scroll(env.INFO.delta, env.INFO.modifier == "alt")
 end)
