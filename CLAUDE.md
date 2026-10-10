@@ -40,12 +40,12 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 | `yazi.nix` | yazi パッケージ + xdg.configFile (config/yazi/ + プラグイン) |
 | `claude.nix` | home.file (config/claude/) |
 | `czg.nix` | importNpmLock (pkgs/czg/) — conventional commit TUI |
-| (`sketchybar.nix` から参照) | pkgs/btm-window/|
+| `sketchybar.nix` | programs.sketchybar (config/sketchybar/ の Lua 設定 + sbarlua + pkgs/sketchybar/ の image-rotation.patch)、launchd agent (pkgs/sketchybar-helper/ の C ヘルパー clock・system)。extraPackages から pkgs/btm-window/ (system item の btm の窓) と pkgs/media-key/ (volume item のスクロール) を参照 |
 | `cavaviz.nix` | Spotify ポップアップの背景と棒グラフを描くサウンドビジュアライザ (pkgs/cavaviz/ の CavaViz.app + cava の設定とシェーダー) |
 
 **config/ に設定ファイルを置くツール:**
 - `programs.*` で表現できない、または Lua/JSON-with-comments など Nix に変換しにくいもの
-- ghostty、zed、wezterm、nvim、yazi、claude
+- ghostty、zed、wezterm、nvim、yazi、claude、sketchybar
 
 **新しいツールを追加する手順:**
 1. `programs.*` サポートがあるなら `modules/<tool>.nix` を新規作成し `home.nix` の `imports` に追加
