@@ -119,10 +119,6 @@ local app_icons = {
 local M = {}
 
 function M.app(name)
-	if name == nil then
-		return DEFAULT_ICON
-	end
-
 	return app_icons[name] or DEFAULT_ICON
 end
 

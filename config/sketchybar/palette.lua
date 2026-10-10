@@ -309,9 +309,11 @@ local function fit_contrast(color, bg, ratio, light)
 	end
 end
 
-local function hex(c)
-	return string.format("#%02x%02x%02x", c[1], c[2], c[3])
+-- ARGB の整数を "#rrggbb" にする (alpha は捨てる。cava の設定の色)。items/spotify.lua も使う
+local function hex(color)
+	return string.format("#%06x", color % 0x1000000)
 end
+M.hex = hex
 
 -- 棒グラフの未再生と再生済みの相対輝度を返す。再生済みは、文字 (text, subtext) とのコントラストが足りる範囲で背景から最も離す
 -- (dark なら明るく、light なら暗く)。ただし背景とのコントラストは BAR_MIN_STEP を下回らない。
@@ -329,10 +331,10 @@ local function bar_luminances(bg, text, subtext, light)
 end
 
 -- 画像から色が取れなかったとき (と、無彩色のとき) の配色。
--- 背景と枠線は透過させない (colors.popup の半透明の枠 0x44ffffff を、黒の上に重ねた色 0x444444 にしてある)。
+-- 背景と枠線は透過させない (colors.popup。半透明の枠 0x44ffffff を、黒の上に重ねた色 0x444444 にしてある)。
 M.default = {
-	bg = 0xff000000,
-	border = 0xff444444,
+	bg = colors.popup.bg,
+	border = colors.popup.border,
 	text = colors.white,
 	subtext = 0xffaaaaaa,
 	viz = "#2e2e2e",
@@ -390,8 +392,8 @@ function M.from_histogram(histogram)
 		border = argb(BORDER_ALPHA, border[1], border[2], border[3]),
 		text = argb(0xff, text[1], text[2], text[3]),
 		subtext = argb(0xff, subtext[1], subtext[2], subtext[3]),
-		viz = hex(unplayed),
-		played = hex(played),
+		viz = hex(argb(0xff, unplayed[1], unplayed[2], unplayed[3])),
+		played = hex(argb(0xff, played[1], played[2], played[3])),
 	}
 end
 

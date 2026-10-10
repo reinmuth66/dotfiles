@@ -53,7 +53,7 @@ end tell]]
 local COMMAND = [[
 ip=$(ipconfig getifaddr en0)
 echo "ip=$ip"
-echo "power=$(networksetup -getairportpower en0 | awk '{ print $NF }')"
+echo "power=$(networksetup -getairportpower en0)"
 if [ -n "$ip" ]; then
 	echo "signal=$(osascript -e ']] .. SIGNAL_SCRIPT .. [[' 2>/dev/null)"
 fi
@@ -72,7 +72,7 @@ local function update()
 			local bars = tonumber(signal:match("(%d+)本") or signal:match("(%d+)%s*bars?"))
 			local level = bars and math.max(1, math.min(bars + 1, #LEVEL_ICONS)) or #LEVEL_ICONS
 			state = { key = "connected" .. level, icon = LEVEL_ICONS[level], color = colors.white }
-		elseif out:match("power=Off") then
+		elseif out:match("power=[^\n]*Off") then -- "Wi-Fi Power (en0): Off"
 			state = OFF
 		else
 			state = DISCONNECTED

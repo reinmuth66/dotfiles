@@ -35,13 +35,12 @@ local volume_hit = ui.add_hit_region("network.volume.hit", CHAIN, SPLIT_BLUETOOT
 
 -- クリックで、システム設定のそれぞれの画面を開く。すでに前面に出ているときは閉じる
 -- (標準メニューバーのパネルは、押すと標準メニューバーが出てしまうため使わない)
-wifi_hit:subscribe("mouse.clicked", function()
-	ui.toggle_settings(wifi.settings_url, wifi.title_pattern)
-end)
-
-bluetooth_hit:subscribe("mouse.clicked", function()
-	ui.toggle_settings(bluetooth.settings_url, bluetooth.title_pattern)
-end)
+for _, entry in ipairs({ { wifi_hit, wifi }, { bluetooth_hit, bluetooth } }) do
+	local hit, target = entry[1], entry[2]
+	hit:subscribe("mouse.clicked", function()
+		ui.toggle_settings(target.settings_url, target.title_pattern)
+	end)
+end
 
 -- 左クリックでサウンド設定、右クリックで mute の切り替え、スクロールで音量 (ctrl で細かく)
 volume_hit:subscribe("mouse.clicked", function(env)

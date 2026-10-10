@@ -3,9 +3,9 @@ local ui = require("ui")
 
 -- アクティビティモニターのアイコンの item。ホバーで、次の 1 行のポップアップを開く。
 --   (CPU アイコン) x%  (RAM アイコン) x%  (Disk アイコン) 使用量/総容量
--- データは helper/system.c (sketchybar-system-helper) が一定間隔で測り、system_stats イベントで渡す。
+-- データは pkgs/sketchybar-helper/system.c (sketchybar-system-helper) が一定間隔で測り、system_stats イベントで渡す。
 -- 測定は helper がカーネルの API を直接呼ぶだけなので軽い。ポップアップが閉じている間は、描画の指示 (set) は出さない。
--- 数字は bottom (btm。pkgs/btm-window が表示する) と同じ値・同じ書式にしてある (値の測り方は helper/system.c)。
+-- 数字は bottom (btm。pkgs/btm-window が表示する) と同じ値・同じ書式にしてある (値の測り方は pkgs/sketchybar-helper/system.c)。
 
 -- アイコンのサイズ (pt)。sketchybar-app-font の :activity_monitor: は、字面がほぼ一辺 SIZE の正方形になる
 -- (CoreText の CTLineGetImageBounds で実測。幅は SIZE x 0.998、高さは SIZE x 0.962。20pt で 19.96 x 19.24、16pt で 15.97 x 15.39)。
@@ -152,7 +152,7 @@ local function percent_label(value)
 	return { string = text, width = PERCENT_WIDTH_BY_DIGITS[#text - 1] }
 end
 
--- メモリ圧力 (カーネルの kern.memorystatus_vm_pressure_level。helper/system.c の MEM_PRESSURE) と、その表示色。
+-- メモリ圧力 (カーネルの kern.memorystatus_vm_pressure_level。pkgs/sketchybar-helper/system.c の MEM_PRESSURE) と、その表示色。
 -- 1: normal、2: warn、4: critical。値が取れないとき (nil) は normal の色にする。
 local PRESSURE_COLORS = {
 	[1] = colors.status.normal,
@@ -266,18 +266,17 @@ local function set_btm_state(state)
 end
 
 -- 古い問い合わせの結果が、新しい状態を上書きしないよう、最後の問い合わせだけ反映する
-local btm_query_id = 0
+local btm_query = ui.latest()
 
 gear:subscribe("front_app_switched", function(env)
-	btm_query_id = btm_query_id + 1
-	local id = btm_query_id
+	local is_latest = btm_query.begin()
 	if env.INFO == BTM_APP_NAME then
 		set_btm_state("front")
 		return
 	end
 	-- 窓が閉じた直後は、プロセスが終わりきる前に pgrep が走らないよう、少し待つ
 	sbar.exec("sleep 0.3; pgrep -x " .. BTM_APP_NAME, function(output)
-		if id ~= btm_query_id then
+		if not is_latest() then
 			return
 		end
 		set_btm_state((output or ""):match("%d") and "background" or "none")

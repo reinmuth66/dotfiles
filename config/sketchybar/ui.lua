@@ -111,7 +111,7 @@ M.notch_width = 209
 M.bar_height = 40
 
 -- ノッチと bracket の間隔は、bracket の上下の余白 (バーの高さ - bracket の高さ) / 2 と同じにする。
-M.notch_gap = (M.bar_height - colors.bracket.height) / 2
+local NOTCH_GAP = (M.bar_height - colors.bracket.height) / 2
 
 -- SketchyBar が position "q" / "e" の起点を求める位置の、実測したノッチの縁からのずれ (pt)。
 -- ノッチの外側が正、内側が負。ノッチが画面の中心より 0.5 pt 右にあり、SketchyBar の対称の前提
@@ -120,14 +120,14 @@ M.notch_gap = (M.bar_height - colors.bracket.height) / 2
 -- 右の起点 959 pt / 実測の右端 960 pt)。
 local NOTCH_ORIGIN_OFFSET = { q = 1, e = -1 }
 
--- ノッチの脇 (position "q" = 左、"e" = 右) の item とノッチの間隔 (M.notch_gap) を作る spacer。
+-- ノッチの脇 (position "q" = 左、"e" = 右) の item とノッチの間隔 (NOTCH_GAP) を作る spacer。
 -- ノッチに最も近い位置に置くので、その側の item より先に追加すること。
 -- 見た目の隙間は 幅 + SPACER_RENDERED_WIDTH + 起点のずれ になるので、上のずれを幅から引いて
 -- 実測のノッチの縁からの間隔をそろえる ("q" は NOTCH_GAP - 2、"e" は NOTCH_GAP)。
 function M.add_notch_spacer(position, name)
 	local offset = NOTCH_ORIGIN_OFFSET[position]
 	assert(offset ~= nil, 'add_notch_spacer: position must be "q" or "e"')
-	return M.add_spacer(position, M.notch_gap - SPACER_RENDERED_WIDTH - offset, name)
+	return M.add_spacer(position, NOTCH_GAP - SPACER_RENDERED_WIDTH - offset, name)
 end
 
 -- 操作 (ホバー・クリック・スクロール) を受けるための、透明で静的な item。
@@ -209,12 +209,12 @@ end
 -- ファミリに ".AppleSystemUIFont" を指定すると欧文は SF になり、日本語は自動で
 -- メニューバーと同じ ".Hiragino Kaku Gothic Interface" (W4) に切り替わる (CoreText で確認)。
 -- "SF Pro" などの名前は、SF Pro が入っていないと Helvetica に解決されてしまう。
-M.POPUP_FONT_FAMILY = ".AppleSystemUIFont"
-M.POPUP_FONT_STYLE = "Bold" -- 欧文は System Font Bold、日本語は W6 になる (Regular なら W4)
+local POPUP_FONT_FAMILY = ".AppleSystemUIFont"
+local POPUP_FONT_STYLE = "Bold" -- 欧文は System Font Bold、日本語は W6 になる (Regular なら W4)
 
 -- features は OpenType の機能タグ (カンマ区切り)。時刻には等幅数字の "tnum" を渡す
 function M.popup_font(size, features)
-	return { family = M.POPUP_FONT_FAMILY, style = M.POPUP_FONT_STYLE, size = size, features = features }
+	return { family = POPUP_FONT_FAMILY, style = POPUP_FONT_STYLE, size = size, features = features }
 end
 
 -- システム設定の画面を開く。その画面がすでに前面に出ているときは、閉じる (トグル)。
@@ -281,18 +281,45 @@ function M.close_gap(opts)
 	spacer:set({ padding_right = current - (gap - (spacing + SPACER_RENDERED_WIDTH)) })
 end
 
+-- 「最後の呼び出しだけ有効」にするための札。非同期の処理 (遅延実行、シェルの実行結果の受け取りなど) の
+-- 完了時に、その間に別の呼び出しが来ていないかを確かめるのに使う。
+-- begin は、前の呼び出しを無効にして新しい呼び出しを始め、その呼び出しがまだ最後かを返す関数 (valid) を返す。
+-- snapshot は、前の呼び出しを無効にせず、いまの呼び出しがまだ最後かを返す関数を返す。
+-- cancel は、これまでの呼び出しをすべて無効にする。
+function M.latest()
+	local generation = 0
+	local latest = {}
+
+	function latest.begin()
+		generation = generation + 1
+		return latest.snapshot()
+	end
+
+	function latest.snapshot()
+		local id = generation
+		return function()
+			return id == generation
+		end
+	end
+
+	function latest.cancel()
+		generation = generation + 1
+	end
+
+	return latest
+end
+
 -- 取り消せる遅延実行。start は前の予約を取り消して新しく予約する (連続して呼ばれたときは最後の 1 回だけ実行される)。
 -- cancel は予約を取り消す。pending は、予約が残っている (まだ実行も取り消しもされていない) 間 true。
 function M.timer()
-	local generation = 0
+	local latest = M.latest()
 	local timer = { pending = false }
 
 	function timer.start(delay, fn)
-		generation = generation + 1
-		local id = generation
+		local valid = latest.begin()
 		timer.pending = true
 		sbar.delay(delay, function()
-			if id ~= generation then
+			if not valid() then
 				return
 			end
 			timer.pending = false
@@ -301,7 +328,7 @@ function M.timer()
 	end
 
 	function timer.cancel()
-		generation = generation + 1
+		latest.cancel()
 		timer.pending = false
 	end
 

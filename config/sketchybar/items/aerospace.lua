@@ -128,10 +128,7 @@ end
 local members = {}
 for i = 1, 9 do
 	local sid = tostring(i)
-	local space = add_space(sid)
-	space:subscribe("aerospace_workspace_change", on_workspace_change)
-	space:subscribe("aerospace_monitor_change", on_monitor_change)
-	table.insert(members, 1, space)
+	table.insert(members, 1, add_space(sid))
 end
 
 ui.add_bracket("space.bracket", members)
@@ -147,8 +144,13 @@ local function with_focused(callback)
 	end)
 end
 
-local app_watcher = ui.add_item("aerospace.app_watcher", "left", { drawing = false })
-app_watcher:subscribe("front_app_switched", function()
+-- イベントの購読は、space の item ごとではなく、この非表示の item で 1 回だけ行う。
+-- ハンドラはどの item でも同じ処理 (全 workspace を見る) なので、space の item ごとに購読すると、
+-- 1 回のイベントで aerospace の問い合わせが item の数だけ重なる。
+local watcher = ui.add_item("aerospace.watcher", "left", { drawing = false })
+watcher:subscribe("aerospace_workspace_change", on_workspace_change)
+watcher:subscribe("aerospace_monitor_change", on_monitor_change)
+watcher:subscribe("front_app_switched", function()
 	with_focused(function(focused)
 		refresh_space(focused, true)
 	end)

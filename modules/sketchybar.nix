@@ -1,40 +1,58 @@
-{ config, pkgs, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
-  # config/sketchybar/helper/<name>.c をビルドして sketchybar-<name>-helper にする
+  # pkgs/sketchybar-helper/<name>.c をビルドして sketchybar-<name>-helper にする
   mkHelper =
     name:
     pkgs.stdenv.mkDerivation {
       name = "sketchybar-${name}-helper";
 
-      src = ../config/sketchybar/helper;
+      src = ../pkgs/sketchybar-helper;
 
       buildInputs = [ pkgs.apple-sdk_15 ];
 
-      dontBuild = true;
+      buildPhase = ''
+        runHook preBuild
+        $CC -std=c99 -O2 ${name}.c -framework CoreFoundation -o sketchybar-${name}-helper
+        runHook postBuild
+      '';
 
       installPhase = ''
         runHook preInstall
         mkdir -p $out/bin
-        $CC -std=c99 -O2 ${name}.c -framework CoreFoundation -o $out/bin/sketchybar-${name}-helper
+        cp sketchybar-${name}-helper $out/bin/
         runHook postInstall
       '';
     };
 
-  mkHelperAgent = name: helper: {
-    enable = true;
-    config = {
-      ProgramArguments = [ "${helper}/bin/sketchybar-${name}-helper" ];
-      ProcessType = "Interactive";
-      KeepAlive = true;
-      RunAtLoad = true;
-      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/sketchybar/${name}-helper.err.log";
-      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/sketchybar/${name}-helper.out.log";
+  mkHelperAgent =
+    name:
+    let
+      helper = mkHelper name;
+    in
+    {
+      enable = true;
+      config = {
+        ProgramArguments = [ "${helper}/bin/sketchybar-${name}-helper" ];
+        ProcessType = "Interactive";
+        KeepAlive = true;
+        RunAtLoad = true;
+        StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/sketchybar/${name}-helper.err.log";
+        StandardOutPath = "${config.home.homeDirectory}/Library/Logs/sketchybar/${name}-helper.out.log";
+      };
     };
-  };
 
-  clockHelper = mkHelper "clock";
-  systemHelper = mkHelper "system";
+  # pkgs/sketchybar-helper/<name>.c の名前。それぞれ launchd の agent になる
+  helperNames = [
+    "clock"
+    "system"
+  ];
+
   btmWindow = pkgs.callPackage ../pkgs/btm-window { };
   mediaKey = pkgs.callPackage ../pkgs/media-key { };
 in
@@ -53,9 +71,20 @@ in
     };
 
     sbarLuaPackage = pkgs.sbarlua;
-    extraPackages = [ pkgs.aerospace pkgs.macism pkgs.imagemagick pkgs.switchaudio-osx btmWindow mediaKey ]; # imagemagick: spotify の色の抽出、switchaudio-osx: volume item の出力先、btmWindow: system item の btm の窓、mediaKey: volume item のスクロールで標準の音量ポップアップを出す
+    extraPackages = [
+      pkgs.aerospace
+      pkgs.macism
+      pkgs.imagemagick # spotify: 色の抽出、wallpaper: サムネイルの作成
+      pkgs.switchaudio-osx # volume item の出力先
+      btmWindow # system item の btm の窓
+      mediaKey # volume item のスクロールで標準の音量ポップアップを出す
+    ];
   };
 
-  launchd.agents.sketchybar-clock-helper = mkHelperAgent "clock" clockHelper;
-  launchd.agents.sketchybar-system-helper = mkHelperAgent "system" systemHelper;
+  launchd.agents = lib.listToAttrs (
+    map (name: {
+      name = "sketchybar-${name}-helper";
+      value = mkHelperAgent name;
+    }) helperNames
+  );
 }

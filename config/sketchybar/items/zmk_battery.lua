@@ -1,7 +1,8 @@
 local colors = require("colors")
+local paths = require("paths")
 local ui = require("ui")
 
-local snapshot_path = os.getenv("HOME")
+local snapshot_path = paths.home
 	.. "/Library/Application Support/com.zmk-battery-center.app/external/battery-state-v1.json"
 
 local LABEL = {
@@ -134,38 +135,28 @@ end
 -- peripheralのlabel/nub/outlineを差し込むことで、peripheral側は
 -- 「centralグループの合計幅(group_offset)ぶんpadding_rightを引くだけ」で
 -- centralの真下に重なる。
--- group_offset以下の値はラベル幅(LABEL_WIDTH)から導く。
-local function layout_for(label_width)
-	local group_offset = label_width + NUB.width + BAR.width
-	local peripheral_outline_padding_right = NUB.gap - group_offset
-	-- central_fillはperipheral_outlineの直後に追加されるので、その値を基準に計算する。
-	-- この値自体はinsetに依存しない構造上の絶対基準(0%位置)。
-	local central_fill_base_padding_right = peripheral_outline_padding_right - BAR.border_width
-	-- 実際に描画するcentral_fillの0%位置。左右均等にinset分内側へ後退させる
-	-- (上下のheight計算と同じ考え方)。
-	local central_fill_draw_base_padding_right = central_fill_base_padding_right - BAR.inset
-	return {
-		label_width = label_width,
-		group_offset = group_offset,
-		peripheral_outline_padding_right = peripheral_outline_padding_right,
-		central_fill_base_padding_right = central_fill_base_padding_right,
-		central_fill_draw_base_padding_right = central_fill_draw_base_padding_right,
-	}
-end
-
-local initial_layout = layout_for(LABEL_WIDTH)
+-- group_offset以下の値はラベル幅(LABEL_WIDTH)から導く。ラベル幅は常に固定なので、
+-- これらは作成時に決まる定数で、更新のたびに設定し直す必要はない
+-- (central_nub/central_outlineはcentral_labelの幅に合わせてsketchybarが配置する)。
+local GROUP_OFFSET = LABEL_WIDTH + NUB.width + BAR.width
+local PERIPHERAL_OUTLINE_PADDING_RIGHT = NUB.gap - GROUP_OFFSET
+-- central_fillはperipheral_outlineの直後に追加されるので、その値を基準に計算する。
+-- この値自体はinsetに依存しない構造上の絶対基準(0%位置)。
+local CENTRAL_FILL_BASE_PADDING_RIGHT = PERIPHERAL_OUTLINE_PADDING_RIGHT - BAR.border_width
+-- 実際に描画するcentral_fillの0%位置。左右均等にinset分内側へ後退させる
+-- (上下のheight計算と同じ考え方)。
+local CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT = CENTRAL_FILL_BASE_PADDING_RIGHT - BAR.inset
 
 local central_label = add_label("central", LABEL_WIDTH, LABEL.central_padding_right, ROW_OFFSET)
 local central_nub = add_nub("central_nub", NUB.gap, ROW_OFFSET)
 local central_outline = add_outline("central_outline", NUB.gap, ROW_OFFSET)
 
 local peripheral_label =
-	add_label("peripheral", LABEL_WIDTH, LABEL.central_padding_right - initial_layout.group_offset, -ROW_OFFSET)
-local peripheral_nub = add_nub("peripheral_nub", NUB.gap - initial_layout.group_offset, -ROW_OFFSET)
-local peripheral_outline =
-	add_outline("peripheral_outline", initial_layout.peripheral_outline_padding_right, -ROW_OFFSET)
+	add_label("peripheral", LABEL_WIDTH, LABEL.central_padding_right - GROUP_OFFSET, -ROW_OFFSET)
+local peripheral_nub = add_nub("peripheral_nub", NUB.gap - GROUP_OFFSET, -ROW_OFFSET)
+local peripheral_outline = add_outline("peripheral_outline", PERIPHERAL_OUTLINE_PADDING_RIGHT, -ROW_OFFSET)
 
-local central_fill = add_fill("central_fill", initial_layout.central_fill_draw_base_padding_right, ROW_OFFSET)
+local central_fill = add_fill("central_fill", CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT, ROW_OFFSET)
 local peripheral_fill = add_fill("peripheral_fill", -BAR.border_width - BAR.inset, -ROW_OFFSET)
 
 local central = { label = central_label, nub = central_nub, outline = central_outline, fill = central_fill }
@@ -225,25 +216,6 @@ local function fill_width_for(level)
 	return trunc(inner_width * clamped_level / 100)
 end
 
--- central/peripheralで共有するレイアウトを適用する。
--- centralラベルはwidthのみ(padding_rightは外部アイテムとの間隔なので不変)、
--- peripheral側はlabel/nub/outlineのpadding_right(いずれもgroup_offset依存)を
--- 都度書き換える。central_nub/central_outlineはcentral_labelのwidth変化に
--- sketchybarが自動追従するため、明示的な更新は不要。
-local function apply_shared_layout(label_width)
-	local layout = layout_for(label_width)
-
-	central_label:set({ width = label_width })
-	peripheral_label:set({
-		width = label_width,
-		padding_right = LABEL.central_padding_right - layout.group_offset,
-	})
-	peripheral_nub:set({ padding_right = NUB.gap - layout.group_offset })
-	peripheral_outline:set({ padding_right = layout.peripheral_outline_padding_right })
-
-	return layout
-end
-
 -- グループを表示状態にし、塗りバーの幅/padding_rightを反映する共通処理。
 -- 値が最新でないとき(state.currentがfalse)は、スナップショットに残っている
 -- 最後のレベルのまま暗い色にする。
@@ -251,7 +223,7 @@ end
 -- ("--%"は"05%"と同じ3文字なので、固定幅に収まる)。
 -- fill_padding_right_forには「fill_widthを受け取ってpadding_rightを返す関数」を渡す
 -- (central/peripheralで塗りバーの位置計算だけが異なるため)。
-local function apply_group(group, state, fill_padding_right_for, label_width)
+local function apply_group(group, state, fill_padding_right_for)
 	local color = state.current and colors.white or colors.dim
 	local fill_width = state.level and fill_width_for(state.level) or 0
 	local fill_padding_right = fill_padding_right_for(fill_width)
@@ -273,35 +245,35 @@ local function apply_group(group, state, fill_padding_right_for, label_width)
 
 	-- hit layerの位置計算に使う、このグループがsketchybarの配置を進める幅
 	-- (width指定のitemはwidthの分だけ進む。ui.hit_region_geometry)。
-	local chain_width = label_width + NUB.width + BAR.width + fill_width
+	local chain_width = LABEL_WIDTH + NUB.width + BAR.width + fill_width
 
 	return fill_padding_right, chain_width
 end
 
 -- central_fillの直近のpadding_right。peripheral_fillの位置合わせに使う。
 -- (centralは常に表示するので、更新のたびに計算し直される。)
-local last_central_fill_padding_right = initial_layout.central_fill_draw_base_padding_right
+local last_central_fill_padding_right = CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT
 
 -- apply_central/apply_peripheralは、そのグループのchain_widthを返す。
-local function apply_central(state, layout)
+local function apply_central(state)
 	local fill_padding_right, chain_width = apply_group(central, state, function(fill_width)
-		return layout.central_fill_draw_base_padding_right - fill_width
-	end, layout.label_width)
+		return CENTRAL_FILL_DRAW_BASE_PADDING_RIGHT - fill_width
+	end)
 	last_central_fill_padding_right = fill_padding_right
 	return chain_width
 end
 
-local function apply_peripheral(state, layout)
+local function apply_peripheral(state)
 	local _, chain_width = apply_group(peripheral, state, function(fill_width)
 		return last_central_fill_padding_right - fill_width
-	end, layout.label_width)
+	end)
 	return chain_width
 end
 
 -- hit layerをbracket全体に合わせる。bracketの幅は、左端のoutlineの左余白から
 -- 右端(ラベルの右余白の外側)までで、central_padding_rightには依らない。
-local function apply_hit(chain_width, layout)
-	local bracket_width = layout.label_width + NUB.width + NUB.gap + BAR.width + ui.bracket_padding
+local function apply_hit(chain_width)
+	local bracket_width = LABEL_WIDTH + NUB.width + NUB.gap + BAR.width + ui.bracket_padding
 	local geometry = ui.hit_region_geometry(chain_width, 0, bracket_width)
 	geometry.drawing = true
 	hit:set(geometry)
@@ -344,14 +316,14 @@ local function state_from(fields)
 	return { level = tonumber(fields[2]), current = fields[3] == "current" }
 end
 
-local function update()
-	local cmd = "jq -r '.devices[0] as $d | if $d == null then empty else "
-		.. '$d.batteryParts[] | [.id, (.levelPercent | tostring), (.valueStatus // "unavailable")] | @tsv end\' '
-		.. '"'
-		.. snapshot_path
-		.. '" 2>/dev/null'
+local SNAPSHOT_COMMAND = "jq -r '.devices[0] as $d | if $d == null then empty else "
+	.. '$d.batteryParts[] | [.id, (.levelPercent | tostring), (.valueStatus // "unavailable")] | @tsv end\' '
+	.. '"'
+	.. snapshot_path
+	.. '" 2>/dev/null'
 
-	sbar.exec(cmd, function(result)
+local function update()
+	sbar.exec(SNAPSHOT_COMMAND, function(result)
 		local central_fields, peripheral_fields
 		for line in (result or ""):gmatch("[^\r\n]+") do
 			local fields = {}
@@ -375,19 +347,18 @@ local function update()
 		-- バッチの中では問い合わせられないので、spacerの現在値は先に取っておく。
 		local gap_padding_right = sbar.query(gap_spacer.name).geometry.padding_right
 		sbar.begin_config()
-		local layout = apply_shared_layout(LABEL_WIDTH)
 
 		-- peripheral_fillの計算がcentral_fillのpadding_rightに依存するため、
 		-- 必ずcentralを先に処理する(centralは常に表示する)
-		local chain_width = apply_central(central_state, layout)
+		local chain_width = apply_central(central_state)
 
 		if peripheral_fields then
-			chain_width = chain_width + apply_peripheral(peripheral_state, layout)
+			chain_width = chain_width + apply_peripheral(peripheral_state)
 		else
 			hide_group(peripheral)
 		end
 
-		local bracket_width = apply_hit(chain_width, layout)
+		local bracket_width = apply_hit(chain_width)
 		apply_gap(chain_width, bracket_width, gap_padding_right)
 		sbar.end_config()
 		settle_gap()

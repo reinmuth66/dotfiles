@@ -1,15 +1,13 @@
 -- 無彩色の色 (ARGB) はここにまとめる。
--- Spotify のポップアップの配色は palette.lua (default はそこで定義) が決める。
+-- Spotify のポップアップの配色は、アルバム画像から palette.lua が決める (colors.popup の色は、決められないときの既定)。
 local black = 0xff000000
 local white = 0xffffffff
 local light_gray = 0xffdddddd
 local dim = 0x99ffffff -- 無効・未接続・未起動の表示。白の約 60%
 
 return {
-	black = black,
 	white = white,
 	transparent = 0x00000000,
-	light_gray = light_gray,
 	dim = dim,
 	pinned_border = light_gray, -- ピン留め中の bracket の枠線 (space.bg_focused と同じ)
 
@@ -27,10 +25,14 @@ return {
 		height = 34,
 	},
 
-	-- 色は palette.lua が決める。ここは形だけ。
+	-- 形と、既定の色。Spotify のポップアップは、画像から配色を決める (palette.lua。palette.default がここの色を使う)。
+	-- 壁紙のポップアップは、この色のまま使う。
 	popup = {
 		border_width = 1,
 		corner_radius = 5,
+		bg = black,
+		-- 背景と枠は透過させない。bracket の半透明の枠 (colors.bracket.border_color の 0x44ffffff) を、黒の上に重ねた色にしてある。
+		border = 0xff444444,
 	},
 
 	spotify = {

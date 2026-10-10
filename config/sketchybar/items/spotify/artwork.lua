@@ -2,11 +2,12 @@
 -- 画像は、osascript で引いた artwork url から取得する。使う側は、M.load で曲の画像を用意させ、
 -- 準備できたら on_ready(files, histogram) を受け取る。files.small が画像のパス、histogram が色の頻度表 (palette.lua の入力)。
 
+local paths = require("paths")
 local script = require("items.spotify.script")
 
 local M = {}
 
-local CACHE_DIR = os.getenv("HOME") .. "/Library/Caches/sketchybar/spotify"
+local CACHE_DIR = paths.cache .. "/spotify"
 -- キャッシュする画像の一辺 (px)。表示サイズとは独立の固定値で、使う側が scale (表示サイズ / ART_PX) で縮める。
 -- Retina (2 倍) なら、表示サイズが 48 まで足りる。変えるときは、キャッシュ (CACHE_DIR) を消すこと (古い解像度の画像が残るため)。
 local ART_PX = 96

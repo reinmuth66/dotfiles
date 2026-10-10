@@ -12,11 +12,10 @@
 
 local ui = require("ui")
 local colors = require("colors")
-local palette = require("palette")
+local paths = require("paths")
 
-local HOME = os.getenv("HOME")
-local WALLPAPER_DIR = HOME .. "/Pictures/wallpaper"
-local CACHE_DIR = HOME .. "/Library/Caches/sketchybar/wallpaper"
+local WALLPAPER_DIR = paths.home .. "/Pictures/wallpaper"
+local CACHE_DIR = paths.cache .. "/wallpaper"
 
 -- サムネイルの表示サイズ (pt)。キャッシュは 2 倍の解像度 (px) で作る。
 local THUMB_WIDTH = 128
@@ -52,8 +51,8 @@ local notch = ui.add_item("wallpaper", "center", {
 		height = POPUP_HEIGHT,
 		y_offset = 2,
 		background = {
-			color = palette.default.bg,
-			border_color = palette.default.border,
+			color = colors.popup.bg,
+			border_color = colors.popup.border,
 			border_width = POPUP_BORDER,
 			corner_radius = colors.popup.corner_radius,
 		},
