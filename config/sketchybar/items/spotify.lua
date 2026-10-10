@@ -30,6 +30,7 @@ local colors = require("colors")
 local palette = require("palette")
 local paths = require("paths")
 local artwork = require("items.spotify.artwork")
+local fs = require("items.spotify.fs")
 local script = require("items.spotify.script")
 local truncate = require("items.spotify.text").truncate
 
@@ -92,17 +93,6 @@ local VIZ_HIDDEN_POS = -3000 -- 準備ができるまで窓を置いておく画
 -- (指示のファイルへの書き込みと、窓の不透明度の反映) より後にする。それまでは、窓は不透明なポップアップの背景に隠れている
 -- (配色は不透明なので、窓と背景が重なっていても見た目は変わらない)。
 local VIZ_HANDOVER_DELAY = 0.1
-
--- cava に渡すファイル (設定、制御、進捗、音声) へ、同期的に書く (シェルの起動を待たない)。書けたら true
-local function write_file(path, text)
-	local f = io.open(path, "w")
-	if not f then
-		return false
-	end
-	f:write(text)
-	f:close()
-	return true
-end
 
 -- 色 (ARGB の整数) の alpha を、alpha (0〜255) に置き換える
 local function with_alpha(color, alpha)
@@ -308,7 +298,7 @@ local function write_progress()
 	if shown ~= nil and duration > 0 then
 		progress = math.min(1, shown / duration)
 	end
-	write_file(VIZ_PROGRESS, string.format("%.4f", progress))
+	fs.write(VIZ_PROGRESS, string.format("%.4f", progress))
 end
 
 -- 実際の位置 (秒、小数) に合わせる。duration は秒 (nil なら前の値のまま)。
@@ -336,34 +326,13 @@ local function step_time()
 	end
 end
 
--- 状態と位置と曲の長さ (ミリ秒) をタブ区切りで返す。
-local POSITION_COMMAND = script("(player state as text) & tab & (player position as text) & tab & (duration of current track as text)")
-
--- osascript の player state を、分散通知の Player State ("Playing" / "Paused") に合わせる。それ以外 (停止など) は nil
-local PLAYER_STATE = { playing = "Playing", paused = "Paused" }
-
--- osascript の位置 (秒、小数) と曲の長さ (ミリ秒) の文字列から { position, duration } (どちらも秒) を作る。取れなければ nil。
--- ロケールによっては、位置の小数点がカンマになる
-local function parse_timing(position, duration_ms)
-	position = tonumber((position:gsub(",", ".")))
-	local length = tonumber(duration_ms) / 1000
-	if position and length > 0 then
-		return { position = position, duration = length }
-	end
-	return nil
-end
-
 -- ホバーで開いたとき、実際の位置に合わせる (閉じている間のシークはここで直る)。
 -- 結果の反映 (または失敗) のあとに、done を呼ぶ (nil でもよい)。
 local function refresh_position(done)
-	sbar.exec(POSITION_COMMAND, function(out)
-		if type(out) == "string" then
-			local state, position, length = out:match("^(%a+)\t([%d.,]+)\t(%d+)")
-			state = PLAYER_STATE[state]
-			local timing = state and parse_timing(position, length)
-			if timing then
-				rebase(timing.position, timing.duration, state == "Playing", false)
-			end
+	sbar.exec(script.POSITION_COMMAND, function(out)
+		local state, timing = script.parse_position(out)
+		if timing then
+			rebase(timing.position, timing.duration, state == "Playing", false)
 		end
 		if done then
 			done()
@@ -537,12 +506,10 @@ end
 -- 窓の位置は、起動のたびに画面外に置く (VIZ_HIDDEN_POS)。実際の位置は、準備ができてから制御ファイルで指示する。
 -- 窓の大きさ (@W@ @H@) は、ポップアップの背景の大きさ (VIZ_WIDTH、POPUP_BG_HEIGHT)。
 local function viz_render_config()
-	local f = io.open(VIZ_TEMPLATE, "r")
-	if not f then
+	local template = fs.read(VIZ_TEMPLATE)
+	if not template then
 		return nil
 	end
-	local template = f:read("*a")
-	f:close()
 	return (template:gsub("@(%u+)@", {
 		X = VIZ_HIDDEN_POS,
 		Y = VIZ_HIDDEN_POS,
@@ -593,7 +560,7 @@ open -n -a %q --env XDG_CONFIG_HOME=%q --env CAVAVIZ_CONTROL=%q --env CAVAVIZ_PR
 
 -- 音声の収録を入り切りする。cava は 100ms ごとに見て、tap を作る / 解放する。
 local function write_audio(on)
-	write_file(VIZ_AUDIO, on and "on" or "off")
+	fs.write(VIZ_AUDIO, on and "on" or "off")
 end
 
 -- 設定のひな形に位置 (画面外) を入れて書き出し、制御ファイルの初期値 (hide) を書いて、cava を起動する。
@@ -604,7 +571,7 @@ local function viz_launch(id)
 	viz.applied = viz_look()
 	write_audio(spinning) -- 起動前に書く (cava は起動時に読む)
 	local config = viz_render_config()
-	if not (config and write_file(VIZ_CONFIG, config) and write_file(VIZ_CONTROL, "hide")) then
+	if not (config and fs.write(VIZ_CONFIG, config) and fs.write(VIZ_CONTROL, "hide")) then
 		return
 	end
 	sbar.exec(
@@ -634,8 +601,7 @@ local function viz_apply_color()
 	end
 	viz.applied = viz_look()
 	local config = viz_render_config()
-	local tmp = VIZ_CONFIG .. ".tmp"
-	if config and write_file(tmp, config) and os.rename(tmp, VIZ_CONFIG) then
+	if config and fs.write_atomic(VIZ_CONFIG, config) then
 		sbar.exec(VIZ_RECOLOR)
 	end
 end
@@ -701,7 +667,7 @@ end
 -- (ポップアップは先に消える)。制御ファイルへの書き込みは Lua で同期的に行い (シェルの起動を待たない)、
 -- cava は書き込みで即座に起きて窓を隠す (消えるまで約 0.02 秒)。
 local function viz_hide_now()
-	write_file(VIZ_CONTROL, "hide")
+	fs.write(VIZ_CONTROL, "hide")
 end
 
 local function viz_stop()
@@ -943,16 +909,7 @@ spotify:subscribe("spotify_change", function(env)
 	if type(info) ~= "table" then
 		return
 	end
-	-- Playback Position は秒 (小数)、Duration はミリ秒 (実機で確認)
-	local position, duration = tonumber(info["Playback Position"]), tonumber(info["Duration"])
-	local timing = nil
-	if position and duration and duration > 0 then
-		timing = { position = position, duration = duration / 1000 }
-	end
-	apply(info["Player State"], info["Track ID"], {
-		title = info["Name"],
-		artist = info["Artist"],
-	}, timing)
+	apply(script.parse_notification(info))
 end)
 
 spotify:subscribe("front_app_switched", function(env)
@@ -989,7 +946,7 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, close_popup)
 -- 右クリックでポップアップのピン留め (もう一度で外す)、上スクロールで前の曲、下スクロールで次の曲。
 -- 表示は上の分散通知で追従するので、ここでは Spotify に命令を送るだけにする。
 local function spotify_command(command)
-	sbar.exec(script(command))
+	sbar.exec(script.command(command))
 end
 
 -- ウィンドウの表示は open で行う。-g -j の自動起動で隠れているときも前面に出て、
@@ -1053,19 +1010,9 @@ hit:subscribe("mouse.scrolled", function(env)
 end)
 
 -- 起動時 (再読み込み含む) に既に再生中でも拾えるよう、現在の状態を一度だけ取得する
-
--- 曲名などに "|" が含まれうるので、区切りにはタブを使う
-sbar.exec(
-	script("(player state as text) & tab & (id of current track) & tab & (name of current track) & tab & (artist of current track) & tab & (player position as text) & tab & (duration of current track as text)"),
-	function(out)
-		if type(out) ~= "string" then
-			return
-		end
-		local state, track_id, title, artist, position, duration =
-			out:match("^(%a+)\t(%S+)\t([^\t]*)\t([^\t]*)\t([%d.,]+)\t(%d+)")
-		state = PLAYER_STATE[state]
-		if state then
-			apply(state, track_id, { title = title, artist = artist }, parse_timing(position, duration))
-		end
+sbar.exec(script.SNAPSHOT_COMMAND, function(out)
+	local state, track_id, meta, timing = script.parse_snapshot(out)
+	if state then
+		apply(state, track_id, meta, timing)
 	end
-)
+end)

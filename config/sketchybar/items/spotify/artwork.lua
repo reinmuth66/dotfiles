@@ -3,6 +3,7 @@
 -- 準備できたら on_ready(files, histogram) を受け取る。files.small が画像のパス、histogram が色の頻度表 (palette.lua の入力)。
 
 local paths = require("paths")
+local fs = require("items.spotify.fs")
 local script = require("items.spotify.script")
 
 local M = {}
@@ -24,7 +25,7 @@ M.ART_PX = ART_PX
 local COLOR_SWATCHES = 32 -- 頻度表の色数 (palette.lua の入力)
 local COLOR_SAMPLE_PX = 48 -- 頻度表を数えるときの画像の一辺 (px)
 
-local ARTWORK_URL_COMMAND = script("get artwork url of current track")
+local ARTWORK_URL_COMMAND = script.command("get artwork url of current track")
 
 -- 画像の ID (key) と url から、2 つのファイルを作る。curl か magick が失敗したら (pipefail)、何も置かない。
 local function download_command(key, url)
@@ -65,31 +66,11 @@ local function artwork_files(key)
 	}
 end
 
-local function read_file(path)
-	local f = io.open(path, "rb")
-	if not f then
-		return nil
-	end
-	local text = f:read("*a")
-	f:close()
-	return text ~= "" and text or nil
-end
-
-local function file_exists(path)
-	local f = io.open(path, "rb")
-	if not f then
-		return false
-	end
-	local size = f:seek("end")
-	f:close()
-	return size ~= nil and size > 0
-end
-
 -- 2 つとも揃っていれば files と頻度表を返す (色の頻度表が欠けた古いキャッシュは、取り直して揃える)
 local function cached_artwork(key)
 	local files = artwork_files(key)
-	local histogram = read_file(files.colors)
-	if histogram and file_exists(files.small) then
+	local histogram = fs.read(files.colors)
+	if histogram ~= nil and histogram ~= "" and fs.has_content(files.small) then
 		return files, (histogram:gsub("%s+$", ""))
 	end
 	return nil
@@ -119,7 +100,7 @@ local function ensure_artwork(key, url, done)
 		if not ready then
 			-- 色の頻度表だけ作れなかったときも、画像は出す (配色は固定色に戻る)
 			local partial = artwork_files(key)
-			if file_exists(partial.small) then
+			if fs.has_content(partial.small) then
 				ready, ready_histogram = partial, ""
 			end
 		end

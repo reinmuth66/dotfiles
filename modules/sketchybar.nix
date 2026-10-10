@@ -7,28 +7,7 @@
 
 let
   # pkgs/sketchybar-helper/<name>.c をビルドして sketchybar-<name>-helper にする
-  mkHelper =
-    name:
-    pkgs.stdenv.mkDerivation {
-      name = "sketchybar-${name}-helper";
-
-      src = ../pkgs/sketchybar-helper;
-
-      buildInputs = [ pkgs.apple-sdk_15 ];
-
-      buildPhase = ''
-        runHook preBuild
-        $CC -std=c99 -O2 ${name}.c -framework CoreFoundation -o sketchybar-${name}-helper
-        runHook postBuild
-      '';
-
-      installPhase = ''
-        runHook preInstall
-        mkdir -p $out/bin
-        cp sketchybar-${name}-helper $out/bin/
-        runHook postInstall
-      '';
-    };
+  mkHelper = pkgs.callPackage ../pkgs/sketchybar-helper { };
 
   mkHelperAgent =
     name:
