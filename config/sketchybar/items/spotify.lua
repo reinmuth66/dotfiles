@@ -4,7 +4,7 @@
 --   未起動・停止中: 画像の代わりに Spotify のアイコンを出す (アイテム自体は常に表示)
 --   切り替え時は覆いの濃さを滑らかに変える
 -- 状態は Spotify の分散通知 (media_change は macOS 26 で発火しない) から受け取り、
--- 画像は osascript の artwork url から取得し、キャッシュする (キャッシュの設計は load_artwork の付近を参照)。
+-- 画像は osascript の artwork url から取得し、キャッシュする (キャッシュの設計は items/spotify/artwork.lua を参照)。
 -- 再生位置は、通知の Playback Position を基準に、ローカルの時計で進める
 -- (毎秒の osascript の取得は行わない。詳しくは再生位置の節を参照)。
 -- 回転は background.image.rotation を使う (SketchyBar#815 のパッチが前提、pkgs/sketchybar/)。
@@ -28,19 +28,13 @@
 local ui = require("ui")
 local colors = require("colors")
 local palette = require("palette")
+local artwork = require("items.spotify.artwork")
+local script = require("items.spotify.script")
+local truncate = require("items.spotify.text").truncate
 
 local SIZE = 24 -- 表示サイズ (pt)。アイコンのフォントサイズも同じ値にする (このフォントでは字面が一辺 SIZE の正方形になる)
--- キャッシュする画像の一辺 (px)。表示サイズ SIZE とは独立の固定値で、scale (SIZE / ART_PX) で SIZE に縮める。
--- Retina (2 倍) なら SIZE が 48 まで足りる。変えるときは、キャッシュ (CACHE_DIR) を消すこと (古い解像度の画像が残るため)。
-local ART_PX = 96
 local HOME = os.getenv("HOME")
 local CACHE_ROOT = HOME .. "/Library/Caches/sketchybar"
-local CACHE_DIR = CACHE_ROOT .. "/spotify"
-
--- Spotify に AppleScript を送るコマンド。未起動の Spotify を osascript が起動してしまわないよう、先に pgrep で確認する。
-local function spotify_script(script)
-	return string.format([[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to %s' 2>/dev/null]], script)
-end
 
 -- ポップアップの配置 (pt)。見た目は実機で確認して調整する。
 -- 左から 余白 | 文字の領域 (TEXT_WIDTH) | 余白 の順に並べる。
@@ -160,7 +154,7 @@ local spotify = ui.add_item("spotify", "e", {
 		color = colors.transparent,
 		image = {
 			drawing = false,
-			scale = SIZE / ART_PX,
+			scale = SIZE / artwork.ART_PX, -- 画像の一辺 (px) は、キャッシュ側が決める (表示サイズとは独立)
 			corner_radius = SIZE / 2,
 		},
 	},
@@ -212,7 +206,7 @@ end
 
 add_popup_spacer("spotify.pad.left", POPUP_PADDING)
 
--- 文字は幅 (TEXT_WIDTH) に収まる所で切る。幅は文字ごとの em 換算の見積もりで測る (truncate を参照)。
+-- 文字は幅 (TEXT_WIDTH) に収まる所で切る。幅は文字ごとの em 換算の見積もりで測る (items/spotify/text.lua の truncate を参照)。
 -- 行ごとの文字数は固定せず、size から決まる。
 local ROWS = {
 	{ key = "title", size = 13.0, y_offset = 8 },
@@ -264,154 +258,13 @@ sbar.add("item", "spotify.viz", {
 
 add_popup_spacer("spotify.pad.right", POPUP_PADDING)
 
--- 文字の幅 (em 換算)。メニューバーと同じシステムフォント Bold を、12pt で CoreText が測った値 (ASCII の 1 文字ごと)。
--- 全角 (かな・漢字など) は一律 0.923、ASCII 以外の半角 (アクセント付きの文字、キリル文字など) は平均の EM_OTHER にする。
--- 注意: このフォントは文字の間隔が大きさで変わり (小さいほど広い。11pt は 12pt より約 1%、14pt は約 2% 狭い)、
--- 100pt などの大きな値で測ると、実際の表示 (11〜14pt) より 1 割以上狭く出る。必ず表示と同じ大きさ付近で測ること。
--- 曲名・アーティスト名のサンプル 38 件で、実測 (11、12、14pt) との差は -3.9%〜+4.8% (平均 -0.2%〜+2.3%)。
--- 過小な見積もりの分は TEXT_MARGIN で吸収する。
-local EM_WIDE = 0.923 -- 全角 (かな・漢字・ハングル・全角記号など)
-local EM_OTHER = 0.6 -- ASCII 以外の半角
-local EM_REF_SIZE = 12 -- 表を測った大きさ (pt)
-local EM_PER_PT = 0.01 -- 大きさが 1pt 小さいと、幅が増える割合
-local EM_ASCII = { -- 0x20 (空白) から 0x7E (~) まで
-	0.258,
-	0.356,
-	0.569,
-	0.671,
-	0.671,
-	1.036,
-	0.744,
-	0.348,
-	0.429,
-	0.429,
-	0.484,
-	0.671,
-	0.348,
-	0.484,
-	0.348,
-	0.334,
-	0.685,
-	0.512,
-	0.643,
-	0.669,
-	0.687,
-	0.663,
-	0.684,
-	0.604,
-	0.694,
-	0.684,
-	0.348,
-	0.348,
-	0.671,
-	0.671,
-	0.671,
-	0.557,
-	0.927,
-	0.732,
-	0.693,
-	0.741,
-	0.747,
-	0.622,
-	0.597,
-	0.760,
-	0.783,
-	0.318,
-	0.601,
-	0.709,
-	0.595,
-	0.906,
-	0.768,
-	0.786,
-	0.674,
-	0.786,
-	0.694,
-	0.675,
-	0.660,
-	0.760,
-	0.721,
-	1.009,
-	0.729,
-	0.708,
-	0.676,
-	0.375,
-	0.334,
-	0.375,
-	0.671,
-	0.627,
-	0.500,
-	0.590,
-	0.651,
-	0.587,
-	0.651,
-	0.601,
-	0.408,
-	0.645,
-	0.632,
-	0.287,
-	0.287,
-	0.601,
-	0.295,
-	0.932,
-	0.627,
-	0.620,
-	0.647,
-	0.647,
-	0.435,
-	0.566,
-	0.413,
-	0.627,
-	0.583,
-	0.847,
-	0.581,
-	0.597,
-	0.566,
-	0.429,
-	0.299,
-	0.429,
-	0.671,
-}
-local EM_ELLIPSIS = 3 * EM_ASCII[string.byte(".") - 31]
-local TEXT_MARGIN = 8 -- 見積もりの誤差 (過小に見積もる最大 約 4%) の分、TEXT_WIDTH から引く (pt)
-
-local function char_em(code)
-	if code >= 0x2E80 then
-		return EM_WIDE
-	end
-	return EM_ASCII[code - 31] or EM_OTHER
-end
-
--- 長い文字列は、size (pt) の文字が TEXT_WIDTH に収まる所で切って "..." を付ける
--- (utf8.len が nil なら不正なバイト列なのでそのまま使う)
--- 大きさが基準 (EM_REF_SIZE) と違う分の、間隔の変化の補正 (size が小さいほど、1em あたりの幅が広い) は、半角だけにかける。
--- 全角は大きさによらず一律 EM_WIDE (8pt と 12pt で CoreText が測った値が同じ)。
-local function truncate(text, size)
-	if utf8.len(text) == nil then
-		return text
-	end
-	local spacing = 1 + EM_PER_PT * (EM_REF_SIZE - size)
-	local limit = (TEXT_WIDTH - TEXT_MARGIN) / size
-	local total = 0
-	local cut = 1 -- "..." を付けても収まる、最後の切れ目 (バイト位置)
-	for pos, code in utf8.codes(text) do
-		if total + EM_ELLIPSIS * spacing <= limit then
-			cut = pos
-		end
-		total = total + char_em(code) * (code >= 0x2E80 and 1 or spacing)
-	end
-	if total <= limit then
-		return text
-	end
-	return (text:sub(1, cut - 1):gsub("%s+$", "")) .. "..."
-end
-
 local function set_popup_info(meta)
 	for key, row in pairs(rows) do
 		local text = meta[key]
 		if type(text) ~= "string" then
 			text = ""
 		end
-		row.item:set({ drawing = text ~= "", label = { string = truncate(text, row.size) } })
+		row.item:set({ drawing = text ~= "", label = { string = truncate(text, row.size, TEXT_WIDTH) } })
 	end
 end
 
@@ -473,7 +326,7 @@ local function step_time()
 end
 
 -- 状態と位置と曲の長さ (ミリ秒) をタブ区切りで返す。
-local POSITION_COMMAND = spotify_script("(player state as text) & tab & (player position as text) & tab & (duration of current track as text)")
+local POSITION_COMMAND = script("(player state as text) & tab & (player position as text) & tab & (duration of current track as text)")
 
 -- ロケールによっては、位置の小数点がカンマになる
 local function parse_position(text)
@@ -1040,182 +893,11 @@ local function show_icon()
 	anchor:set({ popup = { drawing = false } })
 end
 
--- アルバム画像のキャッシュ。1 枚の画像につき、アイコン用の画像 (<ID>.jpg。一辺 ART_PX) と、
--- 色の頻度表 (<ID>.colors。"個数,R,G,B;..."。palette.lua が配色を決める) の 2 ファイルを、画像の ID (artwork url の末尾) で持つ。
--- 画像の大きさ (ART_PX) は固定なので、ファイル名には含めない (表示サイズ = 画像の実ピクセル * scale)。
--- 流れは、曲 ID -> 画像の ID と url (osascript。一度引いた曲は覚えておく) -> キャッシュの確認 (Lua) ->
--- なければ取得 (シェル)。確認を Lua で行うので、キャッシュにある画像では、取得のためのシェルを起動しない。
--- 取得は画像の ID ごとに 1 本だけ走らせる (同じアルバムの曲を続けて切り替えると、同じ画像の取得が重なる。
--- 重なった要求は、走っている取得の完了を待つ)。取得は、curl の出力を中間ファイルなしで magick に渡し、
--- 1 回のデコードで画像と頻度表を出す。出力は一時ファイルに書いて、最後に mv で置く (途中の状態が見えない)。
-local COLOR_SWATCHES = 32 -- 頻度表の色数 (palette.lua の入力)
-local COLOR_SAMPLE_PX = 48 -- 頻度表を数えるときの画像の一辺 (px)
-
-local ARTWORK_URL_COMMAND = spotify_script("get artwork url of current track")
-
--- 画像の ID (key) と url から、2 つのファイルを作る。curl か magick が失敗したら (pipefail)、何も置かない。
-local function download_command(key, url)
-	return string.format(
-		[[
-set -o pipefail
-dir=%q
-key=%q
-mkdir -p "$dir"
-tmp="$dir/.$key.$$"
-curl -sfL --max-time 10 %q \
-  | magick - -units PixelsPerInch -density 72 \
-      -resize %dx%d -write "jpeg:$tmp.small" \
-      -resize %dx%d -colors %d -depth 8 -format %%c histogram:info:- \
-  | sed -nE 's/^ *([0-9]+): *\( *([0-9]+), *([0-9]+), *([0-9]+).*/\1,\2,\3,\4/p' | paste -sd';' - > "$tmp.colors"
-if [ $? -eq 0 ] && [ -s "$tmp.small" ]; then
-  [ -s "$tmp.colors" ] && mv -f "$tmp.colors" "$dir/$key.colors"
-  mv -f "$tmp.small" "$dir/$key.jpg"
-fi
-rm -f "$tmp.small" "$tmp.colors"
-]],
-		CACHE_DIR,
-		key,
-		url,
-		ART_PX,
-		ART_PX,
-		COLOR_SAMPLE_PX,
-		COLOR_SAMPLE_PX,
-		COLOR_SWATCHES
-	)
-end
-
-local function artwork_files(key)
-	local base = CACHE_DIR .. "/" .. key
-	return {
-		small = base .. ".jpg",
-		colors = base .. ".colors",
-	}
-end
-
-local function read_file(path)
-	local f = io.open(path, "rb")
-	if not f then
-		return nil
-	end
-	local text = f:read("*a")
-	f:close()
-	return text ~= "" and text or nil
-end
-
-local function file_exists(path)
-	local f = io.open(path, "rb")
-	if not f then
-		return false
-	end
-	local size = f:seek("end")
-	f:close()
-	return size ~= nil and size > 0
-end
-
--- 2 つとも揃っていれば files と頻度表を返す (色の頻度表が欠けた古いキャッシュは、取り直して揃える)
-local function cached_artwork(key)
-	local files = artwork_files(key)
-	local histogram = read_file(files.colors)
-	if histogram and file_exists(files.small) then
-		return files, (histogram:gsub("%s+$", ""))
-	end
-	return nil
-end
-
--- 古い画像の掃除は、起動時 (再読み込み含む) に 1 回だけ行う (取得と重ならない)
-sbar.exec(string.format("find %q -type f -mtime +30 -delete 2>/dev/null", CACHE_DIR))
-
-local downloads = {} -- 画像の ID -> 取得の完了を待っている処理 (取得が走っている間だけ持つ)
-
--- 画像を用意して、done(files, histogram) を呼ぶ (失敗したら done(nil))。
-local function ensure_artwork(key, url, done)
-	local files, histogram = cached_artwork(key)
-	if files then
-		done(files, histogram)
-		return
-	end
-	if downloads[key] then
-		table.insert(downloads[key], done)
-		return
-	end
-	downloads[key] = { done }
-	sbar.exec(download_command(key, url), function()
-		local waiting = downloads[key]
-		downloads[key] = nil
-		local ready, ready_histogram = cached_artwork(key)
-		if not ready then
-			-- 色の頻度表だけ作れなかったときも、画像は出す (配色は固定色に戻る)
-			local partial = artwork_files(key)
-			if file_exists(partial.small) then
-				ready, ready_histogram = partial, ""
-			end
-		end
-		for _, callback in ipairs(waiting) do
-			callback(ready, ready_histogram)
-		end
-	end)
-end
-
--- 曲 ID から画像の ID と url を引く。画像を出せた曲は覚えていて (load_artwork)、osascript を呼ばない。
--- 取得に失敗した曲は覚えない (誤った url を取っても、使い回さない)。
-local artwork_of_track = {}
-
-local function resolve_artwork(track_id, done)
-	local known = artwork_of_track[track_id]
-	if known then
-		done(known)
-		return
-	end
-	sbar.exec(ARTWORK_URL_COMMAND, function(out)
-		local url = type(out) == "string" and out:match("^%s*(https?://%S+)") or nil
-		local key = url and url:match("([^/]+)$")
-		done(key and { key = key, url = url } or nil)
-	end)
-end
-
-local current_track = nil
-
--- 取得に失敗したとき (ネットワークや osascript の一時的な失敗) は、少し待って取り直す。
-local ARTWORK_ATTEMPTS = 3
-local ARTWORK_RETRY_DELAY = 0.5 -- 秒
-
-local function load_artwork(track_id, attempt)
-	attempt = attempt or 1
-	current_track = track_id
-	local function retry()
-		if attempt < ARTWORK_ATTEMPTS then
-			sbar.delay(ARTWORK_RETRY_DELAY, function()
-				if current_track == track_id then
-					load_artwork(track_id, attempt + 1)
-				end
-			end)
-		else
-			current_track = nil -- 次のイベントで再試行する
-		end
-	end
-	resolve_artwork(track_id, function(artwork)
-		-- 取得中に曲が変わった・停止した場合は捨てる
-		if current_track ~= track_id then
-			return
-		end
-		if not artwork then
-			retry()
-			return
-		end
-		ensure_artwork(artwork.key, artwork.url, function(files, histogram)
-			if current_track ~= track_id then
-				return
-			end
-			if not files then
-				retry()
-				return
-			end
-			artwork_of_track[track_id] = artwork
-			spotify:set({ background = { image = { string = files.small } } })
-			apply_palette(palette.from_histogram(histogram) or palette.default)
-			show_art()
-		end)
-	end)
+-- 取得した画像を、アイコンの item に出し、配色をポップアップに反映する
+local function on_artwork(files, histogram)
+	spotify:set({ background = { image = { string = files.small } } })
+	apply_palette(palette.from_histogram(histogram) or palette.default)
+	show_art()
 end
 
 -- meta は { title, artist }、timing は { position, duration } (どちらも秒)。
@@ -1223,9 +905,9 @@ end
 local function apply(state, track_id, meta, timing)
 	local playing = state == "Playing"
 	if playing or state == "Paused" then
-		local changed = track_id ~= current_track
+		local changed = track_id ~= artwork.current()
 		if changed then
-			load_artwork(track_id)
+			artwork.load(track_id, on_artwork)
 		end
 		if meta then
 			set_popup_info(meta)
@@ -1240,7 +922,7 @@ local function apply(state, track_id, meta, timing)
 	else
 		set_spinning(false)
 		set_lit(false)
-		current_track = nil
+		artwork.clear()
 		show_icon()
 	end
 end
@@ -1298,7 +980,7 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, close_popup)
 -- 右クリックでポップアップのピン留め (もう一度で外す)、上スクロールで前の曲、下スクロールで次の曲。
 -- 表示は上の分散通知で追従するので、ここでは Spotify に命令を送るだけにする。
 local function spotify_command(command)
-	sbar.exec(spotify_script(command))
+	sbar.exec(script(command))
 end
 
 -- ウィンドウの表示は open で行う。-g -j の自動起動で隠れているときも前面に出て、
@@ -1368,7 +1050,7 @@ end)
 
 -- 曲名などに "|" が含まれうるので、区切りにはタブを使う
 sbar.exec(
-	spotify_script("(player state as text) & tab & (id of current track) & tab & (name of current track) & tab & (artist of current track) & tab & (player position as text) & tab & (duration of current track as text)"),
+	script("(player state as text) & tab & (id of current track) & tab & (name of current track) & tab & (artist of current track) & tab & (player position as text) & tab & (duration of current track as text)"),
 	function(out)
 		if type(out) ~= "string" then
 			return
