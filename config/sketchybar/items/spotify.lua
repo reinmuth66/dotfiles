@@ -47,9 +47,12 @@ local HOME = paths.home
 -- 右隣の network bracket との隙間を、他の bracket 間と同じ 7 pt にするための幅。network の左端は battery と zmk_battery の
 -- ラベル幅 (どちらも常に 3 桁用の幅で固定) だけで決まり 1243 pt になるので、ポップアップの右端 (開始 + 235) との差が 7 pt になる。
 -- items/system.lua のポップアップの幅 (実測で 233 pt。CPU 60 + RAM 57 + Disk 115 + 右の枠 1) とは 2 pt 違う。
+-- 幅 (VIZ_WIDTH) を決めた値にして、文字の領域の幅 (TEXT_WIDTH = 222) をそこから求める
+-- (POPUP_PADDING を変えても、窓の幅は 235 のまま保たれる)。
 local POPUP_PADDING = 6
-local TEXT_WIDTH = 222 -- 窓の幅を 235 に保つ値 (POPUP_PADDING を変えたら合わせる)
 local POPUP_BORDER = colors.popup.border_width
+local VIZ_WIDTH = 235
+local TEXT_WIDTH = VIZ_WIDTH - 2 * POPUP_PADDING - POPUP_BORDER
 local POPUP_HEIGHT = colors.bracket.height - 2 * POPUP_BORDER -- 中身の高さ (偶数にする)
 -- Spotify の bracket とポップアップの間隔 (pt)
 local POPUP_GAP = 4
@@ -64,7 +67,6 @@ local POPUP_GAP = 4
 -- 設定 (棒の数、感度など) は modules/cavaviz.nix。窓の大きさ (VIZ_WIDTH x POPUP_BG_HEIGHT = 235 x 34) は
 -- ここで決め、設定のひな形の @W@ / @H@ に入れて cava に渡す (viz_render_config)。窓の位置は起動のたびに入れる。
 local POPUP_BG_HEIGHT = POPUP_HEIGHT + 2 * POPUP_BORDER
-local VIZ_WIDTH = 2 * POPUP_PADDING + TEXT_WIDTH + POPUP_BORDER
 local VIZ_LEFT = POPUP_PADDING -- 窓の左端から、文字の領域 (spotify.viz の空き) の左端まで。窓の位置を空きから求めるのに使う
 local VIZ_APP = HOME .. "/Applications/Home Manager Apps/CavaViz.app"
 local VIZ_CONFIG_HOME = HOME .. "/.config/cavaviz"
