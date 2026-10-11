@@ -12,7 +12,7 @@
 +// AeroSpace manages every window whose accessibility subrole is AXStandardWindow: it tiles the window and
 +// moves its focus to it, and when the window closes it focuses the first window of the workspace, which
 +// switches the active window of the app the user was working in. A floating-window subrole makes it ignore us.
-+static id viz_ax_subrole(id self, SEL _cmd) { return (id)CFSTR("AXSystemFloatingWindow"); }
++static id viz_ax_subrole(id self __attribute__((unused)), SEL _cmd __attribute__((unused))) { return (id)CFSTR("AXSystemFloatingWindow"); }
  #endif
  
  #include <math.h>

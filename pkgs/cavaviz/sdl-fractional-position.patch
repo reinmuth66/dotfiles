@@ -11,7 +11,7 @@
 @@ -19,6 +20,23 @@
  // moves its focus to it, and when the window closes it focuses the first window of the workspace, which
  // switches the active window of the app the user was working in. A floating-window subrole makes it ignore us.
- static id viz_ax_subrole(id self, SEL _cmd) { return (id)CFSTR("AXSystemFloatingWindow"); }
+ static id viz_ax_subrole(id self __attribute__((unused)), SEL _cmd __attribute__((unused))) { return (id)CFSTR("AXSystemFloatingWindow"); }
 +// The NSWindow of the SDL window. SDL_SetWindowPosition takes whole points only, but the popup under the window
 +// can sit at a half-point position (and the Retina drawable can show it), so the window is placed through
 +// NSWindow with fractional coordinates.
