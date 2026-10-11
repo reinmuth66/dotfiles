@@ -8,6 +8,11 @@
     ./git.nix
     ./bat.nix
     ./bottom.nix
+    ./eza.nix
+    ./fd.nix
+    ./gpg.nix
+    ./jq.nix
+    ./ripgrep.nix
     ./atuin.nix
     ./gh.nix
     ./starship.nix
@@ -37,19 +42,14 @@
     colima
     docker
     dust
-    eza
-    fd
     ffmpeg
-    gnupg
     imagemagick
-    jq
     marp-cli
     moralerspace-hw
     nerd-fonts.hack
     poppler
     p7zip
     resvg
-    ripgrep
     sd
     sketchybar-app-font
     switchaudio-osx
