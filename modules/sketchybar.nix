@@ -32,6 +32,12 @@ let
 
   btmWindow = pkgs.callPackage ../pkgs/btm-window { };
   mediaKey = pkgs.callPackage ../pkgs/media-key { };
+
+  # The .app that launchd starts, which execs the sketchybar wrapper that programs.sketchybar builds.
+  # It makes the Accessibility permission stay attached even when the store path changes. See pkgs/sketchybar-app.
+  sketchybarApp = pkgs.callPackage ../pkgs/sketchybar-app {
+    target = lib.getExe config.programs.sketchybar.finalPackage;
+  };
 in
 {
   programs.sketchybar = {
@@ -58,10 +64,16 @@ in
     ];
   };
 
-  launchd.agents = lib.listToAttrs (
-    map (name: {
-      name = "sketchybar-${name}-helper";
-      value = mkHelperAgent name;
-    }) helperNames
-  );
+  launchd.agents =
+    lib.listToAttrs (
+      map (name: {
+        name = "sketchybar-${name}-helper";
+        value = mkHelperAgent name;
+      }) helperNames
+    )
+    // {
+      # Replaces the Program that programs.sketchybar sets. Launching the wrapper directly would make the Nix store's bash
+      # the target of the Accessibility permission, which would then have to be attached again on every update.
+      sketchybar.config.Program = lib.mkForce "${sketchybarApp}/Applications/Sketchybar.app/Contents/MacOS/sketchybar-launcher";
+    };
 }

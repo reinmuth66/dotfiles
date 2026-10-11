@@ -40,7 +40,7 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 | `yazi.nix` | yazi パッケージ + xdg.configFile (config/yazi/ + プラグイン) |
 | `claude.nix` | home.file (config/claude/) |
 | `czg.nix` | importNpmLock (pkgs/czg/) — conventional commit TUI |
-| `sketchybar.nix` | programs.sketchybar (config/sketchybar/ の Lua 設定 + sbarlua + pkgs/sketchybar/ の image-rotation.patch)、launchd agent (pkgs/sketchybar-helper/ の C ヘルパー clock・system)。extraPackages から pkgs/btm-window/ (system item の btm の窓) と pkgs/media-key/ (volume item のスクロール) を参照 |
+| `sketchybar.nix` | programs.sketchybar (config/sketchybar/ の Lua 設定 + sbarlua + pkgs/sketchybar/ の image-rotation.patch)、launchd agent (pkgs/sketchybar-helper/ の C ヘルパー clock・system)。extraPackages から pkgs/btm-window/ (system item の btm の窓) と pkgs/media-key/ (volume item のスクロール) を参照。launchd は pkgs/sketchybar-app/ の Sketchybar.app (wrapper を exec するランチャー) を起動し、Accessibility 権限を nix の bash ではなくバンドル ID に紐づける |
 | `cavaviz.nix` | Spotify ポップアップの背景と棒グラフを描くサウンドビジュアライザ (pkgs/cavaviz/ の CavaViz.app + cava の設定とシェーダー) |
 
 **config/ に設定ファイルを置くツール:**
