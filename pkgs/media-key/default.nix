@@ -4,7 +4,7 @@
 # The OS handles it as a volume key, so the standard volume popup appears. It does not appear with osascript's set volume.
 #
 # For the Swift toolchain, use macOS's standard /usr/bin/swiftc, from the Xcode Command Line Tools, not nixpkgs's.
-# Same as pkgs/btm-window. The Nix sandbox is disabled, i.e. sandbox = false, so it can be used during the build.
+# The Nix sandbox is disabled, i.e. sandbox = false, so it can be used during the build.
 #
 # Darwin's fixup re-signs Mach-O. The ad-hoc signature that swiftc's ld applied is fine as it is, so use dontFixup.
 stdenvNoCC.mkDerivation {

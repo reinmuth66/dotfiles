@@ -5,7 +5,7 @@ local ui = require("ui")
 --   CPU icon and x%, RAM icon and x%, Disk icon and used/total
 -- Data is measured at regular intervals by sketchybar-system-helper from pkgs/sketchybar-helper/system.c and delivered with the system_stats event.
 -- The helper only calls kernel APIs directly, so measurement is light. While the popup is closed, no set for drawing is issued.
--- The numbers have the same values and format as bottom's btm. btm is shown by pkgs/btm-window. How values are measured: pkgs/sketchybar-helper/system.c.
+-- The numbers have the same values and format as bottom's btm. btm is shown by btm-toggle in modules/sketchybar.nix. How values are measured: pkgs/sketchybar-helper/system.c.
 
 -- The glyph of :activity_monitor: in sketchybar-app-font is almost a square with side SIZE.
 -- Measured with CoreText's CTLineGetImageBounds. Width is SIZE x 0.998 and height is SIZE x 0.962: 19.96 x 19.24 at 20pt, 15.97 x 15.39 at 16pt.
@@ -225,9 +225,11 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	anchor:set({ popup = { drawing = false } })
 end)
 
--- The btm window pkgs/btm-window is outside AeroSpace's management and overlays the current workspace. The workspace does not switch.
-local BTM_APP_NAME = "btm-window"
-local TOGGLE_BTM_COMMAND = string.format("pkill -USR1 -x %s || { nohup %s >/dev/null 2>&1 & }", BTM_APP_NAME, BTM_APP_NAME)
+-- The btm window is btm in a wezterm process of its own, separate from the everyday WezTerm. See btmToggle in modules/sketchybar.nix.
+-- AeroSpace makes it floating and full screen, so it overlays the current workspace. The workspace does not switch.
+-- btm-toggle state prints front, background, or none.
+local TOGGLE_BTM_COMMAND = "btm-toggle toggle"
+local BTM_STATE_COMMAND = "btm-toggle state"
 
 -- When frontmost, invert the colors like aerospace's workspace. See highlight in items/aerospace.lua.
 local function set_btm_state(state)
@@ -245,19 +247,26 @@ end
 -- So that the result of an old query does not overwrite the new state, reflect only the last query.
 local btm_query = ui.latest()
 
--- The window becoming frontmost, losing focus, or closing are all detected by front_app_switched. INFO is the name of the app brought to the front.
--- Right after the window closes, wait a little so that pgrep does not run before the process has fully exited.
-gear:subscribe("front_app_switched", function(env)
+-- The window becoming frontmost, losing focus, or closing are all detected by front_app_switched.
+-- Right after the window closes the process may not have fully exited yet, and AeroSpace's focus may also lag behind the event.
+-- So when the first answer is not front, wait a little and ask again.
+gear:subscribe("front_app_switched", function()
 	local is_latest = btm_query.begin()
-	if env.INFO == BTM_APP_NAME then
-		set_btm_state("front")
-		return
-	end
-	sbar.exec("sleep 0.3; pgrep -x " .. BTM_APP_NAME, function(output)
+	sbar.exec(BTM_STATE_COMMAND, function(output)
 		if not is_latest() then
 			return
 		end
-		set_btm_state((output or ""):match("%d") and "background" or "none")
+		local state = (output or ""):match("%a+")
+		if state == "front" then
+			set_btm_state(state)
+			return
+		end
+		sbar.exec("sleep 0.3; " .. BTM_STATE_COMMAND, function(later)
+			if not is_latest() then
+				return
+			end
+			set_btm_state((later or ""):match("%a+"))
+		end)
 	end)
 end)
 

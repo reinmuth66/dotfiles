@@ -169,7 +169,6 @@
         "nixpkgs-spotify": "nixpkgs-spotify",
         "pdf-cli": "pdf-cli",
         "spicetify-nix": "spicetify-nix",
-        "swiftterm": "swiftterm",
         "yazi-flavors": "yazi-flavors",
         "yazi-plugins": "yazi-plugins",
         "zeno-zsh": "zeno-zsh"
@@ -193,22 +192,6 @@
       "original": {
         "owner": "Gerg-L",
         "repo": "spicetify-nix",
-        "type": "github"
-      }
-    },
-    "swiftterm": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1791222826,
-        "narHash": "sha256-kaWDZDRfgcSNC7oOu/b94WhXyuORdNFGuwX1LXwoxlo=",
-        "owner": "migueldeicaza",
-        "repo": "SwiftTerm",
-        "rev": "15fed4fd7ca7b0a8c77dd380412b18a5ce8600b5",
-        "type": "github"
-      },
-      "original": {
-        "owner": "migueldeicaza",
-        "repo": "SwiftTerm",
         "type": "github"
       }
     },

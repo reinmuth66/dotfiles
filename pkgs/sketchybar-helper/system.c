@@ -11,7 +11,7 @@
 // Measurement only calls kernel APIs directly and does not launch processes.
 // Drawing and formatting are decided by the Lua in items/system.lua, so only raw values are sent here.
 //
-// How values are measured follows bottom's btm so that the popup's numbers match btm. btm is shown by pkgs/btm-window.
+// How values are measured follows bottom's btm so that the popup's numbers match btm. btm is shown by btm-toggle in modules/sketchybar.nix.
 // The same formula as the macOS implementation of the sysinfo crate that btm uses.
 
 #define INTERVAL 1.0

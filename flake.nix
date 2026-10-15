@@ -44,10 +44,6 @@
       url = "github:yuki-yano/zeno.zsh";
       flake = false;
     };
-    swiftterm = {
-      url = "github:migueldeicaza/SwiftTerm";
-      flake = false;
-    };
     pdf-cli = {
       url = "github:Yujonpradhananga/pdf-cli";
       flake = false;
@@ -66,7 +62,7 @@
           home-manager.useUserPackages = true;
           home-manager.backupFileExtension = "bak";
           home-manager.extraSpecialArgs = {
-            inherit (inputs) nixpkgs-spotify spicetify-nix mole yazi-flavors yazi-plugins compress-yazi eza-preview-yazi catppuccin-bat zeno-zsh swiftterm pdf-cli;
+            inherit (inputs) nixpkgs-spotify spicetify-nix mole yazi-flavors yazi-plugins compress-yazi eza-preview-yazi catppuccin-bat zeno-zsh pdf-cli;
           };
           home-manager.users.reinmuth = import ./modules/home.nix;
         }

@@ -24,36 +24,43 @@ local IGNORED_BUNDLE_IDS = {
 	["com.zmk-battery-center.app"] = true,
 }
 
+local IGNORED_APP_NAMES = {
+	["wezterm-gui"] = true,
+}
+
 local function refresh_space(sid, is_focused)
 	local space = spaces[sid]
 	if space == nil then
 		return
 	end
 
-	sbar.exec("aerospace list-windows --workspace " .. sid .. " --format '%{app-bundle-id}|%{app-name}'", function(windows)
-		local strip = {}
-		for line in (windows or ""):gmatch("[^\r\n]+") do
-			local bundle_id, app = line:match("^([^|]*)|(.*)$")
-			if app ~= nil and not IGNORED_BUNDLE_IDS[bundle_id] then
-				table.insert(strip, icons.app(app))
+	sbar.exec(
+		"aerospace list-windows --workspace " .. sid .. " --format '%{app-bundle-id}|%{app-name}'",
+		function(windows)
+			local strip = {}
+			for line in (windows or ""):gmatch("[^\r\n]+") do
+				local bundle_id, app = line:match("^([^|]*)|(.*)$")
+				if app ~= nil and not IGNORED_BUNDLE_IDS[bundle_id] and not IGNORED_APP_NAMES[app] then
+					table.insert(strip, icons.app(app))
+				end
 			end
-		end
 
-		if #strip == 0 then
+			if #strip == 0 then
+				space:set({
+					drawing = is_focused == true,
+					icon = { padding_right = PILL_PADDING },
+					label = { string = "", padding_left = 0, padding_right = 0 },
+				})
+				return
+			end
+
 			space:set({
-				drawing = is_focused == true,
-				icon = { padding_right = PILL_PADDING },
-				label = { string = "", padding_left = 0, padding_right = 0 },
+				drawing = true,
+				icon = { padding_right = 0 },
+				label = { string = table.concat(strip), padding_left = LABEL_GAP, padding_right = PILL_PADDING },
 			})
-			return
 		end
-
-		space:set({
-			drawing = true,
-			icon = { padding_right = 0 },
-			label = { string = table.concat(strip), padding_left = LABEL_GAP, padding_right = PILL_PADDING },
-		})
-	end)
+	)
 end
 
 local function highlight(sid, focused_sid)
