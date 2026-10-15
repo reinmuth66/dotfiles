@@ -157,15 +157,20 @@ local bracket = ui.add_bracket("spotify.bracket", { spotify }, {
 	background = { color = colors.spotify.bracket_bg, corner_radius = colors.bracket.height / 2 },
 }, BRACKET_PADDING)
 
-local hit = ui.add_hit_region("spotify.hit", SIZE, 0, SIZE + 2 * BRACKET_PADDING, { position = "e" })
-
 -- So as not to overlap the bracket or image, the popup's owner is the anchor of an empty item placed to the right of the bracket.
 -- Same construction as the items/system.lua popup, using ui.add_popup_anchor.
--- The hit's padding_right is -2 * BRACKET_PADDING, so the item after the hit starts from the image position, inside the right edge of the bracket.
+-- The item after spotify starts from the image position, inside the right edge of the bracket, because placement advances only by SIZE.
 -- Measured on the q side, which is mirrored left to right. Without this, the popup would intrude 6 pt into the bracket.
 -- Add that amount to the spacer as well, to separate by POPUP_GAP from the bracket's right edge.
+-- The popup aligns with where the anchor is placed, not with its padding_left, so the gap cannot be made by the anchor's padding.
+-- The spacer is added before the hit so that it is below the hit. If it were above, its 1px window would be laid over the hit
+-- and leave a stripe where hover does not respond. The spacer is auto-width, so the hit's chain includes the width it advances.
 -- background is the initial value right after startup, and once the image is read, apply_palette overwrites it for each color scheme.
-ui.add_spacer("e", POPUP_GAP - 1 + 2 * BRACKET_PADDING)
+local ANCHOR_GAP = POPUP_GAP + 2 * BRACKET_PADDING
+ui.add_spacer("e", ANCHOR_GAP - 1)
+
+local hit = ui.add_hit_region("spotify.hit", SIZE + ANCHOR_GAP, 0, SIZE + 2 * BRACKET_PADDING, { position = "e" })
+
 local anchor = ui.add_popup_anchor("spotify.anchor", "e", {
 	align = "left",
 	height = POPUP_HEIGHT,
