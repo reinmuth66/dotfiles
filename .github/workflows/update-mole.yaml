@@ -9,6 +9,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: DeterminateSystems/nix-installer-action@v23
@@ -18,7 +19,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           LATEST=$(gh release view --repo tw93/Mole --json tagName -q '.tagName')
-          CURRENT=$(grep -oP '(?<=github:tw93/mole/)V[0-9.]+' flake.nix)
+          CURRENT=$(grep -oP '(?<=github:tw93/mole/)V[0-9.]+' flake.nix || true)
+          [[ "$LATEST" =~ ^V[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::想定外のタグ形式: ${LATEST}"; exit 1; }
+          [[ "$CURRENT" =~ ^V[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::flake.nix から現在のタグを取得できない"; exit 1; }
           echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           if [ "$LATEST" != "$CURRENT" ]; then
@@ -31,6 +34,8 @@ jobs:
         run: |
           sed -i "s|github:tw93/mole/V[0-9.]*|github:tw93/mole/${{ steps.check.outputs.latest }}|" flake.nix
           nix flake update mole
+          if git diff --quiet flake.nix; then echo "::error::flake.nix のタグを書き換えられなかった"; exit 1; fi
+          if git diff --quiet flake.lock; then echo "::error::flake.lock が更新されなかった"; exit 1; fi
       - name: Create Pull Request
         if: steps.check.outputs.needs_update == 'true'
         uses: peter-evans/create-pull-request@v8.1.1
@@ -42,3 +47,8 @@ jobs:
           branch: update/mole
           labels: dependencies
           delete-branch: true
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-mole'

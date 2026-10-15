@@ -1,0 +1,33 @@
+name: Notify failure
+description: >-
+  ワークフローの失敗を Issue にする。同じキーの open な Issue があれば、新規作成せずコメントを追記する。
+  クローズ済みの Issue は対象にしないので、直したあとの再発は新しい Issue になる。
+inputs:
+  key:
+    description: 重複判定のキー。ワークフロー名など、固定の文字列にする
+    required: true
+  topic:
+    description: タイトルの補足。ワークフローの一部の失敗を区別したいときに渡す
+    required: false
+    default: ''
+  detail:
+    description: 本文に追記する説明。固定の文字列だけを渡す (外部から得た値は渡さない)
+    required: false
+    default: ''
+  token:
+    description: Issue の作成に使うトークン
+    required: false
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        KEY: ${{ inputs.key }}
+        DETAIL: ${{ inputs.detail }}
+        TOPIC: ${{ inputs.topic }}
+        WORKFLOW: ${{ github.workflow }}
+        JOB: ${{ github.job }}
+        EVENT: ${{ github.event_name }}
+      run: bash "$GITHUB_ACTION_PATH/notify.sh"

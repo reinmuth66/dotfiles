@@ -56,5 +56,5 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 4. 設定ファイルが必要なら `config/<tool>/` に置き、モジュール内で `xdg.configFile` を宣言
 5. nixpkgs にない npm パッケージなら `/add-npm-pkg` スキルを使って追加
 6. Nix ストアのパスが変わるたびに macOS の権限 (Accessibility など) が外れるなら `/wrap-app-permission` スキルで .app に包む
-7. nixpkgs にない外部ツールをリリースタグに固定し、新タグが出たら自動で PR を作りたいなら `/add-auto-update-tool` スキルを使う
+7. nixpkgs にない外部ツールをリリースタグに固定し、新タグが出たら自動で PR を作りたいなら `/add-auto-update-tool` スキルを使う。自動更新のワークフローは、失敗を Issue にする `.github/actions/notify-failure` を呼ぶ
 8. `fetchFromGitHub` + `rev` 固定で持つソースを自動更新したいなら、`flake = false` の input にする (`/add-auto-update-tool` スキルの方式 C)。`catppuccin-bat`、`zeno-zsh`、`pdf-cli` が実例

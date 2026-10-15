@@ -9,6 +9,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: DeterminateSystems/nix-installer-action@v23
@@ -18,7 +19,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           LATEST=$(gh release view --repo kot149/zmk-battery-center --json tagName -q '.tagName' | sed 's/^v//')
-          CURRENT=$(grep -oP '(?<=version = ")[^"]+' nix/zmk-battery-center.nix)
+          CURRENT=$(grep -oP '(?<=version = ")[^"]+' nix/zmk-battery-center.nix || true)
+          [[ "$LATEST" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::想定外のタグ形式: ${LATEST}"; exit 1; }
+          [[ "$CURRENT" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::nix/zmk-battery-center.nix から現在の版を取得できない"; exit 1; }
           echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           if [ "$LATEST" != "$CURRENT" ]; then
@@ -33,7 +36,9 @@ jobs:
           URL="https://github.com/kot149/zmk-battery-center/releases/download/v${VERSION}/zmk-battery-center_${VERSION}_aarch64.app.tar.gz"
           HASH=$(nix store prefetch-file --hash-type sha256 --json "$URL" | jq -r '.hash')
           sed -i "s/version = \"[^\"]*\"/version = \"${VERSION}\"/" nix/zmk-battery-center.nix
+          [[ "$HASH" == sha256-* ]] || { echo "::error::hash を取得できなかった"; exit 1; }
           sed -i "s|hash = \"[^\"]*\"|hash = \"${HASH}\"|" nix/zmk-battery-center.nix
+          if git diff --quiet nix/zmk-battery-center.nix; then echo "::error::nix/zmk-battery-center.nix を書き換えられなかった"; exit 1; fi
       - name: Create Pull Request
         if: steps.check.outputs.needs_update == 'true'
         uses: peter-evans/create-pull-request@v8.1.1
@@ -45,3 +50,8 @@ jobs:
           branch: update/zmk-battery-center
           labels: dependencies
           delete-branch: true
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-zmk-battery-center'

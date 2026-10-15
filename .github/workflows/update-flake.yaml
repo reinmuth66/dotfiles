@@ -9,6 +9,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: DeterminateSystems/nix-installer-action@v23
@@ -17,6 +18,7 @@ jobs:
       # vendorHash depends on go.sum, so the flake input alone cannot track it.
       # Even if this fails, the flake inputs PR is still created. The build error shows up at nh darwin switch.
       - name: Update pdf-cli vendorHash
+        id: vendorhash
         continue-on-error: true
         run: |
           FAKE='sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
@@ -35,6 +37,15 @@ jobs:
             exit 1
           fi
           sed -i "s|vendorHash = \"[^\"]*\"|vendorHash = \"${HASH}\"|" nix/pdf-cli.nix
+      - name: Report pdf-cli vendorHash failure
+        if: steps.vendorhash.outcome == 'failure'
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-flake:vendorhash'
+          topic: 'pdf-cli の vendorHash'
+          detail: >-
+            pdf-cli の vendorHash を更新できませんでした。flake inputs の PR は作られていますが、
+            そのままマージすると、switch のビルドが失敗します。nix/pdf-cli.nix の vendorHash を手動で更新してください。
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8.1.1
         with:
@@ -44,3 +55,8 @@ jobs:
           branch: 'update/flake-inputs'
           labels: 'dependencies'
           delete-branch: true
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-flake'

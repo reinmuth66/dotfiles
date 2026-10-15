@@ -27,6 +27,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: bash scripts/spotify-update-check.sh
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-spotify:decide'
+          topic: '判定'
   build:
     needs: decide
     if: needs.decide.outputs.go == 'true'
@@ -34,6 +40,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: DeterminateSystems/nix-installer-action@v23
@@ -79,3 +86,9 @@ jobs:
           branch: update/spotify
           labels: dependencies
           delete-branch: true
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-spotify:build'
+          topic: 'ビルド'
