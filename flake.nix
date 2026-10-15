@@ -36,6 +36,22 @@
       url = "github:ahkohd/eza-preview.yazi";
       flake = false;
     };
+    catppuccin-bat = {
+      url = "github:catppuccin/bat";
+      flake = false;
+    };
+    zeno-zsh = {
+      url = "github:yuki-yano/zeno.zsh";
+      flake = false;
+    };
+    swiftterm = {
+      url = "github:migueldeicaza/SwiftTerm";
+      flake = false;
+    };
+    pdf-cli = {
+      url = "github:Yujonpradhananga/pdf-cli";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ nix-darwin, home-manager, ... }: {
@@ -50,7 +66,7 @@
           home-manager.useUserPackages = true;
           home-manager.backupFileExtension = "bak";
           home-manager.extraSpecialArgs = {
-            inherit (inputs) nixpkgs-spotify spicetify-nix mole yazi-flavors yazi-plugins compress-yazi eza-preview-yazi;
+            inherit (inputs) nixpkgs-spotify spicetify-nix mole yazi-flavors yazi-plugins compress-yazi eza-preview-yazi catppuccin-bat zeno-zsh swiftterm pdf-cli;
           };
           home-manager.users.reinmuth = import ./modules/home.nix;
         }

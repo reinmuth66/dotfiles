@@ -1,7 +1,7 @@
 {
   stdenvNoCC,
-  fetchFromGitHub,
   bottom,
+  swiftterm,
 }:
 
 # The btm window opened from sketchybar's system item. btm is bottom. It shows btm in a SwiftTerm terminal view.
@@ -24,13 +24,6 @@
 #   Remove SDKROOT and the like that stdenv sets, and let swiftc choose the standard SDK.
 # - The location of btm is replaced with bottom's path at build time. btm's config in ~/.config/bottom is read by btm itself. See modules/bottom.nix.
 let
-  swiftterm = fetchFromGitHub {
-    owner = "migueldeicaza";
-    repo = "SwiftTerm";
-    rev = "15fed4fd7ca7b0a8c77dd380412b18a5ce8600b5"; # commit of 2026-10-05
-    hash = "sha256-kaWDZDRfgcSNC7oOu/b94WhXyuORdNFGuwX1LXwoxlo=";
-  };
-
   # Preparation common to both builds. Remove stdenv's settings and let swiftc choose the standard SDK
   swiftEnv = ''
     unset SDKROOT DEVELOPER_DIR NIX_CFLAGS_COMPILE NIX_LDFLAGS NIX_CFLAGS_LINK

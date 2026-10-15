@@ -1,12 +1,7 @@
-{ pkgs, lib, config, ... }:
+{ pkgs, lib, config, zeno-zsh, ... }:
 
 let
-  zenoSrc = pkgs.fetchFromGitHub {
-    owner = "yuki-yano";
-    repo = "zeno.zsh";
-    rev = "2e8fbecce0fc3692a5fcc9033ecca7ab35263e56";
-    sha256 = "1mjhl82rr2jlgnz9rvnldpbhijyxrv5illxjyylp4j7zcgav17yk";
-  };
+  zenoSrc = zeno-zsh;
   zenoDir = "${config.home.homeDirectory}/.local/share/zeno.zsh";
 
   # --- WezTerm tab-close confirmation background ---

@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  swiftterm,
   ...
 }:
 
@@ -30,7 +31,7 @@ let
     "system"
   ];
 
-  btmWindow = pkgs.callPackage ../pkgs/btm-window { };
+  btmWindow = pkgs.callPackage ../pkgs/btm-window { inherit swiftterm; };
   mediaKey = pkgs.callPackage ../pkgs/media-key { };
 
   # The .app that launchd starts, which execs the sketchybar wrapper that programs.sketchybar builds.

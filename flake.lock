@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "catppuccin-bat": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1751237777,
+        "narHash": "sha256-lJapSgRVENTrbmpVyn+UQabC9fpV1G1e+CdlJ090uvg=",
+        "owner": "catppuccin",
+        "repo": "bat",
+        "rev": "6810349b28055dce54076712fc05fc68da4b8ec0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "catppuccin",
+        "repo": "bat",
+        "type": "github"
+      }
+    },
     "compress-yazi": {
       "flake": false,
       "locked": {
@@ -125,8 +141,25 @@
         "type": "github"
       }
     },
+    "pdf-cli": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787710945,
+        "narHash": "sha256-9FitpNl42lccoe3OHhFJ8yOr7G2hXJXFX24F7IM2pKE=",
+        "owner": "Yujonpradhananga",
+        "repo": "pdf-cli",
+        "rev": "35c904dd9842c19558050b66d611d4045050c6d9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Yujonpradhananga",
+        "repo": "pdf-cli",
+        "type": "github"
+      }
+    },
     "root": {
       "inputs": {
+        "catppuccin-bat": "catppuccin-bat",
         "compress-yazi": "compress-yazi",
         "eza-preview-yazi": "eza-preview-yazi",
         "home-manager": "home-manager",
@@ -134,9 +167,12 @@
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs",
         "nixpkgs-spotify": "nixpkgs-spotify",
+        "pdf-cli": "pdf-cli",
         "spicetify-nix": "spicetify-nix",
+        "swiftterm": "swiftterm",
         "yazi-flavors": "yazi-flavors",
-        "yazi-plugins": "yazi-plugins"
+        "yazi-plugins": "yazi-plugins",
+        "zeno-zsh": "zeno-zsh"
       }
     },
     "spicetify-nix": {
@@ -157,6 +193,22 @@
       "original": {
         "owner": "Gerg-L",
         "repo": "spicetify-nix",
+        "type": "github"
+      }
+    },
+    "swiftterm": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791222826,
+        "narHash": "sha256-kaWDZDRfgcSNC7oOu/b94WhXyuORdNFGuwX1LXwoxlo=",
+        "owner": "migueldeicaza",
+        "repo": "SwiftTerm",
+        "rev": "15fed4fd7ca7b0a8c77dd380412b18a5ce8600b5",
+        "type": "github"
+      },
+      "original": {
+        "owner": "migueldeicaza",
+        "repo": "SwiftTerm",
         "type": "github"
       }
     },
@@ -204,6 +256,22 @@
       "original": {
         "owner": "yazi-rs",
         "repo": "plugins",
+        "type": "github"
+      }
+    },
+    "zeno-zsh": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1775355942,
+        "narHash": "sha256-05+w1WP/SHKp97JTGsvO3csI123U7py+fVSKnAWiUNY=",
+        "owner": "yuki-yano",
+        "repo": "zeno.zsh",
+        "rev": "2e8fbecce0fc3692a5fcc9033ecca7ab35263e56",
+        "type": "github"
+      },
+      "original": {
+        "owner": "yuki-yano",
+        "repo": "zeno.zsh",
         "type": "github"
       }
     }

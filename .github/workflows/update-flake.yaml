@@ -14,6 +14,27 @@ jobs:
       - uses: DeterminateSystems/nix-installer-action@v23
       - name: Update flake inputs
         run: nix flake update
+      # vendorHash depends on go.sum, so the flake input alone cannot track it.
+      # Even if this fails, the flake inputs PR is still created. The build error shows up at nh darwin switch.
+      - name: Update pdf-cli vendorHash
+        continue-on-error: true
+        run: |
+          FAKE='sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+          LOG=$(mktemp)
+          sed -i "s|vendorHash = \"[^\"]*\"|vendorHash = \"${FAKE}\"|" nix/pdf-cli.nix
+          nix build --impure --no-link --expr '
+            let
+              flake = builtins.getFlake (toString ./.);
+              pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
+            in (pkgs.callPackage ./nix/pdf-cli.nix { src = flake.inputs.pdf-cli; }).goModules
+          ' 2>&1 | tee "$LOG" || true
+          HASH=$(grep -oE 'got:[[:space:]]+sha256-[A-Za-z0-9+/]+=*' "$LOG" | grep -oE 'sha256-.*' | head -1 || true)
+          if [ -z "$HASH" ]; then
+            git checkout nix/pdf-cli.nix
+            echo "::warning::pdf-cli の vendorHash を取得できなかった"
+            exit 1
+          fi
+          sed -i "s|vendorHash = \"[^\"]*\"|vendorHash = \"${HASH}\"|" nix/pdf-cli.nix
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v8.1.1
         with:
