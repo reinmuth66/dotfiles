@@ -141,8 +141,7 @@ local central_label = add_label("central", LABEL_WIDTH, LABEL.central_padding_ri
 local central_nub = add_nub("central_nub", NUB.gap, ROW_OFFSET)
 local central_outline = add_outline("central_outline", NUB.gap, ROW_OFFSET)
 
-local peripheral_label =
-	add_label("peripheral", LABEL_WIDTH, LABEL.central_padding_right - GROUP_OFFSET, -ROW_OFFSET)
+local peripheral_label = add_label("peripheral", LABEL_WIDTH, LABEL.central_padding_right - GROUP_OFFSET, -ROW_OFFSET)
 local peripheral_nub = add_nub("peripheral_nub", NUB.gap - GROUP_OFFSET, -ROW_OFFSET)
 local peripheral_outline = add_outline("peripheral_outline", PERIPHERAL_OUTLINE_PADDING_RIGHT, -ROW_OFFSET)
 
@@ -179,13 +178,7 @@ local function settle_gap()
 	end)
 end
 
--- When not connected, do not hide it but show it in a dim color. apply_group does this.
-local function hide_group(group)
-	group.nub:set({ drawing = false })
-	group.outline:set({ drawing = false })
-	group.fill:set({ drawing = false })
-	group.label:set({ drawing = false })
-end
+local ABSENT_PERIPHERAL = { level = nil, current = false, hidden = true }
 
 -- sketchybar keeps width and padding_right each independently truncated toward 0. Confirmed by verification on the actual device.
 -- Passing fractions can make the sum of width + padding_right differ from the expectation, so truncate fill_width here first.
@@ -205,7 +198,7 @@ end
 -- The label is zero-padded only for a single digit so that the width does not change between 9% and 10%. Same as battery.
 -- An item with width specified advances placement by width, so chain_width is counted as the sum of widths. See ui.hit_region_geometry.
 local function apply_group(group, state, fill_padding_right_for)
-	local color = state.current and colors.white or colors.dim
+	local color = state.hidden and colors.transparent or (state.current and colors.white or colors.dim)
 	local fill_width = state.level and fill_width_for(state.level) or 0
 	local fill_padding_right = fill_padding_right_for(fill_width)
 
@@ -309,18 +302,13 @@ local function update()
 		end
 
 		local central_state = state_from(central_fields)
-		local peripheral_state = state_from(peripheral_fields)
+		local peripheral_state = peripheral_fields and state_from(peripheral_fields) or ABSENT_PERIPHERAL
 
 		local gap_padding_right = sbar.query(gap_spacer.name).geometry.padding_right
 		sbar.begin_config()
 
 		local chain_width = apply_central(central_state)
-
-		if peripheral_fields then
-			chain_width = chain_width + apply_peripheral(peripheral_state)
-		else
-			hide_group(peripheral)
-		end
+		chain_width = chain_width + apply_peripheral(peripheral_state)
 
 		local bracket_width = apply_hit(chain_width)
 		apply_gap(chain_width, bracket_width, gap_padding_right)
