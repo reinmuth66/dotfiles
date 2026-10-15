@@ -18,16 +18,25 @@ local ITEM_PADDING = PILL_GAP / 2
 local PILL_MARGIN_Y = PILL_GAP / 2
 local PILL_HEIGHT = colors.bracket.height - 2 * PILL_MARGIN_Y
 
+-- Tray popup windows. AeroSpace has no option to ignore a window, so it tracks them (as floating, see modules/aerospace.nix).
+-- Leave them out of the workspace's app icons so that showing the popup does not add an icon.
+local IGNORED_BUNDLE_IDS = {
+	["com.zmk-battery-center.app"] = true,
+}
+
 local function refresh_space(sid, is_focused)
 	local space = spaces[sid]
 	if space == nil then
 		return
 	end
 
-	sbar.exec("aerospace list-windows --workspace " .. sid .. " --format '%{app-name}'", function(windows)
+	sbar.exec("aerospace list-windows --workspace " .. sid .. " --format '%{app-bundle-id}|%{app-name}'", function(windows)
 		local strip = {}
-		for app in (windows or ""):gmatch("[^\r\n]+") do
-			table.insert(strip, icons.app(app))
+		for line in (windows or ""):gmatch("[^\r\n]+") do
+			local bundle_id, app = line:match("^([^|]*)|(.*)$")
+			if app ~= nil and not IGNORED_BUNDLE_IDS[bundle_id] then
+				table.insert(strip, icons.app(app))
+			end
 		end
 
 		if #strip == 0 then
