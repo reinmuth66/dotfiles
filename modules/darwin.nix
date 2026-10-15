@@ -48,6 +48,16 @@
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
+  nix.gc = {
+    automatic = true;
+    interval = [{ Weekday = 1; Hour = 0; Minute = 0; }];
+    options = "--delete-older-than 7d";
+  };
+  launchd.daemons.nix-gc.serviceConfig = {
+    StandardOutPath = "/var/log/nix-gc.log";
+    StandardErrorPath = "/var/log/nix-gc.log";
+  };
+
   # nix-darwin の options.json 生成を無効化 (Nix 2.33+ の builtins.derivation 警告を抑制)
   documentation.enable = false;
 
