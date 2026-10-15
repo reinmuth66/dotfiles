@@ -1,0 +1,44 @@
+name: Update mole
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - name: Check for new release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          LATEST=$(gh release view --repo tw93/Mole --json tagName -q '.tagName')
+          CURRENT=$(grep -oP '(?<=github:tw93/mole/)V[0-9.]+' flake.nix)
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" != "$CURRENT" ]; then
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update tag and lock
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          sed -i "s|github:tw93/mole/V[0-9.]*|github:tw93/mole/${{ steps.check.outputs.latest }}|" flake.nix
+          nix flake update mole
+      - name: Create Pull Request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          commit-message: 'chore: update mole to ${{ steps.check.outputs.latest }}'
+          title: 'chore: update mole to ${{ steps.check.outputs.latest }}'
+          body: |
+            Automated update of mole from ${{ steps.check.outputs.current }} to ${{ steps.check.outputs.latest }}.
+          branch: update/mole
+          labels: dependencies
+          delete-branch: true

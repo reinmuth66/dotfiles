@@ -52,6 +52,27 @@
         "type": "github"
       }
     },
+    "mole": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1791619729,
+        "narHash": "sha256-qxkmW0MbKwg6V4IMsfS91plg/lpmM0m0WySJy50Bluw=",
+        "owner": "tw93",
+        "repo": "mole",
+        "rev": "fe32f9915787c5420f1836dbdf726566956157c1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "tw93",
+        "ref": "V1.59.1",
+        "repo": "mole",
+        "type": "github"
+      }
+    },
     "nix-darwin": {
       "inputs": {
         "nixpkgs": [
@@ -109,6 +130,7 @@
         "compress-yazi": "compress-yazi",
         "eza-preview-yazi": "eza-preview-yazi",
         "home-manager": "home-manager",
+        "mole": "mole",
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs",
         "nixpkgs-spotify": "nixpkgs-spotify",

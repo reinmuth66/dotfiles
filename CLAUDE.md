@@ -41,6 +41,7 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 | `claude.nix` | home.file (config/claude/) |
 | `czg.nix` | importNpmLock (pkgs/czg/) — conventional commit TUI |
 | `sketchybar.nix` | programs.sketchybar |
+| `mole.nix` | update-mole.yaml |
 | `cavaviz.nix` | Spotify ポップアップの背景と棒グラフを描くサウンドビジュアライザ (pkgs/cavaviz/ の CavaViz.app + cava の設定とシェーダー) |
 
 **config/ に設定ファイルを置くツール:**
@@ -54,3 +55,4 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 4. 設定ファイルが必要なら `config/<tool>/` に置き、モジュール内で `xdg.configFile` を宣言
 5. nixpkgs にない npm パッケージなら `/add-npm-pkg` スキルを使って追加
 6. Nix ストアのパスが変わるたびに macOS の権限 (Accessibility など) が外れるなら `/wrap-app-permission` スキルで .app に包む
+7. nixpkgs にない外部ツールをリリースタグに固定し、新タグが出たら自動で PR を作りたいなら `/add-auto-update-tool` スキルを使う

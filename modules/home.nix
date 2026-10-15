@@ -22,6 +22,7 @@
     ./nh.nix
     ./claude.nix
     ./zmk-battery-center.nix
+    ./mole.nix
     ./czg.nix
     ./marp.nix
     ./pdf-cli.nix

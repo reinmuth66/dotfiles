@@ -16,6 +16,10 @@
       url = "github:Gerg-L/spicetify-nix";
       inputs.nixpkgs.follows = "nixpkgs-spotify";
     };
+    mole = {
+      url = "github:tw93/mole/V1.59.1";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     yazi-flavors = {
       url = "github:yazi-rs/flavors";
       flake = false;
@@ -46,7 +50,7 @@
           home-manager.useUserPackages = true;
           home-manager.backupFileExtension = "bak";
           home-manager.extraSpecialArgs = {
-            inherit (inputs) nixpkgs-spotify spicetify-nix yazi-flavors yazi-plugins compress-yazi eza-preview-yazi;
+            inherit (inputs) nixpkgs-spotify spicetify-nix mole yazi-flavors yazi-plugins compress-yazi eza-preview-yazi;
           };
           home-manager.users.reinmuth = import ./modules/home.nix;
         }
