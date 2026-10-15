@@ -319,15 +319,15 @@ end
 
 central.label:subscribe({ "forced", "system_woke", "zmk_battery_update" }, update)
 
+-- Starting the same binary a second time makes the running app show its window (single instance), and the second process exits by itself.
+-- The running process's own path is used, so it does not depend on the Nix store path that changes with updates.
 local function toggle_main_window()
 	local script = [[
 tell application "System Events"
 	if (count of windows of process "zmk-battery-center") > 0 then
 		activate
 	else
-		tell process "zmk-battery-center"
-			perform action "AXPress" of menu item "Show" of menu 1 of menu bar item 1 of menu bar 2
-		end tell
+		do shell script "\"$(ps -o comm= -p \"$(pgrep -x zmk-battery-center | head -1)\")\" >/dev/null 2>&1 &"
 	end if
 end tell
 ]]
