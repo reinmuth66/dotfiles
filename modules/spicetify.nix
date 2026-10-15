@@ -14,7 +14,7 @@ in
 
   programs.spicetify = {
     enable = true;
-    spotifyPackage = pkgsSpotify.spotify.overrideAttrs (_: { inherit (pkgs.spotify) version src; });
+    spotifyPackage = pkgsSpotify.spotify;
     spicetifyPackage = pkgsSpotify.spicetify-cli;
     theme = spicePkgs.themes.catppuccin;
     colorScheme = "macchiato";

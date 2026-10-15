@@ -42,6 +42,7 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 | `czg.nix` | importNpmLock (pkgs/czg/) — conventional commit TUI |
 | `sketchybar.nix` | programs.sketchybar |
 | `mole.nix` | update-mole.yaml |
+| `spicetify.nix` | programs.spicetify。Spotify と spicetify-cli は nixpkgs-spotify の rev で固定し、`update-spotify.yaml` が、猶予期間・互換性・ビルドを確認してから PR で更新する |
 | `cavaviz.nix` | Spotify ポップアップの背景と棒グラフを描くサウンドビジュアライザ (pkgs/cavaviz/ の CavaViz.app + cava の設定とシェーダー) |
 
 **config/ に設定ファイルを置くツール:**

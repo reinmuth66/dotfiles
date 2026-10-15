@@ -1,0 +1,81 @@
+name: Update spotify
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+jobs:
+  decide:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      go: ${{ steps.check.outputs.go }}
+      candidate_rev: ${{ steps.check.outputs.candidate_rev }}
+      spotify: ${{ steps.check.outputs.spotify }}
+      cli: ${{ steps.check.outputs.cli }}
+      current_spotify: ${{ steps.check.outputs.current_spotify }}
+      current_cli: ${{ steps.check.outputs.current_cli }}
+      compat_low: ${{ steps.check.outputs.compat_low }}
+      compat_high: ${{ steps.check.outputs.compat_high }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - name: Check candidate
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: bash scripts/spotify-update-check.sh
+  build:
+    needs: decide
+    if: needs.decide.outputs.go == 'true'
+    runs-on: macos-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - name: Move nixpkgs-spotify to the candidate
+        env:
+          CANDIDATE_REV: ${{ needs.decide.outputs.candidate_rev }}
+        run: |
+          [ "$(grep -cE 'github:nixos/nixpkgs/[0-9a-f]{40}' flake.nix)" = 1 ]
+          perl -pi -e 's|(github:nixos/nixpkgs/)[0-9a-f]{40}|$1$ENV{CANDIDATE_REV}|' flake.nix
+          git diff --stat flake.nix
+          nix flake lock
+      - name: Build Spotify with spicetify applied
+        run: |
+          nix build --no-link \
+            '.#darwinConfigurations.ReinmuthLaptop.config.home-manager.users.reinmuth.programs.spicetify.spicedSpotify'
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          commit-message: 'chore: update spotify to ${{ needs.decide.outputs.spotify }}'
+          title: 'chore: update spotify to ${{ needs.decide.outputs.spotify }}'
+          body: |
+            Automated update of the nixpkgs-spotify pin by GitHub Actions.
+
+            | 項目 | 更新前 | 更新後 |
+            |---|---|---|
+            | Spotify | ${{ needs.decide.outputs.current_spotify }} | ${{ needs.decide.outputs.spotify }} |
+            | spicetify-cli | ${{ needs.decide.outputs.current_cli }} | ${{ needs.decide.outputs.cli }} |
+
+            - nixpkgs のコミット: https://github.com/NixOS/nixpkgs/commit/${{ needs.decide.outputs.candidate_rev }}
+            - spicetify-cli の macOS 対応範囲: ${{ needs.decide.outputs.compat_low }} から ${{ needs.decide.outputs.compat_high }}
+            - spicetify-cli のリリースノート: https://github.com/spicetify/cli/releases/tag/v${{ needs.decide.outputs.cli }}
+
+            ## 確認済み
+            - 猶予期間 (7 日)、spicetify-cli のメジャーバージョン、対応範囲、spicetify 適用済みの Spotify のビルド
+
+            ## 未確認 (switch 後に目視)
+            - Spotify が起動する
+            - テーマ (Catppuccin Macchiato) が適用されている
+            - 拡張 (shuffle、allOfArtist、adblockify) が動く
+            - sketchybar の再生表示が動く
+
+            問題があれば `sudo darwin-rebuild --rollback` で戻す。
+          branch: update/spotify
+          labels: dependencies
+          delete-branch: true
