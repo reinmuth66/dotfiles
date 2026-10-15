@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 
 {
   programs.nh = {
@@ -17,7 +17,13 @@
         "7d"
         "--keep"
         "3"
+        "--no-direnv"
       ];
+      EnvironmentVariables = {
+        PATH = "/run/current-system/sw/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+      };
+      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/nh-clean.log";
+      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/nh-clean.log";
       StartCalendarInterval = [
         { Hour = 0; Minute = 0; Weekday = 1; }
       ];
