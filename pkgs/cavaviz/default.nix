@@ -14,8 +14,9 @@
 # - sdl-fractional-position.patch: accept fractions in the window position instruction "show X Y" and place it with NSWindow's setFrameOrigin.
 #   SDL_SetWindowPosition can only specify integer pt, but a SketchyBar popup may be drawn at a half-point position
 #   when center-aligned and the item's position is x.5, which makes the background and border drawn in the window look misaligned.
-# - sdl-progress.patch: passes the playback position 0 to 1 to the shader's uniform float viz_progress. The value is written in decimal to
-#   the file at $CAVAVIZ_PROGRESS, and cava reads it each frame only when the modification time has changed.
+# - sdl-progress.patch: passes the playback position 0 to 1 to the shader's uniform float viz_progress. The file at $CAVAVIZ_PROGRESS holds
+#   "progress rate" (rate is progress per second, 0 while paused). cava takes the file's modification time as the moment the progress was
+#   true and advances it by itself, so the writer need not write every second, only when the position jumps or playback starts or stops.
 #   The control file holds only the last instruction, and writing it right after "show" would erase "show", so it is a separate file.
 #   When the value changes, it redraws once even if the bars are not moving or there is silence.
 #   The shader distinguishes the colors of played and unplayed bars. See popup.frag.

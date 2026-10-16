@@ -1,6 +1,14 @@
 --- a/output/sdl_glsl.c
 +++ b/output/sdl_glsl.c
-@@ -63,6 +63,7 @@
+@@ -54,6 +54,7 @@
+ #include <string.h>
+ #include <sys/event.h>
+ #include <sys/stat.h>
++#include <time.h>
+ #include <unistd.h>
+ #endif
+ 
+@@ -63,6 +64,7 @@
  GLint uniform_previous_bars;
  GLint uniform_bars_count;
  GLint uniform_time;
@@ -8,7 +16,7 @@
  GLint uniform_input_texture;
  GLuint fbo;
  GLuint texture;
-@@ -232,6 +233,7 @@
+@@ -232,6 +234,7 @@
      uniform_previous_bars = glGetUniformLocation(shading_program, "previous_bars");
      uniform_bars_count = glGetUniformLocation(shading_program, "bars_count");
      uniform_time = glGetUniformLocation(shading_program, "shader_time");
@@ -16,40 +24,63 @@
      uniform_input_texture = glGetUniformLocation(shading_program, "inputTexture");
  
      if (uniform_input_texture != -1) {
-@@ -349,9 +351,41 @@
+@@ -349,9 +352,64 @@
          viz_ready_pid = 0;
      }
  }
 +
-+// The playback progress (0..1) is kept in its own file, $CAVAVIZ_PROGRESS, as one decimal number, because the
-+// control file holds only the last command (a "progress" written right after a "show" would hide the "show").
-+// The file is checked once per frame (when its mtime changed) and is exposed to the shader as
++// The playback progress (0..1) is kept in its own file, $CAVAVIZ_PROGRESS, because the control file holds only
++// the last command (a "progress" written right after a "show" would hide the "show"). The file holds
++//   "P RATE"
++// where P is the progress at the moment the file was last modified (its mtime is the time base) and RATE is the
++// speed in progress per second (0 while paused). cava advances the progress by itself from that, so the writer
++// only has to write when the position jumps or playback starts or stops, not every second.
++// The file is checked once per frame (stat) and the value is exposed to the shader as
 +//   uniform float viz_progress;
 +// A change draws once even if the bars are not moving (silence), so the colours follow the playback position.
 +static float viz_progress = 0.0f;
 +static int viz_progress_dirty = 0;
 +static struct timespec viz_progress_mtime;
++static double viz_progress_base = 0.0;
++static double viz_progress_rate = 0.0;
  
 +static void viz_poll_progress(void) {
 +    const char *path = getenv("CAVAVIZ_PROGRESS");
 +    struct stat st;
 +    if (path == NULL || stat(path, &st) != 0)
 +        return;
-+    if (st.st_mtimespec.tv_sec == viz_progress_mtime.tv_sec &&
-+        st.st_mtimespec.tv_nsec == viz_progress_mtime.tv_nsec)
-+        return;
-+    viz_progress_mtime = st.st_mtimespec;
++    int rebased = 0;
++    if (st.st_mtimespec.tv_sec != viz_progress_mtime.tv_sec ||
++        st.st_mtimespec.tv_nsec != viz_progress_mtime.tv_nsec) {
++        FILE *f = fopen(path, "r");
++        if (f == NULL)
++            return;
++        double base = 0, rate = 0;
++        int n = fscanf(f, "%lf %lf", &base, &rate);
++        fclose(f);
++        // An empty file is a write in progress: keep the old mtime so that the next frame reads it again.
++        if (n < 1)
++            return;
++        viz_progress_mtime = st.st_mtimespec;
++        viz_progress_base = base < 0 ? 0 : (base > 1 ? 1 : base);
++        viz_progress_rate = (n == 2 && rate > 0) ? rate : 0;
++        rebased = 1;
++    }
 +
-+    FILE *f = fopen(path, "r");
-+    if (f == NULL)
-+        return;
-+    double value = 0;
-+    int n = fscanf(f, "%lf", &value);
-+    fclose(f);
-+    if (n != 1)
-+        return;
-+    viz_progress = (float)(value < 0 ? 0 : (value > 1 ? 1 : value));
-+    viz_progress_dirty = 1;
++    double value = viz_progress_base;
++    if (viz_progress_rate > 0) {
++        struct timespec now;
++        clock_gettime(CLOCK_REALTIME, &now);
++        double elapsed = (double)(now.tv_sec - viz_progress_mtime.tv_sec) +
++                         (double)(now.tv_nsec - viz_progress_mtime.tv_nsec) * 1e-9;
++        value += viz_progress_rate * (elapsed < 0 ? 0 : elapsed);
++        value = value > 1 ? 1 : value;
++    }
++    // Redraw only when the colour boundary moves by a visible amount (about 0.1 px of the 222 px bar area).
++    if (rebased || fabs(value - (double)viz_progress) >= 0.0005) {
++        viz_progress = (float)value;
++        viz_progress_dirty = 1;
++    }
 +}
 +
  static void viz_poll_control(void) {
@@ -58,7 +89,7 @@
      const char *path = getenv("CAVAVIZ_CONTROL");
      struct stat st;
      if (path == NULL || stat(path, &st) != 0)
-@@ -422,9 +456,16 @@
+@@ -422,9 +480,16 @@
      viz_poll_control();
      if (viz_hidden)
          re_paint = continuous_rendering = 0;

@@ -67,6 +67,8 @@ local VIZ_KILL_AGAIN = 0.6
 local VIZ_CONTROL = VIZ_RUNTIME_DIR .. "/control"
 
 -- The control file holds only the last instruction, so progress is in a separate file. See sdl-progress.patch.
+-- The file holds "<progress> <rate>", and cava advances the progress by itself from the file's modification time.
+-- It is written only when the position jumps or playback starts or stops, not every second.
 local VIZ_PROGRESS = VIZ_RUNTIME_DIR .. "/progress"
 
 -- While "off", cava has no tap and the recording indicator also disappears. See tap-gate.patch.
@@ -279,35 +281,43 @@ local showing_art = false
 local open_session = ui.latest()
 local SNAP_BACK = 1.5
 
--- When the position is unknown, i.e. shown is nil or the track length is 0, write 0. Do not leave the previous track's position.
+-- Playing or not. Defined here because write_progress needs it. It is changed by set_spinning.
+local spinning = false
+
+-- The file's modification time is the moment the progress is true, and cava advances it by rate per second from there.
+-- rate is 0 while paused. When the position is unknown, i.e. shown is nil or the track length is 0, write 0 and 0.
+-- Do not leave the previous track's position. Atomic so that cava never reads a half-written file.
 local function write_progress()
-	local progress = 0
+	local progress, rate = 0, 0
 	if shown ~= nil and duration > 0 then
 		progress = math.min(1, shown / duration)
+		rate = spinning and 1 / duration or 0
 	end
-	fs.write(VIZ_PROGRESS, string.format("%.4f", progress))
+	fs.write_atomic(VIZ_PROGRESS, string.format("%.4f %.6f", progress, rate))
 end
 
 -- position is fractional seconds. If new_duration is nil, keep the previous value.
 -- Do not move the display back on small corrections during playback. This keeps the bar color boundary from moving back.
+-- Write only when the displayed position was changed. cava keeps advancing from the previous write while it is left as is.
 local function rebase(position, new_duration, playing, force)
+	local previous_duration = duration
 	duration = new_duration or duration
+	local moved = duration ~= previous_duration
 	if shown == nil or force or not playing or not popup_open or position >= shown or position < shown - SNAP_BACK then
 		shown = math.floor(position)
+		moved = true
 	end
-	if popup_open then
+	if moved and popup_open then
 		write_progress()
 	end
 end
 
+-- Only keeps shown in step with the clock. cava advances the bar by itself, so nothing is written.
 local function step_time()
 	if shown == nil or shown >= math.floor(duration) then
 		return
 	end
 	shown = shown + 1
-	if popup_open then
-		write_progress()
-	end
 end
 
 -- done is called after the result is applied or has failed. It may be nil.
@@ -423,7 +433,6 @@ local pin = ui.pin(update_border)
 -- ui.timer manages it by generation, so no old loop remains even if stop -> play follows in quick succession.
 -- The angle is not reset on stop; the next playback continues from the stopped angle.
 local angle = 0
-local spinning = false
 local spin_timer = ui.timer()
 
 local function tick()
@@ -435,9 +444,10 @@ end
 
 -- Do not advance at the moment of start; wait one period and then advance the first step.
 -- If it advanced immediately, rapidly repeating play and stop would advance the rotation each time.
+-- Returns true if the state changed.
 local function set_spinning(on)
 	if on == spinning then
-		return
+		return false
 	end
 	spinning = on
 	if on then
@@ -445,6 +455,7 @@ local function set_spinning(on)
 	else
 		spin_timer.cancel()
 	end
+	return true
 end
 
 -- The initial color of the cover is on the dark side, so do nothing if the initial state is dark.
@@ -517,9 +528,45 @@ local VIZ_OPEN = [[
 open -n -a %q --env XDG_CONFIG_HOME=%q --env CAVAVIZ_CONTROL=%q --env CAVAVIZ_PROGRESS=%q --env CAVAVIZ_AUDIO=%q --env CAVAVIZ_READY_BIN="$(command -v sketchybar)" --env CAVAVIZ_READY_EVENT=%s --env CAVAVIZ_READY_ID=%d --stderr /dev/null --args -p %q
 ]]
 
+-- The three files below are written only when the content differs from what was written last. The notifications
+-- repeat the same state, and every hover launches cava again with the same config. The last written content is
+-- kept in memory, so the first write after a reload always goes through. Nothing else writes these files.
+-- If a write fails, the content is not remembered, so the next call tries again.
+local audio_written = nil
+local config_written = nil
+local control_written = nil
+
 -- cava checks every 100ms and creates or releases the tap.
 local function write_audio(on)
-	fs.write(VIZ_AUDIO, on and "on" or "off")
+	local text = on and "on" or "off"
+	if text ~= audio_written and fs.write(VIZ_AUDIO, text) then
+		audio_written = text
+	end
+end
+
+-- Atomic because cava re-reads it on SIGUSR2 while running. Returns true if the file has the content.
+local function viz_write_config(config)
+	if config == config_written then
+		return true
+	end
+	if fs.write_atomic(VIZ_CONFIG, config) then
+		config_written = config
+		return true
+	end
+	return false
+end
+
+-- Written in Lua rather than by a shell, so the writes keep their order. A "show" delayed behind a later "hide" would leave the window visible.
+-- Skipping a repeated "hide" is safe because a new cava reads the file at startup and so sees "hide".
+local function viz_control(text)
+	if text == control_written then
+		return true
+	end
+	if fs.write(VIZ_CONTROL, text) then
+		control_written = text
+		return true
+	end
+	return false
 end
 
 -- If writing the output or the control file fails, do not launch.
@@ -529,7 +576,7 @@ local function viz_launch(id)
 	viz.applied = viz_look()
 	write_audio(spinning)
 	local config = viz_render_config()
-	if not (config and fs.write(VIZ_CONFIG, config) and fs.write(VIZ_CONTROL, "hide")) then
+	if not (config and viz_write_config(config) and viz_control("hide")) then
 		return
 	end
 	sbar.exec(
@@ -559,13 +606,9 @@ local function viz_apply_color()
 	end
 	viz.applied = viz_look()
 	local config = viz_render_config()
-	if config and fs.write_atomic(VIZ_CONFIG, config) then
+	if config and viz_write_config(config) then
 		sbar.exec(VIZ_RECOLOR)
 	end
-end
-
-local function viz_control(text)
-	sbar.exec(string.format("printf %%s %q > %q", text, VIZ_CONTROL))
 end
 
 local function viz_take_background()
@@ -619,7 +662,7 @@ end
 -- Writing to the control file is done synchronously in Lua without waiting for a shell to launch.
 -- cava wakes immediately on the write and hides the window. It disappears in about 0.02 seconds.
 local function viz_hide_now()
-	fs.write(VIZ_CONTROL, "hide")
+	viz_control("hide")
 end
 
 -- Restore the popup's own background first. The window is hidden right after.
@@ -834,10 +877,14 @@ local function apply(state, track_id, meta, timing)
 		if meta then
 			set_popup_info(meta)
 		end
+		-- Before rebase, so that the progress file written there has the new rate. Without timing nothing is
+		-- rebased, but cava still has to be told that it started or stopped advancing.
+		local flipped = set_spinning(playing)
 		if timing then
 			rebase(timing.position, timing.duration, playing, changed)
+		elseif flipped and popup_open then
+			write_progress()
 		end
-		set_spinning(playing)
 		set_lit(playing)
 		write_audio(playing)
 		viz_start()
