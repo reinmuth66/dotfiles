@@ -14,50 +14,31 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 
 `nh darwin switch`を行うまで実際の環境には反映されない。ただし、そのコマンドはユーザーが実行する。
 
-## アーキテクチャのポイント
+## 新しいツールを追加する
 
-**パッケージ管理の分担:**
+追加先は、次の順に探して、最初に当てはまるものを使う。
 
-追加先は、次の順に探して最初に当てはまるものを使う: nixpkgs `programs.*` → nixpkgs `home.packages` → Homebrew casks。どれにも無い場合に、`importNpmLock` などで固定する。
+1. nixpkgs に `programs.*` がある — `modules/<tool>.nix` を新規作成し、`modules/home.nix` の `imports` に追加する
+2. nixpkgs にあるが `programs.*` が無い、設定不要な CLI ツール — `modules/home.nix` の `home.packages` に追加する
+3. nixpkgs にない GUI アプリ — `modules/darwin.nix` の `homebrew.casks` に追加する
+4. 上のどれにも当てはまらない場合は、固定して持つ。
+   - nixpkgs にない npm パッケージ: `/add-npm-pkg` スキルを使う (`pkgs/<tool>/` に `importNpmLock` で置く。実例は `czg`)
+   - nixpkgs にない外部ツールをリリースタグに固定し、新タグが出たら自動で PR を作りたい: `/add-auto-update-tool` スキルを使う。自動更新のワークフローは、失敗を Issue にする `.github/actions/notify-failure` を呼ぶ
+   - `fetchFromGitHub` + `rev` 固定で持つソースを自動更新したい: `flake = false` の input にする (`/add-auto-update-tool` スキルの方式 C)。実例は `catppuccin-bat`、`zeno-zsh`、`pdf-cli`
 
-- nixpkgs `programs.*` (各 `modules/<tool>.nix`) — CLI ツールの設定を含む管理
-- nixpkgs `home.packages` (`modules/home.nix`) — 設定不要な CLI ツール
-- Homebrew casks (`modules/darwin.nix`) — nixpkgs にない GUI アプリ
-- `importNpmLock` (`pkgs/<tool>/`) — nixpkgs にない npm パッケージ
+## 設定ファイルと補足
 
-**モジュール構成:**
+- 設定ファイルは、`programs.*` で表現できない、または Lua や JSON-with-comments など Nix に変換しにくい場合に、`config/<tool>/` に置く。モジュール内で `xdg.configFile` を宣言する。
+- Nix ストアのパスが変わるたびに macOS の権限 (Accessibility など) が外れるなら、`/wrap-app-permission` スキルで `.app` に包む。
+- `~/.claude/CLAUDE.md` と `statusline.sh` は、`modules/claude.nix` が `config/claude/` から配る。
 
-| モジュール | 内容 |
-|---|---|
-| `zsh.nix` | zsh、zoxide、direnv、fzf |
-| `git.nix` | programs.git、programs.delta、programs.lazygit |
-| `atuin.nix` | programs.atuin |
-| `bat.nix` | programs.bat |
-| `bottom.nix` | programs.bottom|
-| `gh.nix` | programs.gh |
-| `starship.nix` | programs.starship|
-| `ghostty.nix` | xdg.configFile (config/ghostty/config) |
-| `zed.nix` | xdg.configFile (config/zed/) |
-| `wezterm.nix` | xdg.configFile (config/wezterm/) |
-| `nvim.nix` | neovim パッケージ + xdg.configFile (config/nvim/) |
-| `yazi.nix` | yazi パッケージ + xdg.configFile (config/yazi/ + プラグイン) |
-| `claude.nix` | home.file (config/claude/) |
-| `czg.nix` | importNpmLock (pkgs/czg/) — conventional commit TUI |
-| `sketchybar.nix` | programs.sketchybar |
-| `mole.nix` | update-mole.yaml |
-| `spicetify.nix` | programs.spicetify。Spotify と spicetify-cli は nixpkgs-spotify の rev で固定し、`update-spotify.yaml` が、猶予期間・互換性・ビルドを確認してから PR で更新する |
-| `cavaviz.nix` | Spotify ポップアップの背景と棒グラフを描くサウンドビジュアライザ (pkgs/cavaviz/ の CavaViz.app + cava の設定とシェーダー) |
+## モジュールの補足
 
-**config/ に設定ファイルを置くツール:**
-- `programs.*` で表現できない、または Lua/JSON-with-comments など Nix に変換しにくいもの
-- ghostty、zed、wezterm、nvim、yazi、claude、sketchybar
+モジュールの一覧は持たない (`ls modules/` で分かる)。コードから分からないことだけを、ここに書く。
 
-**新しいツールを追加する手順:**
-1. `programs.*` サポートがあるなら `modules/<tool>.nix` を新規作成し `home.nix` の `imports` に追加
-2. 設定不要な CLI ツールなら `modules/home.nix` の `home.packages` に追加
-3. GUI アプリなら `modules/darwin.nix` の `homebrew.casks` に追加
-4. 設定ファイルが必要なら `config/<tool>/` に置き、モジュール内で `xdg.configFile` を宣言
-5. nixpkgs にない npm パッケージなら `/add-npm-pkg` スキルを使って追加
-6. Nix ストアのパスが変わるたびに macOS の権限 (Accessibility など) が外れるなら `/wrap-app-permission` スキルで .app に包む
-7. nixpkgs にない外部ツールをリリースタグに固定し、新タグが出たら自動で PR を作りたいなら `/add-auto-update-tool` スキルを使う。自動更新のワークフローは、失敗を Issue にする `.github/actions/notify-failure` を呼ぶ
-8. `fetchFromGitHub` + `rev` 固定で持つソースを自動更新したいなら、`flake = false` の input にする (`/add-auto-update-tool` スキルの方式 C)。`catppuccin-bat`、`zeno-zsh`、`pdf-cli` が実例
+- `zsh.nix`: zsh のほかに、zoxide、direnv、fzf の設定も含む
+- `git.nix`: git のほかに、delta と lazygit の設定も含む
+- `spicetify.nix`: Spotify と spicetify-cli は nixpkgs-spotify の rev で固定し、`update-spotify.yaml` が、猶予期間・互換性・ビルドを確認してから PR で更新する
+- `cavaviz.nix`: Spotify ポップアップの背景と棒グラフを描くサウンドビジュアライザ。`pkgs/cavaviz/` の CavaViz.app と、cava の設定とシェーダーからなる
+- `mole.nix`: タグ固定の flake input。`update-mole.yaml` が新しいリリースで PR を作る
+- `czg.nix`: conventional commit の TUI。`importNpmLock` で `pkgs/czg/` から作る
