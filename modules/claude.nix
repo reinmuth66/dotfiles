@@ -7,7 +7,5 @@
       source = ../config/claude/statusline.sh;
       executable = true;
     };
-    ".claude/commands".source = ../config/claude/commands;
-    ".claude/agents".source = ../config/claude/agents;
   };
 }
