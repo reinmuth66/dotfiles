@@ -17,6 +17,9 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 ## アーキテクチャのポイント
 
 **パッケージ管理の分担:**
+
+追加先は、次の順に探して最初に当てはまるものを使う: nixpkgs `programs.*` → nixpkgs `home.packages` → Homebrew casks。どれにも無い場合に、`importNpmLock` などで固定する。
+
 - nixpkgs `programs.*` (各 `modules/<tool>.nix`) — CLI ツールの設定を含む管理
 - nixpkgs `home.packages` (`modules/home.nix`) — 設定不要な CLI ツール
 - Homebrew casks (`modules/darwin.nix`) — nixpkgs にない GUI アプリ
