@@ -94,8 +94,6 @@ Run every `npm` in the steps as `nix shell nixpkgs#nodejs -c npm ...`. Installin
    In that case, pass a harmless argument and check the tool's own output (for `kill-port`, pass an unused port number and it prints `No process running on port`).
    If `No such file or directory` appears, fix the bin name or the wrapper. Checking only that the file exists with `ls $out/bin/` is not enough (a wrapper with the wrong bin name exists too).
 
-7. **Add one row to the "モジュール構成" (module structure) table in CLAUDE.md.** See the `czg.nix` row for an example.
-
 ## Applying to the machine
 
 The user runs `nh darwin switch ~/dotfiles`. Claude does not run it. Commit only when the user asks.
