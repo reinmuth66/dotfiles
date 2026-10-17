@@ -3,89 +3,89 @@ name: wrap-app-permission
 description: "Stop macOS permissions (Accessibility, Screen/Audio Recording) from resetting after each flake update by wrapping a Nix-store process in an .app with a fixed-identifier signature. Use for repeated permission prompts, TCC issues, or launchd agents such as sketchybar and cava, even if this skill is not named."
 ---
 
-# Keep macOS permissions that reset on every update by wrapping the process in an .app
+# 更新のたびに外れる macOS 権限を .app で維持する
 
-Even after you grant a macOS permission to a program installed with Nix, the permission comes off every time you update the flake and the prompt appears again.
-Fix this by wrapping the program in an `.app`.
+Nix で入れたプログラムに macOS の権限を与えても、flake を更新するたびに許可が外れて再びプロンプトが出る。
+この問題を、プログラムを `.app` に包んで直す。
 
-Argument: `<the target program or launchd agent>`. Example: `sketchybar`.
+引数は `<対象のプログラムまたは launchd agent>`。例: `sketchybar`。
 
-## Background: why it comes off (confirmed on the actual machine)
+## 背景: なぜ外れるのか (実機で確認済み)
 
-Every decision in the steps rests on this mechanism.
+手順の各判断は、次の仕組みに基づく。
 
-- TCC attaches a permission to the "responsible process". The responsible process is the first non-Apple executable exec'd after launchd's `/bin/sh`,
-  and once decided it does not change on later execs. Permission requests from child processes (osascript and helper commands) are attributed to this responsible process.
-- If the responsible process is not the main executable of an `.app`, the permission is recorded by the executable's "path".
-  Nix store paths change on every update, so each time it becomes a different thing.
-- For a shell-script wrapper (the product of `makeWrapper` or `wrapProgram`), the shebang's bash becomes the responsible process.
-  The permission attaches not to the real binary but to a bash path that changes on nixpkgs updates. This is what was happening with sketchybar.
-- For the main executable of an `.app`, tccd attributes it to the bundle ID (`BUNDLE_ATTRIBUTION` in the log).
-  If the signature's designated requirement is only the identifier, it is treated as the same thing even when the contents change.
-  The default requirement of an ad-hoc signature is the cdhash, which changes on every update.
+- TCC は、許可を「責任プロセス」に紐づける。責任プロセスは、launchd の `/bin/sh` の次に exec された最初の非 Apple 実行ファイルで、
+  一度決まると後続の exec では変わらない。子プロセス (osascript や補助コマンド) の権限要求も、この責任プロセスに帰属する。
+- 責任プロセスが `.app` の main executable でなければ、許可は実行ファイルの「パス」で記録される。
+  Nix ストアのパスは更新で変わるので、そのたびに別物になる。
+- シェルスクリプトの wrapper (`makeWrapper` や `wrapProgram` の産物) は shebang の bash が責任プロセスになる。
+  実体のバイナリではなく、nixpkgs 更新で変わる bash のパスに許可が付く。これが sketchybar で起きていたこと。
+- `.app` の main executable なら、tccd はバンドル ID に帰属させる (ログの `BUNDLE_ATTRIBUTION`)。
+  署名の designated requirement を identifier だけにすれば、中身が変わっても同じものとして扱われる。
+  ad-hoc 署名の既定の requirement は cdhash で、更新のたびに変わる。
 
-## Steps
+## 手順
 
-### 0. First check whether the permission is really needed
+### 0. 本当に権限が必要かを先に確認する
 
-If you can avoid using the permission, that is the cheapest fix. `borders` (JankyBorders) called
-`AXIsProcessTrusted()` at startup for a feature that was not in use, and macOS recorded a denied row for each store path.
-It was fixed by removing the call with a patch, as in `modules/jankyborders.nix`.
+権限を使わずに済むなら、それが最も安い。`borders` (JankyBorders) は、使っていない機能のために起動時に
+`AXIsProcessTrusted()` を呼び、macOS がストアパスごとに拒否の行を記録していた。
+`modules/jankyborders.nix` のように、パッチで呼び出しを外して解決した。
 
-See who requests the permission in the tccd log. `log` collides with a zsh builtin, so call it by absolute path.
+誰が権限を要求しているかは tccd のログで見る。`log` は zsh のビルトインと衝突するので絶対パスで呼ぶ。
 
 ```bash
 /usr/bin/log show --last 1h --info --debug --style compact \
   --predicate 'process == "tccd" AND eventMessage CONTAINS "AttributionChain"' | grep -v apple | head
 ```
 
-- `responsible_path` is what the permission attaches to, and `accessing` is the child process that actually requested it.
-- The current permissions can be read from the system-side TCC database (if the terminal has Full Disk Access).
+- `responsible_path` が許可の付く対象、`accessing` が実際に要求した子プロセス。
+- 現在の許可は、システム側の TCC データベースで読める (端末に Full Disk Access がある場合)。
 
   ```bash
   sqlite3 -readonly "/Library/Application Support/com.apple.TCC/TCC.db" \
     "select service, client, client_type, auth_value, datetime(last_modified,'unixepoch','localtime') from access where service like 'kTCCService%' order by last_modified"
   ```
 
-  `client_type` 1 means per path, and 0 means per bundle ID. If a per-path row is `/nix/store/...`, this procedure applies.
-  User-domain permissions (Microphone, Automation, etc.) are in `~/Library/Application Support/com.apple.TCC/TCC.db`.
+  `client_type` が 1 ならパス単位、0 ならバンドル ID 単位。パス単位の行が `/nix/store/...` なら、この手順の対象。
+  ユーザー領域の許可 (Microphone、Automation など) は `~/Library/Application Support/com.apple.TCC/TCC.db` にある。
 
-### 1. Choose the type
+### 1. 型を選ぶ
 
-| Target | Type | Example |
+| 対象 | 型 | 実例 |
 |---|---|---|
-| A single Mach-O (e.g. cava) | Put the binary in the .app and start it with `open` or launchd | `pkgs/cavaviz/default.nix` |
-| Goes through a shell-script wrapper (e.g. the wrapper from `programs.*`) | Put only a small launcher in the .app and have it exec the wrapper | `pkgs/sketchybar-app/` |
+| 単体の Mach-O (cava など) | 本体を .app に入れ、`open` か launchd で起動する | `pkgs/cavaviz/default.nix` |
+| shell script の wrapper を経由する (`programs.*` の wrapper など) | 小さなランチャーだけを .app に入れ、wrapper を exec させる | `pkgs/sketchybar-app/` |
 
-When there is a wrapper, choose the launcher type. The type that copies the real binary into the .app must reproduce the PATH and LUA_PATH that the wrapper set up
-with launchd's `EnvironmentVariables`. With the launcher type, the wrapper builds that environment as before.
+wrapper がある場合はランチャー型を選ぶ。実体のバイナリを .app にコピーする型は、wrapper が整えていた PATH や LUA_PATH を
+launchd の `EnvironmentVariables` で再現しなければならない。ランチャー型なら wrapper がそのまま環境を作る。
 
-### 2. Implement the launcher type
+### 2. ランチャー型の実装
 
-Copy `main.c` and `default.nix` from `pkgs/sketchybar-app/` to `pkgs/<tool>-app/` and rewrite these.
+`pkgs/sketchybar-app/` の `main.c` と `default.nix` を `pkgs/<tool>-app/` にコピーし、次を書き換える。
 
-- In `default.nix`: `identifier` (`local.dotfiles.<tool>`), `name`, the .app name, the launcher's executable name, `CFBundleName`, `CFBundleExecutable`
-- In `main.c`: the `perror` message
+- `default.nix` の `identifier` (`local.dotfiles.<tool>`)、`name`、`.app` 名、ランチャーの実行ファイル名、`CFBundleName`、`CFBundleExecutable`
+- `main.c` の `perror` のメッセージ
 
-Leave these points in `default.nix` as they are. Removing them stops the permission from being kept.
+`default.nix` の次の点は、書き換えずに残す。外すと、許可が維持されなくなる。
 
-- `dontFixup = true`: Darwin's fixup re-signs the Mach-O and overwrites the designated requirement.
-- `/usr/bin/codesign --force --sign - -r='designated => identifier "${identifier}"' $app`: makes the requirement only the identifier.
-  macOS's standard codesign can be called during the build thanks to `nix.settings.sandbox = false`. With the sandbox enabled, the build fails.
-- `CFBundleIdentifier` and `CFBundleExecutable` in `Info.plist`: needed for attribution to the bundle ID. `LSUIElement` keeps it out of the Dock and menu bar.
-- If the permission you need requires a TCC usage description, add a key such as `NSAudioCaptureUsageDescription`.
+- `dontFixup = true`: Darwin の fixup が Mach-O を再署名し、designated requirement を上書きするため。
+- `/usr/bin/codesign --force --sign - -r='designated => identifier "${identifier}"' $app`: requirement を identifier だけにするため。
+  macOS 標準の codesign は `nix.settings.sandbox = false` のおかげでビルド中に呼べる。サンドボックスを有効にするとビルドは失敗する。
+- `Info.plist` の `CFBundleIdentifier` と `CFBundleExecutable`: バンドル ID への帰属に要る。`LSUIElement` は Dock やメニューバーに出さないため。
+- 必要な権限が TCC の説明文を要求するものなら、`NSAudioCaptureUsageDescription` のようなキーを足す。
 
-Pass only the wrapper's path as `target`. The signature's requirement is only the identifier, so the permission is kept even when the wrapper's store path changes on updates.
+`target` には wrapper のパスだけを渡す。署名の requirement は identifier のみなので、wrapper のストアパスが更新で変わっても許可は維持される。
 
-### 3. Swap the launchd agent
+### 3. launchd agent を差し替える
 
-In `modules/<tool>.nix`, make launchd start the launcher instead of the wrapper directly. See `modules/sketchybar.nix` for an example.
-`programs.*` sets `Program`, so `lib.mkForce` is needed.
+`modules/<tool>.nix` で、wrapper を直接ではなくランチャーを起動させる。実例は `modules/sketchybar.nix`。
+`programs.*` が `Program` を設定しているので、`lib.mkForce` が要る。
 
 ```nix
 let
   app = pkgs.callPackage ../pkgs/<tool>-app {
-    target = lib.getExe config.programs.<tool>.finalPackage; # the existing wrapper
+    target = lib.getExe config.programs.<tool>.finalPackage; # 既存の wrapper
   };
 in
 {
@@ -94,29 +94,29 @@ in
 }
 ```
 
-- home-manager converts `ProgramArguments` into `/bin/sh -c "wait4path && exec <Program>"`. `sh` is an Apple binary, so it does not become the responsible process, and the launcher does.
-- Make the new files visible to the flake with `git add -N pkgs/<tool>-app`.
+- home-manager は `ProgramArguments` を `/bin/sh -c "wait4path && exec <Program>"` に変換する。`sh` は Apple のバイナリなので責任プロセスにならず、ランチャーが責任プロセスになる。
+- 新しいファイルは `git add -N pkgs/<tool>-app` で flake から見えるようにする。
 
-### 4. Build and verify
+### 4. ビルドと検証
 
 ```bash
 nix build --no-link '.#darwinConfigurations.ReinmuthLaptop.config.home-manager.users.reinmuth.home.activationPackage'
-app=<the .app that was output>
-codesign -d -r- $app                 # should show: designated => identifier "local.dotfiles.<tool>"
+app=<出力された .app>
+codesign -d -r- $app                 # designated => identifier "local.dotfiles.<tool>" と出ること
 codesign --verify --strict $app
 ```
 
-The user applies it with `nh darwin switch ~/dotfiles`. Claude does not run it. After switching, tell the user to confirm the following.
+適用は、ユーザーが `nh darwin switch ~/dotfiles` で行う。Claude は実行しない。切り替え後に、ユーザーへ次を確かめるよう伝える。
 
-- With `/usr/bin/log show`, `responsible_path` is `<Tool>.app/Contents/MacOS/<tool>-launcher`.
-- The prompt appears only the first time. Once allowed, it does not appear on later flake updates.
+- `/usr/bin/log show` で、`responsible_path` が `<Tool>.app/Contents/MacOS/<tool>-launcher` になっていること。
+- 初回だけプロンプトが出る。許可すれば、以降の flake 更新では出ない。
 
-### 5. Cleanup (done by the user)
+### 5. 後始末 (ユーザーが行う)
 
-- Entries for the old `bash` or old store paths that remain in the permission list of System Settings can be removed manually with "−".
-- `tccutil reset <Service>` clears the permission for the whole service, including other apps. Passing a bundle identifier clears only that app.
+- システム設定の権限一覧に残った旧 `bash` や旧ストアパスの項目は、手動で「−」で削除できる。
+- `tccutil reset <Service>` は、サービス全体の許可を消すので他のアプリのものまで消える。bundle identifier を渡せば、そのアプリだけを消せる。
 
-## Notes
+## 注意
 
-- Changing the identifier makes the permission have to be granted again. Once decided, do not change the identifier.
-- Unless the path changes, this procedure is unnecessary. An .app in `/Applications` or from a Homebrew cask is already handled by signature and bundle ID.
+- identifier を変えると許可は付け直しになる。identifier は決めたら変えない。
+- パスが変わらない限り、この手順は不要。`/Applications` や Homebrew cask の .app は、すでに署名とバンドル ID で扱われる。

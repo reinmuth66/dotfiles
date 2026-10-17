@@ -3,28 +3,28 @@ name: add-npm-pkg
 description: "Add an npm CLI missing from nixpkgs via importNpmLock (pkgs/<tool>/ lockfile, modules/<tool>.nix wrapper). Use whenever asked to install or Nix-manage an npm package, replace `npm install -g`, or add a node tool nixpkgs lacks, even if this skill is not named."
 ---
 
-# Add an npm package to the Nix environment
+# npm パッケージを Nix 環境に追加
 
-Add an npm package that does not exist in nixpkgs to the nix-darwin environment with `importNpmLock`.
-Do not use `npm install -g`, because it breaks reproducibility. Keep the lock file in the repository and let Nix build from it.
+nixpkgs に存在しない npm パッケージを `importNpmLock` で nix-darwin 環境に追加する。
+`npm install -g` は環境の再現性を壊すので使わず、lock ファイルをリポジトリに持たせて Nix にビルドさせる。
 
-Arguments: `<tool> [version]`. If `version` is omitted, use the result of `nix shell nixpkgs#nodejs -c npm view <tool> version`.
-The existing examples are `pkgs/czg/` and `modules/czg.nix`. When unsure, copy these two as a template and rewrite them.
+引数は `<tool> [version]`。`version` を省略したら `nix shell nixpkgs#nodejs -c npm view <tool> version` の結果を使う。
+実例は `pkgs/czg/` と `modules/czg.nix`。迷ったら、この 2 つを雛形にコピーして書き換える。
 
-Distinguish two kinds of names.
-- `<tool>`: the official npm package name (e.g. `fkill-cli`). Use this official name as-is for `pkgs/<tool>/` and `modules/<tool>.nix`. A scoped package (`@scope/name`) cannot be used as a directory name, so use the `name` part.
-- `<bin>`: the command name. It is a key of `bin` in `package.json` and can differ from the package name (the command of `fkill-cli` is `fkill`). Use it for the wrapper's name and the target it calls.
+名前は 2 種類を区別する。
+- `<tool>`: npm の正式なパッケージ名 (例: `fkill-cli`)。`pkgs/<tool>/` と `modules/<tool>.nix` の名前にも、この正式名称をそのまま使う。スコープ付き (`@scope/name`) はディレクトリ名に使えないので、`name` の部分を使う。
+- `<bin>`: コマンド名。`package.json` の `bin` のキーで、パッケージ名と違うことがある (`fkill-cli` のコマンドは `fkill`)。wrapper の名前と呼び出し先に使う。
 
-## Use npm only temporarily
+## npm は一時的に使う
 
-`npm` is not on the PATH in this environment (Nix manages tools, so it is not installed globally).
-Run every `npm` in the steps as `nix shell nixpkgs#nodejs -c npm ...`. Installing it permanently with `npm install -g` or `nix profile` breaks reproducibility.
+この環境の PATH に `npm` はない (Nix で管理するので、グローバルには入れない)。
+手順の `npm` は、`nix shell nixpkgs#nodejs -c npm ...` で一時的に使う。`npm install -g` や `nix profile` で恒久的に入れると、環境の再現性が崩れる。
 
-## Steps
+## 手順
 
-1. **Create package.json.** Name it `<tool>-nix` so it does not collide with anything. Set `private: true` and put the target in `dependencies`.
-   If the CLI loads extra plugins or peer dependencies at runtime, list them in `dependencies` too (`pkgs/czg/package.json` lists `czg` and `cz-git`).
-   Also look up the command name `<bin>` with `nix shell nixpkgs#nodejs -c npm view <tool> bin` (used in steps 3 and 6).
+1. **package.json を作る。** `name` は他と衝突しない `<tool>-nix` にする。`private: true` で、対象を `dependencies` に入れる。
+   CLI が追加のプラグインや peer 依存を実行時に読み込むなら、それも `dependencies` に並べる (`pkgs/czg/package.json` が `czg` と `cz-git` を並べている)。
+   あわせて、コマンド名 `<bin>` を `nix shell nixpkgs#nodejs -c npm view <tool> bin` で調べておく (手順 3 と 6 で使う)。
 
    ```bash
    mkdir -p pkgs/<tool>
@@ -34,21 +34,21 @@ Run every `npm` in the steps as `nix shell nixpkgs#nodejs -c npm ...`. Installin
      "version": "1.0.0",
      "private": true,
      "dependencies": {
-       "<tool>": "<the version you checked>"
+       "<tool>": "<確認したバージョン>"
      }
    }
    EOF
    ```
 
-2. **Create package-lock.json.** `importNpmLock` builds from the hashes in the lock file, so the lock file is required.
-   `--package-lock-only` avoids creating node_modules.
+2. **package-lock.json を作る。** `importNpmLock` は lock のハッシュからビルドするので、lock が必須。
+   `--package-lock-only` を付けると node_modules を作らずに済む。
 
    ```bash
    cd pkgs/<tool> && nix shell nixpkgs#nodejs -c npm install --package-lock-only
    ```
 
-3. **Create modules/<tool>.nix.** The wrapper calls the output of `buildNodeModules`.
-   `NODE_PATH` is set so that the CLI can resolve its dependencies with `require`.
+3. **modules/<tool>.nix を作る。** `buildNodeModules` の出力を wrapper から呼ぶ。
+   `NODE_PATH` を渡すのは、CLI が依存を `require` で解決できるようにするため。
 
    ```nix
    { pkgs, ... }:
@@ -67,21 +67,21 @@ Run every `npm` in the steps as `nix shell nixpkgs#nodejs -c npm ...`. Installin
    }
    ```
 
-   Even when `<bin>` differs from `<tool>`, the wrapper's name and the `.bin/` target are `<bin>`. If you leave them as `<tool>`, the build still passes but the command fails at runtime with `No such file or directory`.
+   `<bin>` が `<tool>` と違う場合も、wrapper の名前と `.bin/` の呼び先は `<bin>` にする。`<tool>` のままにすると、ビルドは通っても、実行時に `No such file or directory` で失敗する。
 
-4. **Add `./<tool>.nix` to the imports of modules/home.nix.**
+4. **modules/home.nix の imports に `./<tool>.nix` を足す。**
 
-5. **Make the files visible to the flake.** A flake reads only files that git tracks. Mark new files as intent-to-add.
+5. **flake から見えるようにする。** flake は git が追跡しているファイルしか読まない。新規ファイルは intent-to-add にする。
 
    ```bash
    git add -N pkgs/<tool> modules/<tool>.nix
    ```
 
-6. **Build, then actually run the command.** A passing build misses these two failures:
-   - If you forget to add the module to the imports of `home.nix`, the build still passes.
-   - If the wrapper calls the wrong bin name, the build still passes. The wrapper is a shell script, so its content is not verified until it runs.
+6. **ビルドして、コマンドを実際に実行する。** ビルドが通るだけでは、次の 2 つの失敗を見逃す。
+   - モジュールを `home.nix` の imports に足し忘れても、ビルドは通る。
+   - wrapper が呼ぶ bin 名を間違えても、ビルドは通る。wrapper はシェルスクリプトなので、中身は実行するまで検証されない。
 
-   So build the whole system first, then build `home.path` (what goes into the user's environment) and run the command.
+   そこで、まずシステム全体をビルドし、次にユーザーの環境に入る `home.path` を作って、コマンドを実行する。
 
    ```bash
    nix build --no-link .#darwinConfigurations.ReinmuthLaptop.system
@@ -89,16 +89,16 @@ Run every `npm` in the steps as `nix shell nixpkgs#nodejs -c npm ...`. Installin
    $out/bin/<bin> --version
    ```
 
-   For a tool without `--version`, use a side-effect-free argument such as `--help`.
-   Some tools print nothing for either (`kill-port` exits silently for both `--version` and `--help`). With no output you cannot tell whether it worked.
-   In that case, pass a harmless argument and check the tool's own output (for `kill-port`, pass an unused port number and it prints `No process running on port`).
-   If `No such file or directory` appears, fix the bin name or the wrapper. Checking only that the file exists with `ls $out/bin/` is not enough (a wrapper with the wrong bin name exists too).
+   `--version` が無いツールは `--help` など、副作用のない引数にする。
+   どちらも何も出力しないツールがある (`kill-port` は、`--version` も `--help` も無言で終わる)。出力が無いと、動いたのか判断できない。
+   その場合は、無害な引数を渡して、そのツール固有の出力で確認する (`kill-port` なら、使っていないポート番号を渡すと `No process running on port` と出る)。
+   `No such file or directory` が出たら、bin 名か wrapper を直す。`ls $out/bin/` で存在を見るだけでは足りない (bin 名を間違えた wrapper も存在する)。
 
-## Applying to the machine
+## 実機への反映
 
-The user runs `nh darwin switch ~/dotfiles`. Claude does not run it. Commit only when the user asks.
-Tell the user to confirm startup after switching with a side-effect-free command such as `<bin> --version`.
+`nh darwin switch ~/dotfiles` はユーザーが実行する。Claude は実行しない。コミットもユーザーが頼んだときだけ行う。
+切り替え後に `<bin> --version` など副作用のないコマンドで起動を確認するよう、ユーザーに伝える。
 
-## Updating
+## 更新
 
-To bump the version, rewrite `pkgs/<tool>/package.json` and redo the lock generation in step 2 and the build check in step 6.
+バージョンを上げるときは `pkgs/<tool>/package.json` を書き換えて、手順 2 の lock 生成と手順 6 のビルド確認をやり直す。
