@@ -1,0 +1,61 @@
+# Template: weekly auto-update PR for a release-binary tool (nix/<tool>.nix with fetchurl).
+# Copy to .github/workflows/update-<tool>.yaml and replace every <placeholder>.
+# Match the action versions to the existing update-*.yaml workflows.
+name: Update <tool>
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - name: Check for new release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The tag is assumed to be "v" + version. Adjust the sed here and the URL below if upstream uses another format.
+          LATEST=$(gh release view --repo <owner>/<repo> --json tagName -q '.tagName' | sed 's/^v//')
+          CURRENT=$(grep -oP '(?<=version = ")[^"]+' nix/<tool>.nix || true)
+          [[ "$LATEST" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::想定外のタグ形式: ${LATEST}"; exit 1; }
+          [[ "$CURRENT" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::nix/<tool>.nix から現在の版を取得できない"; exit 1; }
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" != "$CURRENT" ]; then
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update version and hash
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          VERSION="${{ steps.check.outputs.latest }}"
+          URL="https://github.com/<owner>/<repo>/releases/download/v${VERSION}/<asset-name using ${VERSION}>"
+          HASH=$(nix store prefetch-file --hash-type sha256 --json "$URL" | jq -r '.hash')
+          sed -i "s/version = \"[^\"]*\"/version = \"${VERSION}\"/" nix/<tool>.nix
+          [[ "$HASH" == sha256-* ]] || { echo "::error::hash を取得できなかった"; exit 1; }
+          sed -i "s|hash = \"[^\"]*\"|hash = \"${HASH}\"|" nix/<tool>.nix
+          if git diff --quiet nix/<tool>.nix; then echo "::error::nix/<tool>.nix を書き換えられなかった"; exit 1; fi
+      - name: Create Pull Request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          commit-message: 'chore: update <tool> to v${{ steps.check.outputs.latest }}'
+          title: 'chore: update <tool> to v${{ steps.check.outputs.latest }}'
+          body: |
+            Automated update of <tool> from v${{ steps.check.outputs.current }} to v${{ steps.check.outputs.latest }}.
+          branch: update/<tool>
+          labels: dependencies
+          delete-branch: true
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-<tool>'

@@ -1,0 +1,61 @@
+# Template: weekly auto-update PR for a tag-pinned flake input (flake.nix: <name>.url = "<flake-url-prefix><tag>").
+# Copy to .github/workflows/update-<tool>.yaml and replace every <placeholder>.
+#   <gh-repo>          the repository as GitHub spells it (e.g. owner/Repo), used with gh
+#   <flake-url-prefix> the flake input URL up to the tag, e.g. github:owner/repo/ (its case can differ from <gh-repo>)
+#   <name>             the flake input name
+# Match the action versions to the existing update-*.yaml workflows.
+name: Update <tool>
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - name: Check for new release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The tag may or may not start with v/V. Widen the regex if tags can contain anything but digits and dots (-beta, -rc1, ...).
+          LATEST=$(gh release view --repo <gh-repo> --json tagName -q '.tagName')
+          CURRENT=$(grep -oP '(?<=<flake-url-prefix>)[Vv]?[0-9.]+' flake.nix || true)
+          [[ "$LATEST" =~ ^[Vv]?[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::想定外のタグ形式: ${LATEST}"; exit 1; }
+          [[ "$CURRENT" =~ ^[Vv]?[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::flake.nix から現在のタグを取得できない"; exit 1; }
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" != "$CURRENT" ]; then
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update tag and lock
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          sed -i -E "s|<flake-url-prefix>[Vv]?[0-9.]+|<flake-url-prefix>${{ steps.check.outputs.latest }}|" flake.nix
+          nix flake update <name>
+          if git diff --quiet flake.nix; then echo "::error::flake.nix のタグを書き換えられなかった"; exit 1; fi
+          if git diff --quiet flake.lock; then echo "::error::flake.lock が更新されなかった"; exit 1; fi
+      - name: Create Pull Request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@v8.1.1
+        with:
+          commit-message: 'chore: update <tool> to ${{ steps.check.outputs.latest }}'
+          title: 'chore: update <tool> to ${{ steps.check.outputs.latest }}'
+          body: |
+            Automated update of <tool> from ${{ steps.check.outputs.current }} to ${{ steps.check.outputs.latest }}.
+          branch: update/<tool>
+          labels: dependencies
+          delete-branch: true
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-<tool>'
