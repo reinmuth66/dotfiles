@@ -23,41 +23,50 @@ flake は「最新のリリースタグに追従する」仕組みを持たな�
 
 upstream の形と、何に追従させたいかで決まる。上から順に確認し、最初に当てはまるものを使う。
 
-| 条件 | 方式 | 追従先 | 既存の実例 |
-|---|---|---|---|
-| ビルド済みの成果物 (`.app.tar.gz` など) が release に添付されている | A: release バイナリ (`fetchurl`) | 最新 Release | `nix/zmk-battery-center.nix`、`update-zmk-battery-center.yaml` |
-| そのタグ時点で `flake.nix` があり、`packages.<system>.<name>` を出力している | B: タグ固定 flake input | 最新 Release | `modules/mole.nix`、`update-mole.yaml` |
-| 上記に当てはまらない (Release がない、成果物がない、flake がない、自分でビルドする、パッチを当てる) | C: `flake = false` の input でソースを追従 | デフォルトブランチの最新コミット | `catppuccin-bat`、`zeno-zsh`、`pdf-cli` (`flake.nix`) |
+| 条件 | 方式 | 追従先 |
+|---|---|---|
+| ビルド済みの成果物 (`.app.tar.gz` など) が release に添付されている | A: release バイナリ (`fetchurl`) | 最新 Release |
+| そのタグ時点で `flake.nix` があり、`packages.<system>.<name>` を出力している | B: タグ固定 flake input | 最新 Release |
+| 上記に当てはまらない (Release がない、成果物がない、flake がない、自分でビルドする、パッチを当てる) | C: `flake = false` の input でソースを追従 | デフォルトブランチの最新コミット |
+
+雛形は `assets/` にある。プレースホルダ (`<tool>`、`<owner>/<repo>` など) を埋めて使う。何を埋めるかは、各ファイルの先頭の注釈に書いてある。
+
+- A: `assets/release-binary.nix` (`nix/<tool>.nix` にコピー) と `assets/update-release-binary.yaml` (`.github/workflows/update-<tool>.yaml` にコピー)
+- B: `assets/update-tag-pinned.yaml` (`.github/workflows/update-<tool>.yaml` にコピー)
+- C: 雛形は要らない。既存の実例は `grep -n 'flake = false' flake.nix` で見つかる
+
+補足:
 
 - A と B の両方に当てはまる場合は、A の方がビルド不要で軽い。ただし B は `vendorHash` などを upstream が保守してくれる利点がある。
 - C は Release ではなく**ブランチの最新コミット**を取り込む。未リリースの変更も入るので、安定性が要るなら A か B を選ぶ。
 - C の派生 hash (Go の `vendorHash` など) は flake input では追従できない。「C の派生 hash」の節を参照する。
-- 意図的に古いコミットで止めたいもの (例: `nixpkgs-spotify`) は、自動更新の対象にしない。URL に rev を書いたまま手動で管理する。
+- 意図的に特定の rev で止めたいもの (互換性を確認した rev に固定している input など) は、自動更新の対象にしない。URL に rev を書いたまま手動で管理する。
 
 ### B の前提確認 (忘れやすい)
 
-- タグ時点の flake の有無を確認する。flake が main にしかなく、タグには存在しないことがある (Mole は Nix 対応の追加が V1.59.0 付近で、それ以前のタグには `flake.nix` がない)。
+- タグ時点の flake の有無を確認する。flake が main にしかなく、タグには存在しないことがある (Nix 対応が途中のバージョンで追加されたリポジトリでは、それ以前のタグに `flake.nix` がない)。
 
   ```bash
   gh api "repos/<owner>/<repo>/contents/flake.nix?ref=<tag>" --jq .name
   ```
 
 - upstream が `package.nix` を別ファイルに分離していても、flake の出力 (`packages.<system>.<name>`) が同じなら、利用側とワークフローは変更不要。
-- `inputs.<name>.inputs.nixpkgs.follows = "nixpkgs"` を付けると手元の nixpkgs でビルドされ、flake.lock が肥大化しない。upstream が要求するビルダー (例: `buildGo126Module`) が手元の nixpkgs になければビルドが失敗する。その場合は `follows` を外す。
-- `gh release view` は「Latest」に指定された release を返す。複数系統のタグを持つリポジトリ (Mole の `V1.34.0-windows` など) でも、Latest が正しい系統を指すか `gh release list` で確認する。
+- `inputs.<name>.inputs.nixpkgs.follows = "nixpkgs"` を付けると手元の nixpkgs でビルドされ、flake.lock が肥大化しない。upstream が要求するビルダー (新しい言語バージョン用のビルダー関数など) が手元の nixpkgs になければビルドが失敗する。その場合は `follows` を外す。
+- `gh release view` は「Latest」に指定された release を返す。複数系統のタグを持つリポジトリ (`-windows` のような接尾辞付きのタグが混在するものなど) でも、Latest が正しい系統を指すか `gh release list` で確認する。
 - A と B は `gh release view` で検知するので、Release を持たない (タグだけのリポジトリを含む) upstream には使えない。その場合は C にする。
 
 ## 手順 A: リリースバイナリ
 
-1. 既存の `nix/zmk-battery-center.nix` を雛形に `nix/<tool>.nix` を作る (`stdenvNoCC.mkDerivation` + `fetchurl`、`version` と `hash` を 1 箇所ずつ持つ形)。
+1. `assets/release-binary.nix` を `nix/<tool>.nix` にコピーし、プレースホルダを埋める (`version` と `hash` を 1 箇所ずつ持つ形)。`hash` は、次のコマンドで取った値に置き換える。
+
+   ```bash
+   nix store prefetch-file --hash-type sha256 --json "<成果物の URL>" | jq -r .hash
+   ```
+
 2. `modules/<tool>.nix` で `pkgs.callPackage ../nix/<tool>.nix { }` を呼び、`home.packages` に追加する。`modules/home.nix` の `imports` に加える。
-3. `.github/workflows/update-<tool>.yaml` を `update-zmk-battery-center.yaml` から複製し、次を変える。
-   - `gh release view --repo` のリポジトリ
-   - 現在バージョンを取る `grep` の対象ファイル
-   - 成果物の `URL` (アセット名のテンプレート)
-   - `sed` の対象ファイルと、PR のブランチ名、タイトル
-4. タグの接頭辞に注意する。zmk は `v0.13.0` の `v` を外して `version` に入れ、URL で `v${VERSION}` に戻している。upstream のタグ形式に合わせて調整する。
-5. `sed -i "s/version = .../"` はファイル内の全一致を置換する。`version =` が複数あるファイルでは対象を絞る。
+3. `assets/update-release-binary.yaml` を `.github/workflows/update-<tool>.yaml` にコピーし、プレースホルダ (`<tool>`、`<owner>/<repo>`、アセット名) を埋める。
+4. タグの接頭辞に注意する。雛形は、タグの `v` (例: `v1.2.3`) を外して `version` に入れ、URL で付け直している。upstream のタグが `v` で始まらない場合は、`sed 's/^v//'` と URL の `v${VERSION}` を調整する。
+5. 雛形のワークフローは、`version = "..."` と `hash = "..."` の全一致を `sed` で書き換える。`nix/<tool>.nix` では、`version` と `hash` を 1 回ずつだけ代入し、コメントの中にも、その形の文字列を書かない。
 
 ## 手順 B: タグ固定 flake input
 
@@ -82,12 +91,12 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 
    `overlays.default` に頼らず `packages.<system>` を使う。overlay はタグ時点の flake に存在しないことがある。
 
-4. `.github/workflows/update-<tool>.yaml` を `update-mole.yaml` から複製し、次を変える。
-   - `gh release view --repo` のリポジトリ
-   - `grep -oP` と `sed` の URL 部分 (`github:<owner>/<repo>/` とタグの正規表現)
-   - `nix flake update <name>` の input 名
-   - ブランチ名、コミット/タイトル文言
-5. タグに数字とドット以外 (`-beta`、`-rc1` など) が入りうるなら、正規表現 `V[0-9.]+` を広げる。
+4. `assets/update-tag-pinned.yaml` を `.github/workflows/update-<tool>.yaml` にコピーし、プレースホルダを埋める。
+   - `<gh-repo>`: GitHub 上の表記のリポジトリ (`gh release view --repo` に渡す)
+   - `<flake-url-prefix>`: flake の input の URL のタグの手前まで (例: `github:<owner>/<repo>/`)。大文字小文字が `<gh-repo>` と違うことがある
+   - `<name>`: flake の input 名 (`nix flake update <name>`)
+   - `<tool>`: ブランチ名、コミット/タイトル文言
+5. タグに数字とドット以外 (`-beta`、`-rc1` など) が入りうるなら、雛形のタグの正規表現を広げる。雛形は、タグの先頭の `v` / `V` があってもなくても動く。
 
 ## 手順 C: `flake = false` の input でソースを追従
 
@@ -105,9 +114,11 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 2. `outputs` の `home-manager.extraSpecialArgs` の `inherit (inputs) ...` に `<name>` を足す。
 3. 使う側で `fetchFromGitHub` を input に置き換える。
 
-   - モジュールなら引数に `<name>` を足し、`src = <name>;` とする (実例: `modules/bat.nix`、`modules/zeno.nix`)
-   - `callPackage` するパッケージなら、引数 (`src` など) として渡す (実例: `modules/pdf-cli.nix`)
-   - `${<name>}` はストアパスになる。`<name>.rev`、`<name>.shortRev`、`<name>.lastModifiedDate` も使える (version の組み立てなど。実例: `nix/pdf-cli.nix`)
+   - モジュールなら引数に `<name>` を足し、`src = <name>;` とする
+   - `callPackage` するパッケージなら、引数 (`src` など) として渡す
+   - `${<name>}` はストアパスになる。`<name>.rev`、`<name>.shortRev`、`<name>.lastModifiedDate` も使える (version の組み立てなど)
+
+   実例は、`flake.nix` の既存の `flake = false` の input 名を `grep -rn '<input 名>' modules nix` で引くと見つかる。
 
 4. 既存の固定コミットから移す場合は、同じコミットのままロックする。何もしないと、ロック時点の最新コミットまで進んでしまう。
 
@@ -125,7 +136,7 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 
 ### C の派生 hash (vendorHash など)
 
-ソースから導出される hash (Go の `vendorHash`、npm の `npmDepsHash`、Rust の `cargoHash`) は `go.sum` などに依存するため、flake input では追従できない。ソースを C にしたら、`update-flake.yaml` の `nix flake update` の後に、hash を再計算する step を足す。実例は `update-flake.yaml` の `Update pdf-cli vendorHash`。
+ソースから導出される hash (Go の `vendorHash`、npm の `npmDepsHash`、Rust の `cargoHash`) は `go.sum` などに依存するため、flake input では追従できない。ソースを C にしたら、`update-flake.yaml` の `nix flake update` の後に、hash を再計算する step を足す。実例は `update-flake.yaml` の、`vendorHash` を再計算する step (`grep -n vendorHash .github/workflows/update-flake.yaml`)。
 
 1. hash をダミー (`sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`) に `sed` で置換する。
 2. パッケージ全体ではなく、hash を持つ中間 derivation だけをビルドする。Go なら `.goModules` である。`nix build --impure --expr` で、`builtins.getFlake (toString ./.)` から input を渡す。ubuntu ランナーでも動くよう、`system = builtins.currentSystem` を使う。
@@ -136,12 +147,12 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 
 - GitHub Actions の `run:` は `bash -eo pipefail` で動く。`HASH=$(grep ... | head -1)` は、一致なしでも `|| true` を付けないと if に到達せず終了する。
 - `.goModules` 以外 (`npmDeps` など) の attr は、この環境では未検証。上記と同じ手順で通るかを、ローカルで確認してから使う。
-- 手順 4 の同一コミットでの移行で、再計算した hash が元の hash と一致することを確認できる (`pdf-cli` では一致を確認済み)。
+- 手順 4 の同一コミットでの移行で、再計算した hash が元の hash と一致することを確認できる (既存の実例で、一致を確認済み)。
 
 ## 共通の仕上げ
 
-- 既存ワークフローからコピーすること。アクションのバージョン (`checkout`、`nix-installer-action`、`create-pull-request`) は既存の `update-*.yaml` と揃える。
-- **失敗の通知を付ける。** PR が作られないことは、「更新なし」と「失敗」を区別できない。ジョブの末尾に、次の step を置き、`permissions` に `issues: write` を足す。
+- 雛形のアクションのバージョン (`checkout`、`nix-installer-action`、`create-pull-request`) は、雛形を作った時点のもの。既存の `update-*.yaml` (`ls .github/workflows/update-*.yaml`) と揃える。
+- **失敗の通知を付ける。** PR が作られないことは、「更新なし」と「失敗」を区別できない。雛形のワークフローには、次の step と `issues: write` の `permissions` が、すでに入っている。別のワークフローに足すときは、ジョブの末尾に次の step を置き、`permissions` に `issues: write` を足す。
   同じ失敗が続く間は、open な Issue にコメントが追記され、直してクローズしたあとの再発は、新しい Issue になる。
 
   ```yaml
@@ -152,10 +163,10 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
       key: 'failure:<workflow 名>'
   ```
 
-  `continue-on-error: true` の step は、`failure()` に引っかからない。その step に `id` を付け、`if: steps.<id>.outcome == 'failure'` で通知する (実例: `update-flake.yaml` の `vendorhash`)。
+  `continue-on-error: true` の step は、`failure()` に引っかからない。その step に `id` を付け、`if: steps.<id>.outcome == 'failure'` で通知する (実例は `grep -n 'continue-on-error' .github/workflows/*.yaml` で見つかる)。
 - **黙って空振りさせない。** 現在の版と最新の版を取る step では、書式を正規表現で検証し、想定外なら `exit 1` する。書き換えの step の最後には、差分が出たことを確認する。
   `git diff --quiet X && { ...; exit 1; }` を最後の行に置くと、差分がある正常時に終了コード 1 を返す。`if git diff --quiet X; then ...; exit 1; fi` と書く。
-- 判定が複雑なら、ワークフローに直接書かず、`scripts/` に切り出し、模擬の `gh` / `nix` を PATH に置いて、`DRY_RUN=1` で全分岐を検証する (実例: `scripts/spotify-update-check.sh`)。
+- 判定が複雑なら、ワークフローに直接書かず、`scripts/` に切り出し、模擬の `gh` / `nix` を PATH に置いて、`DRY_RUN=1` で全分岐を検証する (実例は `grep -l DRY_RUN scripts/*` で見つかるスクリプト)。
 - `nix flake lock` で lock に追加する (他の input は動かない)。新規ファイルは `git add -N` で flake から見えるようにしてから評価する。未追跡ファイルは flake に見えない。
 - 週次の `update-flake.yaml` と競合しない。A と B のタグ固定の input は `nix flake update` を実行しても同じタグのままである。C の input は `update-flake.yaml` が更新する。
 - コミットはユーザーが依頼した時だけ行う。`nh darwin switch` もユーザーが実行する。
@@ -177,7 +188,7 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
    nix eval --raw .#darwinConfigurations.ReinmuthLaptop.system.drvPath
    ```
 
-   C で `fetchFromGitHub` を置き換えた場合は、評価だけでなく全体をビルドして確認する。パッチを当てるパッケージや、macOS 標準のツールチェーン (`/usr/bin/swiftc` など) を使うパッケージは、評価では通っても、ビルド時にしか分からない失敗がある。
+   C で `fetchFromGitHub` を置き換えた場合は、評価だけでなく全体をビルドして確認する。パッチを当てるパッケージや、macOS 標準のツールチェーン (`/usr/bin/` 配下のコンパイラなど) を使うパッケージは、評価では通っても、ビルド時にしか分からない失敗がある。
 
    ```bash
    nix build --no-link --print-out-paths .#darwinConfigurations.ReinmuthLaptop.system
@@ -192,4 +203,4 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 - 自動 PR はビルドを検証しない (ubuntu ランナーでは Darwin 向けをビルドできない)。壊れた更新はマージ後、`nh darwin switch` のビルドで初めて分かる。必要なら `macos-latest` ランナーで `nix build` するジョブを足す。
 - C は最新コミットを追うので、upstream の破壊的変更がそのまま PR になる。`update-flake.yaml` は全 input を 1 つの PR にまとめるため、1 つが壊れると他の更新も巻き込まれる。壊れた input だけ止めたい場合は、URL に `/<rev>` を付けて固定し、PR から `flake.lock` の該当部分を戻す。
 - C の input は、サブモジュールを取得しない (`fetchFromGitHub` も同様)。サブモジュールが要る場合は `git+https://...?submodules=1` の URL を使う。
-- ツールが自分で更新する機能を持つ場合 (`mo update` など) は、Nix 管理下で無効になることを確認する。
+- ツールが自分で更新する機能を持つ場合 (自己アップデートのコマンドなど) は、Nix 管理下で無効になることを確認する。
