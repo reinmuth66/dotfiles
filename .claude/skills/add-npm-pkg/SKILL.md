@@ -9,11 +9,11 @@ nixpkgs に存在しない npm パッケージを `importNpmLock` で nix-darwin
 `npm install -g` は環境の再現性を壊すので使わず、lock ファイルをリポジトリに持たせて Nix にビルドさせる。
 
 引数は `<tool> [version]`。`version` を省略したら `nix shell nixpkgs#nodejs -c npm view <tool> version` の結果を使う。
-実例は `pkgs/czg/` と `modules/czg.nix`。迷ったら、この 2 つを雛形にコピーして書き換える。
+実例は、同じ方式で入っている既存のパッケージ (`grep -l importNpmLock modules/*.nix` で見つかるモジュールと、その `pkgs/<tool>/`)。迷ったら、それを雛形にコピーして書き換える。
 
 名前は 2 種類を区別する。
-- `<tool>`: npm の正式なパッケージ名 (例: `fkill-cli`)。`pkgs/<tool>/` と `modules/<tool>.nix` の名前にも、この正式名称をそのまま使う。スコープ付き (`@scope/name`) はディレクトリ名に使えないので、`name` の部分を使う。
-- `<bin>`: コマンド名。`package.json` の `bin` のキーで、パッケージ名と違うことがある (`fkill-cli` のコマンドは `fkill`)。wrapper の名前と呼び出し先に使う。
+- `<tool>`: npm の正式なパッケージ名 (レジストリ上の名前)。`pkgs/<tool>/` と `modules/<tool>.nix` の名前にも、この正式名称をそのまま使う。スコープ付き (`@scope/name`) はディレクトリ名に使えないので、`name` の部分を使う。
+- `<bin>`: コマンド名。`package.json` の `bin` のキーで、パッケージ名と一致するとは限らない (名前に `-cli` が付くパッケージで、コマンドには付かない、など)。wrapper の名前と呼び出し先に使う。
 
 ## npm は一時的に使う
 
@@ -23,7 +23,7 @@ nixpkgs に存在しない npm パッケージを `importNpmLock` で nix-darwin
 ## 手順
 
 1. **package.json を作る。** `name` は他と衝突しない `<tool>-nix` にする。`private: true` で、対象を `dependencies` に入れる。
-   CLI が追加のプラグインや peer 依存を実行時に読み込むなら、それも `dependencies` に並べる (`pkgs/czg/package.json` が `czg` と `cz-git` を並べている)。
+   CLI が追加のプラグインや peer 依存を実行時に読み込むなら、それも `dependencies` に並べる (既存の実例の `package.json` に、本体とプラグインを並べている例がある)。
    あわせて、コマンド名 `<bin>` を `nix shell nixpkgs#nodejs -c npm view <tool> bin` で調べておく (手順 3 と 6 で使う)。
 
    ```bash
@@ -90,8 +90,8 @@ nixpkgs に存在しない npm パッケージを `importNpmLock` で nix-darwin
    ```
 
    `--version` が無いツールは `--help` など、副作用のない引数にする。
-   どちらも何も出力しないツールがある (`kill-port` は、`--version` も `--help` も無言で終わる)。出力が無いと、動いたのか判断できない。
-   その場合は、無害な引数を渡して、そのツール固有の出力で確認する (`kill-port` なら、使っていないポート番号を渡すと `No process running on port` と出る)。
+   どちらも何も出力しないツールがある。出力が無いと、動いたのか判断できない。
+   その場合は、無害な引数を渡して、そのツール固有の出力で確認する (例: ポートを閉じるツールなら、使われていないポート番号を渡すと、該当するプロセスが無いことを示すメッセージが出る)。
    `No such file or directory` が出たら、bin 名か wrapper を直す。`ls $out/bin/` で存在を見るだけでは足りない (bin 名を間違えた wrapper も存在する)。
 
 ## 実機への反映
