@@ -12,6 +12,7 @@
     ./fd.nix
     ./gpg.nix
     ./jq.nix
+    ./uv.nix
     ./ripgrep.nix
     ./atuin.nix
     ./gh.nix
