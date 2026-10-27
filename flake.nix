@@ -11,13 +11,13 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nixpkgs-spotify.url = "github:nixos/nixpkgs/8c6b39505383e6d5dcb431f00cb3597b71f8045c";
+    nixpkgs-spotify.url = "github:nixos/nixpkgs/d3b13ad75cc492690728f9307e443dec9ef9a20e";
     spicetify-nix = {
       url = "github:Gerg-L/spicetify-nix";
       inputs.nixpkgs.follows = "nixpkgs-spotify";
     };
     mole = {
-      url = "github:tw93/mole/V1.61.0";
+      url = "github:tw93/mole/V1.64.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     yazi-flavors = {
