@@ -17,7 +17,7 @@
       inputs.nixpkgs.follows = "nixpkgs-spotify";
     };
     mole = {
-      url = "github:tw93/mole/V1.61.0";
+      url = "github:tw93/mole/V1.64.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     yazi-flavors = {
