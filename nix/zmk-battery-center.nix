@@ -2,11 +2,11 @@
 
 stdenvNoCC.mkDerivation rec {
   pname = "zmk-battery-center";
-  version = "0.13.0";
+  version = "0.13.2";
 
   src = fetchurl {
     url = "https://github.com/kot149/zmk-battery-center/releases/download/v${version}/zmk-battery-center_${version}_aarch64.app.tar.gz";
-    hash = "sha256-8gXUq4MG2a3Tm42qS2zcyAUs2QdTRft9VFracWz3TPs=";
+    hash = "sha256-Rk60PFd4NLqf4dHzHG8OhNGgh0rDkbTwsms9WobM4j8=";
   };
 
   sourceRoot = ".";
