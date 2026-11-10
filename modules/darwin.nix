@@ -11,6 +11,7 @@
     casks = [
       "affinity"
       "bambu-studio"
+      "blender"
       "discord"
       "freecad"
       "google-drive"
