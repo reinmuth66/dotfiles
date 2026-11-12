@@ -39,6 +39,16 @@
   # プライマリユーザーの指定 (homebrew 等のオプションに必要)
   system.primaryUser = "reinmuth";
 
+  # Google 日本語入力のメニューバーアイコンをモノクロ版に差し替える。
+  # アプリの更新で元に戻るので、switch のたびに中身を比べ、違えばコピーし直す。
+  system.activationScripts.postActivation.text = ''
+    icon="/Library/Input Methods/GoogleJapaneseInput.app/Contents/Resources/hiragana.tiff"
+    if [ -f "$icon" ] && ! /usr/bin/cmp -s ${../assets/hiragana_mono.tiff} "$icon"; then
+      echo "restoring Google Japanese Input icon..." >&2
+      /bin/cp ${../assets/hiragana_mono.tiff} "$icon"
+    fi
+  '';
+
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "spotify" ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
