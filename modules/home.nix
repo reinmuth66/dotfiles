@@ -28,6 +28,7 @@
     ./marp.nix
     ./pdf-cli.nix
     ./aerospace.nix
+    ./karabiner.nix
     ./jankyborders.nix
     ./sketchybar.nix
     ./cavaviz.nix
