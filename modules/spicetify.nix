@@ -39,6 +39,9 @@ in
     ];
   };
 
+  # 元の Spotify を世代から参照して GC から守る。
+  xdg.dataFile."spotify-gcroot".source = pkgsSpotify.spotify;
+
   home.activation.blockSpotifyUpdate = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     cache="$HOME/Library/Application Support/Spotify/PersistentCache"
     update="$cache/Update"
