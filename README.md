@@ -84,7 +84,9 @@ sudo nix-collect-garbage --delete-older-than 7d
 
 ### Google 日本語入力のアイコン復元
 
-`topgrade` 実行後にアイコンが上書きされた場合:
+アプリの更新で元のアイコンに戻っても、`nh darwin switch` のたびに `modules/darwin.nix` の activation script がモノクロ版を書き戻す。反映されない場合は、ログインし直す。
+
+switch を待たずに手動で戻す場合:
 
 ```bash
 sudo cp ~/dotfiles/assets/hiragana_mono.tiff "/Library/Input Methods/GoogleJapaneseInput.app/Contents/Resources/hiragana.tiff"
