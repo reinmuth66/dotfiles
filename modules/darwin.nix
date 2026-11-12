@@ -39,12 +39,6 @@
   # プライマリユーザーの指定 (homebrew 等のオプションに必要)
   system.primaryUser = "reinmuth";
 
-  system.defaults.NSGlobalDomain._HIHideMenuBar = true;
-
-  system.defaults.CustomUserPreferences."com.apple.controlcenter" = {
-    AutoHideMenuBarOption = 0;
-  };
-
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "spotify" ];
 
   nix.settings.experimental-features = [ "nix-command" "flakes" ];

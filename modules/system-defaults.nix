@@ -10,6 +10,9 @@
 
   # メニューバーを自動的に隠す
   system.defaults.NSGlobalDomain._HIHideMenuBar = true;
+  system.defaults.CustomUserPreferences."com.apple.controlcenter" = {
+    AutoHideMenuBarOption = 0;
+  };
 
   # Dock を左側に配置する
   system.defaults.dock.orientation = "left";
