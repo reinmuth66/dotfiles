@@ -17,9 +17,10 @@ git clone git@github.com:reinmuth66/dotfiles.git ~/dotfiles && ~/dotfiles/script
 1. Xcode Command Line Tools
 2. Nix
 3. Homebrew
-4. nix-darwin 初回適用
-5. GitHub CLI 認証 (`gh auth login`)
-6. `~/.gitconfig` 削除 (Nix 管理の git config を有効化)
+4. dotfiles クローン (未クローンの場合)
+5. nix-darwin 初回適用
+6. GitHub CLI 認証 (`gh auth login`)
+7. `~/.gitconfig` 削除 (Nix 管理の git config を有効化)
 
 ### セットアップ後の手動設定
 
@@ -47,7 +48,7 @@ nh darwin switch ~/dotfiles
 
 ### flake inputs を更新して適用する
 
-Renovate が自動で PR を作成する。マージ後に設定を適用する。
+GitHub Actions (`.github/workflows/update-flake.yaml`) が毎週月曜に PR を作成する。マージ後に設定を適用する。Renovate は GitHub Actions のバージョン更新だけを担当する。
 
 手動で更新する場合:
 
@@ -73,12 +74,12 @@ brew upgrade --cask
 
 ### 古い Nix ビルドを削除する
 
-`nh clean` により、7日以上前かつ直近3世代を超える古い世代・ビルド結果が自動的に削除される(`modules/nh.nix`)。
+nix-darwin の `nix.gc` により、毎週月曜 0:00 に 7 日より古い世代と、参照されなくなったストアパスが自動的に削除される(`modules/darwin.nix`)。ログは `/var/log/nix-gc.log`。
 
 手動で実行する場合:
 
 ```bash
-nh clean all --keep-since 7d --keep 3
+sudo nix-collect-garbage --delete-older-than 7d
 ```
 
 ### Google 日本語入力のアイコン復元
