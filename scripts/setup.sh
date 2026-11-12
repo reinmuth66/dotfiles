@@ -58,7 +58,10 @@ if command -v darwin-rebuild &>/dev/null; then
   ok "nix-darwin インストール済み — switch を実行"
   sudo darwin-rebuild switch --flake "$DOTFILES_DIR"
 else
-  nix run nix-darwin -- switch --flake "$DOTFILES_DIR"
+  # 公式インストーラの Nix は flakes が無効なので明示的に有効にする。
+  # nix-darwin の activation は root で実行する必要がある。
+  sudo nix --extra-experimental-features "nix-command flakes" \
+    run nix-darwin -- switch --flake "$DOTFILES_DIR"
 fi
 
 # --- 6. 認証情報 ---
