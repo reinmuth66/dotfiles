@@ -64,7 +64,7 @@
         staged = " 󱇬 $count";
         untracked = " 󰈉 $count";
         style = "bold fg:sky";
-        format = "[$ahead_behind$all_status ]($style)";
+        format = "[$ahead_behind$conflicted$stashed$renamed$deleted$modified$typechanged$staged$untracked ]($style)";
       };
 
       bun = {
