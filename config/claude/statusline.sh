@@ -11,8 +11,6 @@ GREEN='\033[38;2;166;218;149m'
 BLUE='\033[38;2;138;173;244m'
 
 # Catppuccin Macchiato Bold
-MAUVE_BOLD='\033[1;38;2;198;160;246m'
-SKY_BOLD='\033[1;38;2;145;215;227m'
 GREEN_BOLD='\033[1;38;2;166;218;149m'
 BLUE_BOLD='\033[1;38;2;138;173;244m'
 
@@ -131,91 +129,14 @@ model=$(echo "$input" | jq -r '.model.display_name')
 # CWD取得
 cwd=$(echo "$input" | jq -r '.cwd // empty')
 
-# ディレクトリ表示（starship の truncate_to_repo + truncation_length=3 に合わせて実装）
-dir_str=""
-git_root=""
-if [ -n "$cwd" ]; then
-  if [[ "$cwd" == "$HOME"* ]]; then
-    display_path="~${cwd#$HOME}"
-  else
-    display_path="$cwd"
-  fi
-
-  if git -C "$cwd" rev-parse --git-dir >/dev/null 2>&1; then
-    git_root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)
-  fi
-
-  if [ -n "$git_root" ]; then
-    # git リポジトリ内: リポジトリ名を基点にして上位パスを …/ で切り詰め
-    repo_name=$(basename "$git_root")
-    if [ "$cwd" = "$git_root" ]; then
-      repo_relative="$repo_name"
-    else
-      repo_relative="$repo_name/${cwd#$git_root/}"
-    fi
-    rel_slashes=$(echo "$repo_relative" | tr -cd '/' | wc -c)
-    if [ $((rel_slashes + 1)) -le 3 ]; then
-      short_cwd="…/$repo_relative"
-    else
-      IFS='/' read -ra parts <<<"$repo_relative"
-      len=${#parts[@]}
-      start=$((len - 3))
-      short_cwd="…/${parts[$start]}/${parts[$((start + 1))]}/${parts[$((start + 2))]}"
-    fi
-  else
-    # git リポジトリ外: ~ を1コンポーネントとして数えて depth > 3 で切り詰め
-    if [[ "$display_path" == "~/"* ]]; then
-      inner="${display_path#\~/}"
-      slashes=$(echo "$inner" | tr -cd '/' | wc -c)
-      depth=$((slashes + 2))
-    elif [[ "$display_path" == "~" ]]; then
-      depth=1
-      inner=""
-    else
-      inner="${display_path#/}"
-      slashes=$(echo "$inner" | tr -cd '/' | wc -c)
-      depth=$((slashes + 1))
-    fi
-    if [ "$depth" -le 3 ]; then
-      short_cwd="$display_path"
-    else
-      IFS='/' read -ra parts <<<"$inner"
-      len=${#parts[@]}
-      start=$((len - 3))
-      short_cwd="…/${parts[$start]}/${parts[$((start + 1))]}/${parts[$((start + 2))]}"
-    fi
-  fi
-
-  dir_str="${MAUVE_BOLD}${short_cwd}${RESET}"
-fi
-
-# Git状態取得
-git_str=""
-if [ -n "$git_root" ]; then
-  branch=$(git -C "$cwd" branch --show-current 2>/dev/null)
-  [ -z "$branch" ] && branch=$(git -C "$cwd" rev-parse --short HEAD 2>/dev/null)
-  if [ -n "$branch" ]; then
-    git_str="${SKY_BOLD} ${branch}${RESET}"
-    staged=0
-    modified=0
-    deleted=0
-    untracked=0
-    while IFS= read -r line; do
-      x="${line:0:1}"
-      y="${line:1:1}"
-      if [ "$x" = "?" ] && [ "$y" = "?" ]; then
-        untracked=$((untracked + 1))
-        continue
-      fi
-      [ "$x" != " " ] && staged=$((staged + 1))
-      if [ "$y" = "M" ] || [ "$y" = "T" ]; then modified=$((modified + 1)); fi
-      [ "$y" = "D" ] && deleted=$((deleted + 1))
-    done < <(git -C "$cwd" status --porcelain 2>/dev/null)
-    [ "$modified" -gt 0 ] && git_str="$git_str ${SKY_BOLD}󰏫 ${modified}${RESET}"
-    [ "$staged" -gt 0 ] && git_str="$git_str ${SKY_BOLD}󱇬 ${staged}${RESET}"
-    [ "$deleted" -gt 0 ] && git_str="$git_str ${SKY_BOLD}󱘹 ${deleted}${RESET}"
-    [ "$untracked" -gt 0 ] && git_str="$git_str ${SKY_BOLD}󰈉 ${untracked}${RESET}"
-  fi
+# ディレクトリと git 状態（starship のモジュールをそのまま使い、プロンプトと表示を揃える）
+# directory モジュールは $PWD を基準にするので cd してから呼ぶ。
+# STARSHIP_SHELL を空にして、zsh 用のエスケープ (%{ %}) が混ざらないようにする。
+starship_str=""
+if [ -n "$cwd" ] && cd "$cwd" 2>/dev/null; then
+  for module in directory git_branch git_status; do
+    starship_str+=$(STARSHIP_SHELL='' starship module "$module" 2>/dev/null)
+  done
 fi
 
 # コンテキスト使用率計算 - ベースカラー: 緑
@@ -252,15 +173,8 @@ if [ -n "$seven_day_pct" ]; then
   seven_day_str=$(build_rate_str "7d" "$seven_day_int" "$reset_epoch_7d" 604800 "$MAUVE")
 fi
 
-# 出力（ディレクトリ git モデル名 時刻 — すべてスペース区切り、すべて太字）
-line1=""
-[ -n "$dir_str" ] && line1="$dir_str"
-if [ -n "$git_str" ]; then
-  [ -n "$line1" ] && line1="$line1 "
-  line1="$line1$git_str"
-fi
-[ -n "$line1" ] && line1="$line1 "
-line1="${line1}${GREEN_BOLD}󱌼 ${model}${RESET} ${BLUE_BOLD}󰥔 $(date +%H:%M)${RESET}"
+# 出力（starship のディレクトリと git 状態、モデル名、時刻）
+line1="${starship_str}${GREEN_BOLD}󱌼 ${model}${RESET} ${BLUE_BOLD}󰥔 $(date +%H:%M)${RESET}"
 
 echo -e "$line1"
 [ -n "$ctx_str" ] && echo -e "$ctx_str"
