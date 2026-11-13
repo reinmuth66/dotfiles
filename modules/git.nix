@@ -8,7 +8,7 @@
       merge.conflictstyle = "diff3";
       diff.colorMoved = "default";
     };
-    includes = [{ path = "~/.config/git/config.local"; }];
+    includes = [ { path = "~/.config/git/config.local"; } ];
     ignores = [ "**/.claude/settings.local.json" ];
   };
 

@@ -1,4 +1,11 @@
-{ config, lib, pkgs, nixpkgs-spotify, spicetify-nix, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  nixpkgs-spotify,
+  spicetify-nix,
+  ...
+}:
 
 let
   inherit (pkgs.stdenv.hostPlatform) system;

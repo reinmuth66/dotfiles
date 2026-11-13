@@ -1,8 +1,14 @@
-{ lib, buildGoModule, src }:
+{
+  lib,
+  buildGoModule,
+  src,
+}:
 
 buildGoModule rec {
   pname = "pdf-cli";
-  version = "unstable-${builtins.substring 0 4 src.lastModifiedDate}-${builtins.substring 4 2 src.lastModifiedDate}-${builtins.substring 6 2 src.lastModifiedDate}";
+  version = "unstable-${builtins.substring 0 4 src.lastModifiedDate}-${
+    builtins.substring 4 2 src.lastModifiedDate
+  }-${builtins.substring 6 2 src.lastModifiedDate}";
 
   inherit src;
 

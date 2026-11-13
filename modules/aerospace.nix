@@ -19,22 +19,38 @@
       on-focused-monitor-changed = [ "move-mouse monitor-lazy-center" ];
 
       # 空でも維持しておくワークスペース
-      persistent-workspaces = [ "1" "2" "3" "4" "5" "6" "7" "8" "9" ];
+      persistent-workspaces = [
+        "1"
+        "2"
+        "3"
+        "4"
+        "5"
+        "6"
+        "7"
+        "8"
+        "9"
+      ];
 
       focus-follows-mouse.enabled = false;
 
       # タイル管理の対象から外すアプリ
       on-window-detected = [
         {
-          "if" = { app-id = "com.zmk-battery-center.app"; };
+          "if" = {
+            app-id = "com.zmk-battery-center.app";
+          };
           run = "layout floating";
         }
         {
-          "if" = { app-name-regex-substring = "^wezterm-gui$"; };
+          "if" = {
+            app-name-regex-substring = "^wezterm-gui$";
+          };
           run = "layout floating";
         }
         {
-          "if" = { app-id = "com.spotify.client"; };
+          "if" = {
+            app-id = "com.spotify.client";
+          };
           run = "move-node-to-workspace F";
         }
       ];
@@ -122,10 +138,22 @@
 
       # 'service' モード: 設定リロードやレイアウトリセットなどの補助操作
       mode.service.binding = {
-        esc = [ "reload-config" "mode main" ];
-        r = [ "flatten-workspace-tree" "mode main" ];
-        f = [ "layout floating tiling" "mode main" ];
-        backspace = [ "close-all-windows-but-current" "mode main" ];
+        esc = [
+          "reload-config"
+          "mode main"
+        ];
+        r = [
+          "flatten-workspace-tree"
+          "mode main"
+        ];
+        f = [
+          "layout floating tiling"
+          "mode main"
+        ];
+        backspace = [
+          "close-all-windows-but-current"
+          "mode main"
+        ];
       };
     };
   };

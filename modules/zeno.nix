@@ -1,4 +1,10 @@
-{ pkgs, lib, config, zeno-zsh, ... }:
+{
+  pkgs,
+  lib,
+  config,
+  zeno-zsh,
+  ...
+}:
 
 let
   zenoSrc = zeno-zsh;

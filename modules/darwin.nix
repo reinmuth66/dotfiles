@@ -26,7 +26,10 @@
       "raycast"
       "tailscale-app"
       "thebrowsercompany-dia"
-      { name = "wezterm@nightly"; greedy = true; }
+      {
+        name = "wezterm@nightly";
+        greedy = true;
+      }
       "zed"
     ];
   };
@@ -51,11 +54,20 @@
 
   nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "spotify" ];
 
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
 
   nix.gc = {
     automatic = true;
-    interval = [{ Weekday = 1; Hour = 0; Minute = 0; }];
+    interval = [
+      {
+        Weekday = 1;
+        Hour = 0;
+        Minute = 0;
+      }
+    ];
     options = "--delete-older-than 7d";
   };
   launchd.daemons.nix-gc.serviceConfig = {

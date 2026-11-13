@@ -50,23 +50,46 @@
     };
   };
 
-  outputs = inputs@{ nix-darwin, home-manager, ... }: {
-    darwinConfigurations."ReinmuthLaptop" = nix-darwin.lib.darwinSystem {
-      system = "aarch64-darwin";
-      modules = [
-        ./modules/darwin.nix
-        ./modules/system-defaults.nix
-        home-manager.darwinModules.home-manager
-        {
-          home-manager.useGlobalPkgs = true;
-          home-manager.useUserPackages = true;
-          home-manager.backupFileExtension = "bak";
-          home-manager.extraSpecialArgs = {
-            inherit (inputs) nixpkgs-spotify spicetify-nix mole yazi-flavors yazi-plugins compress-yazi eza-preview-yazi catppuccin-bat zeno-zsh pdf-cli;
-          };
-          home-manager.users.reinmuth = import ./modules/home.nix;
-        }
-      ];
+  outputs =
+    inputs@{
+      nixpkgs,
+      nix-darwin,
+      home-manager,
+      ...
+    }:
+    {
+
+      formatter = nixpkgs.lib.genAttrs [ "aarch64-darwin" "x86_64-linux" ] (
+        system: nixpkgs.legacyPackages.${system}.nixfmt-tree
+      );
+
+      darwinConfigurations."ReinmuthLaptop" = nix-darwin.lib.darwinSystem {
+        system = "aarch64-darwin";
+        modules = [
+          ./modules/darwin.nix
+          ./modules/system-defaults.nix
+          home-manager.darwinModules.home-manager
+          {
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+            home-manager.backupFileExtension = "bak";
+            home-manager.extraSpecialArgs = {
+              inherit (inputs)
+                nixpkgs-spotify
+                spicetify-nix
+                mole
+                yazi-flavors
+                yazi-plugins
+                compress-yazi
+                eza-preview-yazi
+                catppuccin-bat
+                zeno-zsh
+                pdf-cli
+                ;
+            };
+            home-manager.users.reinmuth = import ./modules/home.nix;
+          }
+        ];
+      };
     };
-  };
 }
