@@ -16,7 +16,6 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
-      actions: write
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: DeterminateSystems/nix-installer-action@v23
@@ -46,9 +45,10 @@ jobs:
           if git diff --quiet flake.lock; then echo "::error::flake.lock が更新されなかった"; exit 1; fi
       - name: Create Pull Request
         if: steps.check.outputs.needs_update == 'true'
-        id: cpr
         uses: peter-evans/create-pull-request@v8.1.1
         with:
+          # A PR created with GITHUB_TOKEN does not trigger pull_request workflows, so check.yaml would not run on it.
+          token: ${{ secrets.CREATE_PR_TOKEN }}
           commit-message: 'chore: update <tool> to ${{ steps.check.outputs.latest }}'
           title: 'chore: update <tool> to ${{ steps.check.outputs.latest }}'
           body: |
@@ -56,12 +56,6 @@ jobs:
           branch: update/<tool>
           labels: dependencies
           delete-branch: true
-      # A PR created with GITHUB_TOKEN does not trigger pull_request workflows, so dispatch check.yaml on the PR branch.
-      - name: Run checks on the PR
-        if: steps.cpr.outputs.pull-request-operation == 'created' || steps.cpr.outputs.pull-request-operation == 'updated'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run check.yaml --ref update/<tool>
       - name: Report failure
         if: failure()
         uses: ./.github/actions/notify-failure

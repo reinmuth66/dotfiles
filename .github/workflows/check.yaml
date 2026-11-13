@@ -2,7 +2,7 @@ name: 'Check'
 on:
   # Direct pushes to main are checked locally with `nh darwin switch` before pushing, so only PRs run this.
   pull_request:
-  # The update-*.yaml workflows dispatch this on their PR branch, since PRs created with GITHUB_TOKEN do not trigger pull_request.
+  # The update-*.yaml workflows create PRs with the CREATE_PR_TOKEN secret, so pull_request runs on them too.
   workflow_dispatch:
 concurrency:
   group: check-${{ github.ref }}

@@ -194,7 +194,7 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
    ```
 
 3. 成果物のスモークテスト。副作用のないコマンド (`--version` など) だけを実行する。
-4. ワークフローの動作確認は、push 後に GitHub の Actions 画面で `workflow_dispatch` を実行する。PR を作るには、リポジトリ設定の「Allow GitHub Actions to create pull requests」が有効である必要がある (既存ワークフローが動いているなら有効)。
+4. ワークフローの動作確認は、push 後に GitHub の Actions 画面で `workflow_dispatch` を実行する。PR は secret の `CREATE_PR_TOKEN` (fine-grained token) で作る。`GITHUB_TOKEN` で作った PR では `check.yaml` が走らないので、雛形の `token:` は消さない。
 5. ワークフロー自体は、現在のバージョンが最新と一致する間は「更新なし」で終わる。更新処理を試したいときは、`flake.nix` (または `pkgs/<tool>/default.nix`) のタグを一つ古いものに戻した状態で実行する。C は、`flake.lock` の rev が最新と一致する間は差分が出ない。
 
 ## 既知の制約

@@ -29,6 +29,7 @@ git clone git@github.com:reinmuth66/dotfiles.git ~/dotfiles && ~/dotfiles/script
 | `~/.config/git/config.local` | git のメールアドレス設定（下記参照） |
 | `~/.claude/settings.json` | Claude Code の権限・フック設定 |
 | `~/.config/gh/hosts.yml` | GitHub CLI の認証情報 |
+| リポジトリの secret `CREATE_PR_TOKEN` | 自動更新 PR の作成に使う fine-grained token（下記参照） |
 
 **`~/.config/git/config.local` の作成:**
 
@@ -36,6 +37,16 @@ git clone git@github.com:reinmuth66/dotfiles.git ~/dotfiles && ~/dotfiles/script
 [user]
 	email = your-email@example.com
 ```
+
+**`CREATE_PR_TOKEN` の作成:**
+
+`GITHUB_TOKEN` で作った PR では `check.yaml` が走らないため、自動更新の PR はこのトークンで作る。
+
+1. GitHub の Settings → Developer settings → Fine-grained tokens で、次の内容のトークンを作る
+   - Repository access: このリポジトリだけ
+   - Permissions: Contents と Pull requests を Read and write
+2. リポジトリの Settings → Secrets and variables → Actions に `CREATE_PR_TOKEN` として登録する
+3. トークンの期限が切れると自動更新が失敗し、Issue が作られる。そのときは作り直して登録し直す
 
 ## 日常のワークフロー
 
