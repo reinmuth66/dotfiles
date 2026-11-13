@@ -12,6 +12,8 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 
 `nh darwin switch`を行うまで実際の環境には反映されない。ただし、そのコマンドはユーザーが実行する。
 
+`.nix` を編集したら `nix fmt` で整形する。CI (`check.yaml`) が、整形・statix・deadnix とシステム全体のビルドを確認する。
+
 ## 新しいツールを追加する
 
 追加先は、次の順に探して、最初に当てはまるものを使う。
