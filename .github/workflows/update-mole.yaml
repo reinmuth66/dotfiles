@@ -38,7 +38,7 @@ jobs:
           if git diff --quiet flake.lock; then echo "::error::flake.lock が更新されなかった"; exit 1; fi
       - name: Create Pull Request
         if: steps.check.outputs.needs_update == 'true'
-        uses: peter-evans/create-pull-request@v8.1.1
+        uses: peter-evans/create-pull-request@v8.1.2
         with:
           # A PR created with GITHUB_TOKEN does not trigger pull_request workflows, so check.yaml would not run on it.
           token: ${{ secrets.CREATE_PR_TOKEN }}
