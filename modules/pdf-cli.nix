@@ -1,7 +1,7 @@
-{ pkgs, pdf-cli, ... }:
+{ inputs, pkgs, ... }:
 
 {
-  home.packages = [ (pkgs.callPackage ../nix/pdf-cli.nix { src = pdf-cli; }) ];
+  home.packages = [ inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.pdf-cli ];
 
   home.sessionVariables = {
     DOCVIEWER_SUPERSAMPLE = "1";

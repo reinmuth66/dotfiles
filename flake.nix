@@ -57,11 +57,28 @@
       home-manager,
       ...
     }:
+    let
+      # pkgs/ の自前パッケージ。モジュールからは inputs.self.packages.<system>.<name> で参照する
+      mkPackages = pkgs: {
+        cavaviz = pkgs.callPackage ./pkgs/cavaviz { };
+        media-key = pkgs.callPackage ./pkgs/media-key { };
+        pdf-cli = pkgs.callPackage ./pkgs/pdf-cli { src = inputs.pdf-cli; };
+        sketchybar = pkgs.callPackage ./pkgs/sketchybar { };
+        zmk-battery-center = pkgs.callPackage ./pkgs/zmk-battery-center { };
+      };
+    in
     {
-
       formatter = nixpkgs.lib.genAttrs [ "aarch64-darwin" "x86_64-linux" ] (
         system: nixpkgs.legacyPackages.${system}.nixfmt-tree
       );
+
+      packages = {
+        aarch64-darwin = mkPackages nixpkgs.legacyPackages.aarch64-darwin;
+        # update-flake.yaml が ubuntu ランナーで pdf-cli の vendorHash を計算するために使う
+        x86_64-linux = {
+          inherit (mkPackages nixpkgs.legacyPackages.x86_64-linux) pdf-cli;
+        };
+      };
 
       darwinConfigurations."ReinmuthLaptop" = nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
@@ -73,20 +90,7 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "bak";
-            home-manager.extraSpecialArgs = {
-              inherit (inputs)
-                nixpkgs-spotify
-                spicetify-nix
-                mole
-                yazi-flavors
-                yazi-plugins
-                compress-yazi
-                eza-preview-yazi
-                catppuccin-bat
-                zeno-zsh
-                pdf-cli
-                ;
-            };
+            home-manager.extraSpecialArgs = { inherit inputs; };
             home-manager.users.reinmuth = import ./modules/home.nix;
           }
         ];

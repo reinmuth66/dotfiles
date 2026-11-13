@@ -20,9 +20,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           LATEST=$(gh release view --repo kot149/zmk-battery-center --json tagName -q '.tagName' | sed 's/^v//')
-          CURRENT=$(grep -oP '(?<=version = ")[^"]+' nix/zmk-battery-center.nix || true)
+          CURRENT=$(grep -oP '(?<=version = ")[^"]+' pkgs/zmk-battery-center/default.nix || true)
           [[ "$LATEST" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::想定外のタグ形式: ${LATEST}"; exit 1; }
-          [[ "$CURRENT" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::nix/zmk-battery-center.nix から現在の版を取得できない"; exit 1; }
+          [[ "$CURRENT" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::pkgs/zmk-battery-center/default.nix から現在の版を取得できない"; exit 1; }
           echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           if [ "$LATEST" != "$CURRENT" ]; then
@@ -36,10 +36,10 @@ jobs:
           VERSION="${{ steps.check.outputs.latest }}"
           URL="https://github.com/kot149/zmk-battery-center/releases/download/v${VERSION}/zmk-battery-center_${VERSION}_aarch64.app.tar.gz"
           HASH=$(nix store prefetch-file --hash-type sha256 --json "$URL" | jq -r '.hash')
-          sed -i "s/version = \"[^\"]*\"/version = \"${VERSION}\"/" nix/zmk-battery-center.nix
+          sed -i "s/version = \"[^\"]*\"/version = \"${VERSION}\"/" pkgs/zmk-battery-center/default.nix
           [[ "$HASH" == sha256-* ]] || { echo "::error::hash を取得できなかった"; exit 1; }
-          sed -i "s|hash = \"[^\"]*\"|hash = \"${HASH}\"|" nix/zmk-battery-center.nix
-          if git diff --quiet nix/zmk-battery-center.nix; then echo "::error::nix/zmk-battery-center.nix を書き換えられなかった"; exit 1; fi
+          sed -i "s|hash = \"[^\"]*\"|hash = \"${HASH}\"|" pkgs/zmk-battery-center/default.nix
+          if git diff --quiet pkgs/zmk-battery-center/default.nix; then echo "::error::pkgs/zmk-battery-center/default.nix を書き換えられなかった"; exit 1; fi
       - name: Create Pull Request
         if: steps.check.outputs.needs_update == 'true'
         id: cpr

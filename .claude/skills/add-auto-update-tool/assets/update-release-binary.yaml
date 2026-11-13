@@ -1,4 +1,4 @@
-# Template: weekly auto-update PR for a release-binary tool (nix/<tool>.nix with fetchurl).
+# Template: weekly auto-update PR for a release-binary tool (pkgs/<tool>/default.nix with fetchurl).
 # Copy to .github/workflows/update-<tool>.yaml and replace every <placeholder>.
 # Match the action versions to the existing update-*.yaml workflows.
 name: Update <tool>
@@ -24,9 +24,9 @@ jobs:
         run: |
           # The tag is assumed to be "v" + version. Adjust the sed here and the URL below if upstream uses another format.
           LATEST=$(gh release view --repo <owner>/<repo> --json tagName -q '.tagName' | sed 's/^v//')
-          CURRENT=$(grep -oP '(?<=version = ")[^"]+' nix/<tool>.nix || true)
+          CURRENT=$(grep -oP '(?<=version = ")[^"]+' pkgs/<tool>/default.nix || true)
           [[ "$LATEST" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::想定外のタグ形式: ${LATEST}"; exit 1; }
-          [[ "$CURRENT" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::nix/<tool>.nix から現在の版を取得できない"; exit 1; }
+          [[ "$CURRENT" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::pkgs/<tool>/default.nix から現在の版を取得できない"; exit 1; }
           echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
           echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
           if [ "$LATEST" != "$CURRENT" ]; then
@@ -40,10 +40,10 @@ jobs:
           VERSION="${{ steps.check.outputs.latest }}"
           URL="https://github.com/<owner>/<repo>/releases/download/v${VERSION}/<asset-name using ${VERSION}>"
           HASH=$(nix store prefetch-file --hash-type sha256 --json "$URL" | jq -r '.hash')
-          sed -i "s/version = \"[^\"]*\"/version = \"${VERSION}\"/" nix/<tool>.nix
+          sed -i "s/version = \"[^\"]*\"/version = \"${VERSION}\"/" pkgs/<tool>/default.nix
           [[ "$HASH" == sha256-* ]] || { echo "::error::hash を取得できなかった"; exit 1; }
-          sed -i "s|hash = \"[^\"]*\"|hash = \"${HASH}\"|" nix/<tool>.nix
-          if git diff --quiet nix/<tool>.nix; then echo "::error::nix/<tool>.nix を書き換えられなかった"; exit 1; fi
+          sed -i "s|hash = \"[^\"]*\"|hash = \"${HASH}\"|" pkgs/<tool>/default.nix
+          if git diff --quiet pkgs/<tool>/default.nix; then echo "::error::pkgs/<tool>/default.nix を書き換えられなかった"; exit 1; fi
       - name: Create Pull Request
         if: steps.check.outputs.needs_update == 'true'
         id: cpr

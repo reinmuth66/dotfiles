@@ -1,4 +1,4 @@
-{ catppuccin-bat, ... }:
+{ inputs, ... }:
 
 {
   programs.bat = {
@@ -6,7 +6,7 @@
     config.theme = "Catppuccin Macchiato";
     themes = {
       "Catppuccin Macchiato" = {
-        src = catppuccin-bat;
+        src = inputs.catppuccin-bat;
         file = "themes/Catppuccin Macchiato.tmTheme";
       };
     };

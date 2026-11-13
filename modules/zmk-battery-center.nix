@@ -1,7 +1,12 @@
-{ config, pkgs, ... }:
+{
+  config,
+  pkgs,
+  inputs,
+  ...
+}:
 
 let
-  zmk-battery-center = pkgs.callPackage ../nix/zmk-battery-center.nix { };
+  inherit (inputs.self.packages.${pkgs.stdenv.hostPlatform.system}) zmk-battery-center;
   batteryStatePath = "${config.home.homeDirectory}/Library/Application Support/com.zmk-battery-center.app/external/battery-state-v1.json";
 in
 {

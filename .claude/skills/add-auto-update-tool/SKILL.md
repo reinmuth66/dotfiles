@@ -31,7 +31,7 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 
 雛形は `assets/` にある。プレースホルダ (`<tool>`、`<owner>/<repo>` など) を埋めて使う。何を埋めるかは、各ファイルの先頭の注釈に書いてある。
 
-- A: `assets/release-binary.nix` (`nix/<tool>.nix` にコピー) と `assets/update-release-binary.yaml` (`.github/workflows/update-<tool>.yaml` にコピー)
+- A: `assets/release-binary.nix` (`pkgs/<tool>/default.nix` にコピー) と `assets/update-release-binary.yaml` (`.github/workflows/update-<tool>.yaml` にコピー)
 - B: `assets/update-tag-pinned.yaml` (`.github/workflows/update-<tool>.yaml` にコピー)
 - C: 雛形は要らない。既存の実例は `grep -n 'flake = false' flake.nix` で見つかる
 
@@ -57,16 +57,16 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 
 ## 手順 A: リリースバイナリ
 
-1. `assets/release-binary.nix` を `nix/<tool>.nix` にコピーし、プレースホルダを埋める (`version` と `hash` を 1 箇所ずつ持つ形)。`hash` は、次のコマンドで取った値に置き換える。
+1. `assets/release-binary.nix` を `pkgs/<tool>/default.nix` にコピーし、プレースホルダを埋める (`version` と `hash` を 1 箇所ずつ持つ形)。`hash` は、次のコマンドで取った値に置き換える。
 
    ```bash
    nix store prefetch-file --hash-type sha256 --json "<成果物の URL>" | jq -r .hash
    ```
 
-2. `modules/<tool>.nix` で `pkgs.callPackage ../nix/<tool>.nix { }` を呼び、`home.packages` に追加する。`modules/home.nix` の `imports` に加える。
+2. `flake.nix` の `mkPackages` に `<tool> = pkgs.callPackage ./pkgs/<tool> { };` を足す。`modules/<tool>.nix` で `inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.<tool>` を `home.packages` に追加し、`modules/home.nix` の `imports` に加える。
 3. `assets/update-release-binary.yaml` を `.github/workflows/update-<tool>.yaml` にコピーし、プレースホルダ (`<tool>`、`<owner>/<repo>`、アセット名) を埋める。
 4. タグの接頭辞に注意する。雛形は、タグの `v` (例: `v1.2.3`) を外して `version` に入れ、URL で付け直している。upstream のタグが `v` で始まらない場合は、`sed 's/^v//'` と URL の `v${VERSION}` を調整する。
-5. 雛形のワークフローは、`version = "..."` と `hash = "..."` の全一致を `sed` で書き換える。`nix/<tool>.nix` では、`version` と `hash` を 1 回ずつだけ代入し、コメントの中にも、その形の文字列を書かない。
+5. 雛形のワークフローは、`version = "..."` と `hash = "..."` の全一致を `sed` で書き換える。`pkgs/<tool>/default.nix` では、`version` と `hash` を 1 回ずつだけ代入し、コメントの中にも、その形の文字列を書かない。
 
 ## 手順 B: タグ固定 flake input
 
@@ -111,14 +111,13 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
    };
    ```
 
-2. `outputs` の `home-manager.extraSpecialArgs` の `inherit (inputs) ...` に `<name>` を足す。
-3. 使う側で `fetchFromGitHub` を input に置き換える。
+2. 使う側で `fetchFromGitHub` を input に置き換える。input は `home-manager.extraSpecialArgs = { inherit inputs; }` でモジュールに渡っているので、`flake.nix` の `outputs` 側を足す必要はない。
 
-   - モジュールなら引数に `<name>` を足し、`src = <name>;` とする
-   - `callPackage` するパッケージなら、引数 (`src` など) として渡す
-   - `${<name>}` はストアパスになる。`<name>.rev`、`<name>.shortRev`、`<name>.lastModifiedDate` も使える (version の組み立てなど)
+   - モジュールなら引数に `inputs` を足し、`src = inputs.<name>;` とする
+   - `pkgs/` のパッケージなら、`flake.nix` の `mkPackages` で引数 (`src = inputs.<name>;` など) として渡す
+   - `${inputs.<name>}` はストアパスになる。`.rev`、`.shortRev`、`.lastModifiedDate` も使える (version の組み立てなど)
 
-   実例は、`flake.nix` の既存の `flake = false` の input 名を `grep -rn '<input 名>' modules nix` で引くと見つかる。
+   実例は、`flake.nix` の既存の `flake = false` の input 名を `grep -rn 'inputs.<input 名>' modules flake.nix` で引くと見つかる。
 
 4. 既存の固定コミットから移す場合は、同じコミットのままロックする。何もしないと、ロック時点の最新コミットまで進んでしまう。
 
@@ -139,7 +138,7 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 ソースから導出される hash (Go の `vendorHash`、npm の `npmDepsHash`、Rust の `cargoHash`) は `go.sum` などに依存するため、flake input では追従できない。ソースを C にしたら、`update-flake.yaml` の `nix flake update` の後に、hash を再計算する step を足す。実例は `update-flake.yaml` の、`vendorHash` を再計算する step (`grep -n vendorHash .github/workflows/update-flake.yaml`)。
 
 1. hash をダミー (`sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`) に `sed` で置換する。
-2. パッケージ全体ではなく、hash を持つ中間 derivation だけをビルドする。Go なら `.goModules` である。`nix build --impure --expr` で、`builtins.getFlake (toString ./.)` から input を渡す。ubuntu ランナーでも動くよう、`system = builtins.currentSystem` を使う。
+2. パッケージ全体ではなく、hash を持つ中間 derivation だけをビルドする。Go なら `nix build --no-link '.#<name>.goModules'` である。ubuntu ランナーで動かすので、`flake.nix` の `packages.x86_64-linux` にもそのパッケージを足す。
 3. 失敗出力の `got:` 行から正しい hash を取り、`sed` で書き戻す。
 4. 取得できなかった場合は `git checkout` で戻し、`continue-on-error: true` で PR 作成は止めない。
 
@@ -196,7 +195,7 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 
 3. 成果物のスモークテスト。副作用のないコマンド (`--version` など) だけを実行する。
 4. ワークフローの動作確認は、push 後に GitHub の Actions 画面で `workflow_dispatch` を実行する。PR を作るには、リポジトリ設定の「Allow GitHub Actions to create pull requests」が有効である必要がある (既存ワークフローが動いているなら有効)。
-5. ワークフロー自体は、現在のバージョンが最新と一致する間は「更新なし」で終わる。更新処理を試したいときは、`flake.nix` (または `nix/<tool>.nix`) のタグを一つ古いものに戻した状態で実行する。C は、`flake.lock` の rev が最新と一致する間は差分が出ない。
+5. ワークフロー自体は、現在のバージョンが最新と一致する間は「更新なし」で終わる。更新処理を試したいときは、`flake.nix` (または `pkgs/<tool>/default.nix`) のタグを一つ古いものに戻した状態で実行する。C は、`flake.lock` の rev が最新と一致する間は差分が出ない。
 
 ## 既知の制約
 

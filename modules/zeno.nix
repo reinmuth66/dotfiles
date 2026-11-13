@@ -2,12 +2,12 @@
   pkgs,
   lib,
   config,
-  zeno-zsh,
+  inputs,
   ...
 }:
 
 let
-  zenoSrc = zeno-zsh;
+  zenoSrc = inputs.zeno-zsh;
   zenoDir = "${config.home.homeDirectory}/.local/share/zeno.zsh";
 
   # --- WezTerm tab-close confirmation background ---

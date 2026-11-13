@@ -9,6 +9,8 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 - `modules/home.nix` — home-manager エントリ (パッケージ、全モジュールの import)
 - `modules/<tool>.nix` — ツールごとの設定モジュール
 - `config/` — `programs.*` で表現できないツールの設定ファイル実体
+- `pkgs/<name>/default.nix` — 自前でビルドするパッケージ。パッチなど関連ファイルも同じディレクトリに置く。単体で使えるものは `flake.nix` の `mkPackages` に登録し (`nix build .#<name>` でビルドできる)、モジュールからは `inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.<name>` で参照する
+- flake の input は `inputs` としてモジュールに渡る。モジュールでは `inputs.<name>` で参照する
 
 `nh darwin switch`を行うまで実際の環境には反映されない。ただし、そのコマンドはユーザーが実行する。
 

@@ -2,10 +2,13 @@
   config,
   lib,
   pkgs,
+  inputs,
   ...
 }:
 
 let
+  selfPkgs = inputs.self.packages.${pkgs.stdenv.hostPlatform.system};
+
   mkHelper = pkgs.callPackage ../pkgs/sketchybar-helper { };
 
   mkHelperAgent =
@@ -94,7 +97,7 @@ let
       esac
     '';
   };
-  mediaKey = pkgs.callPackage ../pkgs/media-key { };
+  mediaKey = selfPkgs.media-key;
 
   # The .app that launchd starts, which execs the sketchybar wrapper that programs.sketchybar builds.
   # It makes the Accessibility permission stay attached even when the store path changes. See pkgs/sketchybar-app.
@@ -106,9 +109,7 @@ in
   programs.sketchybar = {
     enable = true;
 
-    package = pkgs.sketchybar.overrideAttrs (old: {
-      patches = (old.patches or [ ]) ++ [ ../pkgs/sketchybar/image-rotation.patch ];
-    });
+    package = selfPkgs.sketchybar;
 
     configType = "lua";
     config = {

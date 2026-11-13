@@ -24,20 +24,15 @@ jobs:
         run: |
           FAKE='sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
           LOG=$(mktemp)
-          sed -i "s|vendorHash = \"[^\"]*\"|vendorHash = \"${FAKE}\"|" nix/pdf-cli.nix
-          nix build --impure --no-link --expr '
-            let
-              flake = builtins.getFlake (toString ./.);
-              pkgs = import flake.inputs.nixpkgs { system = builtins.currentSystem; };
-            in (pkgs.callPackage ./nix/pdf-cli.nix { src = flake.inputs.pdf-cli; }).goModules
-          ' 2>&1 | tee "$LOG" || true
+          sed -i "s|vendorHash = \"[^\"]*\"|vendorHash = \"${FAKE}\"|" pkgs/pdf-cli/default.nix
+          nix build --no-link '.#pdf-cli.goModules' 2>&1 | tee "$LOG" || true
           HASH=$(grep -oE 'got:[[:space:]]+sha256-[A-Za-z0-9+/]+=*' "$LOG" | grep -oE 'sha256-.*' | head -1 || true)
           if [ -z "$HASH" ]; then
-            git checkout nix/pdf-cli.nix
+            git checkout pkgs/pdf-cli/default.nix
             echo "::warning::pdf-cli の vendorHash を取得できなかった"
             exit 1
           fi
-          sed -i "s|vendorHash = \"[^\"]*\"|vendorHash = \"${HASH}\"|" nix/pdf-cli.nix
+          sed -i "s|vendorHash = \"[^\"]*\"|vendorHash = \"${HASH}\"|" pkgs/pdf-cli/default.nix
       - name: Report pdf-cli vendorHash failure
         if: steps.vendorhash.outcome == 'failure'
         uses: ./.github/actions/notify-failure
@@ -46,7 +41,7 @@ jobs:
           topic: 'pdf-cli の vendorHash'
           detail: >-
             pdf-cli の vendorHash を更新できませんでした。flake inputs の PR は作られていますが、
-            そのままマージすると、switch のビルドが失敗します。nix/pdf-cli.nix の vendorHash を手動で更新してください。
+            そのままマージすると、switch のビルドが失敗します。pkgs/pdf-cli/default.nix の vendorHash を手動で更新してください。
       - name: Create Pull Request
         id: cpr
         uses: peter-evans/create-pull-request@v8.1.1

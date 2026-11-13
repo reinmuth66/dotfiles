@@ -1,4 +1,9 @@
-{ lib, pkgs, ... }:
+{
+  lib,
+  pkgs,
+  inputs,
+  ...
+}:
 
 # A bar-graph sound visualizer laid under the Spotify popup. Uses the SDL version of cava.
 # The cava window draws the popup's background, border, and bar graph. The SketchyBar popup's own background is made transparent,
@@ -7,7 +12,7 @@
 # Launching and stopping, aligning the window position, and handing over the background are done by config/sketchybar/items/spotify.lua.
 # For how the .app is built and the audio capture permission, see pkgs/cavaviz/default.nix.
 let
-  cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
+  inherit (inputs.self.packages.${pkgs.stdenv.hostPlatform.system}) cavaviz;
 
   # If the required shaders are present, cava writes nothing to the config directory.
   # Confirmed on the actual device that it works even with a read-only store.

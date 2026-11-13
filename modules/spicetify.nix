@@ -2,12 +2,12 @@
   config,
   lib,
   pkgs,
-  nixpkgs-spotify,
-  spicetify-nix,
+  inputs,
   ...
 }:
 
 let
+  inherit (inputs) nixpkgs-spotify spicetify-nix;
   inherit (pkgs.stdenv.hostPlatform) system;
   spicePkgs = spicetify-nix.legacyPackages.${system};
 

@@ -1,13 +1,13 @@
-{
-  pkgs,
-  yazi-flavors,
-  yazi-plugins,
-  compress-yazi,
-  eza-preview-yazi,
-  ...
-}:
+{ pkgs, inputs, ... }:
 
 let
+  inherit (inputs)
+    yazi-flavors
+    yazi-plugins
+    compress-yazi
+    eza-preview-yazi
+    ;
+
   eza-preview-patched = pkgs.runCommand "eza-preview-patched" { } ''
     cp -r ${eza-preview-yazi} $out
     chmod -R +w $out
