@@ -1,0 +1,30 @@
+name: 'Check'
+on:
+  # Direct pushes to main are checked locally with `nh darwin switch` before pushing, so only PRs run this.
+  pull_request:
+  # The update-*.yaml workflows dispatch this on their PR branch, since PRs created with GITHUB_TOKEN do not trigger pull_request.
+  workflow_dispatch:
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - name: Format (nixfmt)
+        run: nix fmt -- --ci
+      - name: Lint (statix)
+        run: nix run --inputs-from . nixpkgs#statix -- check .
+      - name: Dead code (deadnix)
+        run: nix run --inputs-from . nixpkgs#deadnix -- --fail .
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: DeterminateSystems/nix-installer-action@v23
+      - name: Build the darwin system
+        run: nix build --no-link --print-build-logs '.#darwinConfigurations.ReinmuthLaptop.system'
