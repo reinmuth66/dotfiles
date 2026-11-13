@@ -22,6 +22,11 @@ freecad = [
 url = "*.{html,htm}"
 use = ["edit", "browser", "reveal"]
 
+# file(1) が一部の YAML (例: "manifest:" で始まる west.yml) を application/vnd.a2ml と誤判定するため、拡張子で判定する
+[[open.prepend_rules]]
+url = "*.{yml,yaml}"
+use = ["edit", "reveal"]
+
 [[open.prepend_rules]]
 url = "*.{xlsx,xls,xlsm,xltx,numbers,csv}"
 use = ["open", "reveal"]
@@ -73,6 +78,10 @@ group = "git"
 [[plugin.prepend_previewers]]
 url = "*/"
 run = "eza-preview"
+
+[[plugin.prepend_previewers]]
+url = "*.{yml,yaml}"
+run = "code"
 
 [[plugin.prepend_previewers]]
 mime = "image/tiff"
