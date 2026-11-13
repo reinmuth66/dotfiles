@@ -13,6 +13,7 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      actions: write
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: DeterminateSystems/nix-installer-action@v23
@@ -45,6 +46,7 @@ jobs:
           if git diff --quiet nix/<tool>.nix; then echo "::error::nix/<tool>.nix を書き換えられなかった"; exit 1; fi
       - name: Create Pull Request
         if: steps.check.outputs.needs_update == 'true'
+        id: cpr
         uses: peter-evans/create-pull-request@v8.1.1
         with:
           commit-message: 'chore: update <tool> to v${{ steps.check.outputs.latest }}'
@@ -54,6 +56,12 @@ jobs:
           branch: update/<tool>
           labels: dependencies
           delete-branch: true
+      # A PR created with GITHUB_TOKEN does not trigger pull_request workflows, so dispatch check.yaml on the PR branch.
+      - name: Run checks on the PR
+        if: steps.cpr.outputs.pull-request-operation == 'created' || steps.cpr.outputs.pull-request-operation == 'updated'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run check.yaml --ref update/<tool>
       - name: Report failure
         if: failure()
         uses: ./.github/actions/notify-failure
