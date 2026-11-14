@@ -43,7 +43,8 @@ in
   # MCP サーバーは home-manager が生成する個人プラグインとして配られる。
   programs.claude-code = {
     enable = true;
-    configDir = ".claude";
+    # 絶対パスで書く。上流の既定値 (~/.claude) と一致していれば CLAUDE_CONFIG_DIR は export されない
+    configDir = claudeDir;
     mcpServers.playwright = {
       command = "${pkgs.playwright-mcp}/bin/playwright-mcp";
     };
