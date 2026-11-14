@@ -44,3 +44,7 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 - `cavaviz.nix`: Spotify ポップアップの背景と棒グラフを描くサウンドビジュアライザ。`pkgs/cavaviz/` の CavaViz.app と、cava の設定とシェーダーからなる
 - `mole.nix`: タグ固定の flake input。`update-mole.yaml` が新しいリリースで PR を作る
 - `czg.nix`: conventional commit の TUI。`importNpmLock` で `pkgs/czg/` から作る
+- `claude.nix`: Claude Code 本体は `nix-claude-code` input の overlay (`darwin.nix`) で入れる。`update-claude-code.yaml` が、この input だけを毎日更新して PR を作る。MCP サーバーは `programs.claude-code.mcpServers` で宣言する
+  - `settings.json` は丸ごと置き換えず、activation で jq マージする。Nix に書いたキーが勝ち、`enabledPlugins` や `permissions.allow` など Claude Code が書き込むものは残る。`hooks` だけは Nix の内容で置き換える
+  - `CLAUDE.md` と `statusline.sh` は `mkOutOfStoreSymlink` で dotfiles を直接指すので、編集は switch なしで反映される
+- `agent-skills.nix`: ユーザー全体の skill を agent-skills-nix で `~/.claude/skills` に配る。取得元は flake input ではなく `config/agent-skills/registry/sources/*.nix` で固定し、`nix run .#skills-sources-lock -- --manifest-dir config/agent-skills/registry/sources --lock-file config/agent-skills/registry/sources.lock.json` で更新する (`update-agent-skills.yaml` が週次で実行)。hooks や agents を含むプラグイン (superpowers など) は `/plugin` で管理する

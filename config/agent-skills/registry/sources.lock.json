@@ -1,0 +1,170 @@
+{
+  "manifests": {
+    "claude-plugins-official": {
+      "filter": {
+        "maxDepth": 3,
+        "nameRegex": null
+      },
+      "idPrefix": null,
+      "pin": {
+        "at": null,
+        "branch": "main",
+        "owner": "anthropics",
+        "preReleases": false,
+        "releasePrefix": null,
+        "repo": "claude-plugins-official",
+        "submodules": false,
+        "type": "github",
+        "versionUpperBound": null
+      },
+      "subdir": "plugins"
+    },
+    "effective-html": {
+      "filter": {
+        "maxDepth": 1,
+        "nameRegex": null
+      },
+      "idPrefix": null,
+      "pin": {
+        "at": null,
+        "branch": "main",
+        "owner": "plannotator",
+        "preReleases": false,
+        "releasePrefix": null,
+        "repo": "effective-html",
+        "submodules": false,
+        "type": "github",
+        "versionUpperBound": null
+      },
+      "subdir": "skills"
+    },
+    "imozuru": {
+      "filter": {
+        "maxDepth": 1,
+        "nameRegex": null
+      },
+      "idPrefix": null,
+      "pin": {
+        "at": null,
+        "branch": "main",
+        "owner": "MaryCache",
+        "preReleases": false,
+        "releasePrefix": null,
+        "repo": "imozuru",
+        "submodules": false,
+        "type": "github",
+        "versionUpperBound": null
+      },
+      "subdir": "skills"
+    },
+    "ui-ux-pro-max": {
+      "filter": {
+        "maxDepth": 1,
+        "nameRegex": null
+      },
+      "idPrefix": null,
+      "pin": {
+        "at": null,
+        "branch": "main",
+        "owner": "nextlevelbuilder",
+        "preReleases": false,
+        "releasePrefix": null,
+        "repo": "ui-ux-pro-max-skill",
+        "submodules": false,
+        "type": "github",
+        "versionUpperBound": null
+      },
+      "subdir": ".claude/skills"
+    },
+    "yomiyasu": {
+      "filter": {
+        "maxDepth": 1,
+        "nameRegex": null
+      },
+      "idPrefix": null,
+      "pin": {
+        "at": null,
+        "branch": "main",
+        "owner": "nanaism",
+        "preReleases": false,
+        "releasePrefix": null,
+        "repo": "yomiyasu",
+        "submodules": false,
+        "type": "github",
+        "versionUpperBound": null
+      },
+      "subdir": "skills"
+    }
+  },
+  "npins": {
+    "pins": {
+      "claude-plugins-official": {
+        "branch": "main",
+        "hash": "sha256-2rggi6MyrjwIRhM/TCOoDvqlGs4l5V0beE11537mO1Y=",
+        "repository": {
+          "owner": "anthropics",
+          "repo": "claude-plugins-official",
+          "type": "GitHub"
+        },
+        "revision": "b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6",
+        "submodules": false,
+        "type": "Git",
+        "url": "https://github.com/anthropics/claude-plugins-official/archive/b5b01ac4f889fec0c4c6bb89f27ca7c8574473f6.tar.gz"
+      },
+      "effective-html": {
+        "branch": "main",
+        "hash": "sha256-Yam2kp28QrUzoZy57AHU3G7jbFXRdaLHezOIq7POgWg=",
+        "repository": {
+          "owner": "plannotator",
+          "repo": "effective-html",
+          "type": "GitHub"
+        },
+        "revision": "5ce160a3e76dc1c0f9301f8a1903704ec607636a",
+        "submodules": false,
+        "type": "Git",
+        "url": "https://github.com/plannotator/effective-html/archive/5ce160a3e76dc1c0f9301f8a1903704ec607636a.tar.gz"
+      },
+      "imozuru": {
+        "branch": "main",
+        "hash": "sha256-LrYzlLo4LYLmgFdQcHjlL3ALP1jbOr+oqTgoAdunWGU=",
+        "repository": {
+          "owner": "MaryCache",
+          "repo": "imozuru",
+          "type": "GitHub"
+        },
+        "revision": "808407e501bc5a1e596655b0a6d62e1f3b20ba1b",
+        "submodules": false,
+        "type": "Git",
+        "url": "https://github.com/MaryCache/imozuru/archive/808407e501bc5a1e596655b0a6d62e1f3b20ba1b.tar.gz"
+      },
+      "ui-ux-pro-max": {
+        "branch": "main",
+        "hash": "sha256-t2stnIwWIuIZZ7oYSKo/fOYYfZXTFTic4Zpd2/BwxO0=",
+        "repository": {
+          "owner": "nextlevelbuilder",
+          "repo": "ui-ux-pro-max-skill",
+          "type": "GitHub"
+        },
+        "revision": "6ae86f61f520d6ca229d2f40e070410638c908c5",
+        "submodules": false,
+        "type": "Git",
+        "url": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/archive/6ae86f61f520d6ca229d2f40e070410638c908c5.tar.gz"
+      },
+      "yomiyasu": {
+        "branch": "main",
+        "hash": "sha256-5CVfVx2cNxOdW8uKOdo3Gjs8zJrNYdBFqwR/qBg/Gpk=",
+        "repository": {
+          "owner": "nanaism",
+          "repo": "yomiyasu",
+          "type": "GitHub"
+        },
+        "revision": "db78b9bc5e868549b517a037df7a4d1c93edac23",
+        "submodules": false,
+        "type": "Git",
+        "url": "https://github.com/nanaism/yomiyasu/archive/db78b9bc5e868549b517a037df7a4d1c93edac23.tar.gz"
+      }
+    },
+    "version": 8
+  },
+  "schemaVersion": 1
+}

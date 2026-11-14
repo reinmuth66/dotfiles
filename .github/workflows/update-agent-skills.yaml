@@ -1,0 +1,40 @@
+name: 'Update agent skills'
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: DeterminateSystems/nix-installer-action@v23
+      # skills-sources-lock reads files from the agent-skills source by store path,
+      # but `nix run` does not copy that source into the store, so copy all inputs first.
+      - name: Fetch flake inputs into the store
+        run: nix flake archive > /dev/null
+      - name: Update skill sources
+        run: |
+          nix run .#skills-sources-lock -- \
+            --manifest-dir config/agent-skills/registry/sources \
+            --lock-file config/agent-skills/registry/sources.lock.json
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v8.1.2
+        with:
+          # A PR created with GITHUB_TOKEN does not trigger pull_request workflows, so check.yaml would not run on it.
+          token: ${{ secrets.CREATE_PR_TOKEN }}
+          commit-message: 'chore: update agent skills'
+          title: 'chore: update agent skills'
+          body: 'Automated update of config/agent-skills/registry/sources.lock.json by GitHub Actions.'
+          branch: 'update/agent-skills'
+          labels: 'dependencies'
+          delete-branch: true
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-agent-skills'

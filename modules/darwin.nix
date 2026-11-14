@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, inputs, ... }:
 
 {
   homebrew = {
@@ -52,7 +52,15 @@
     fi
   '';
 
-  nixpkgs.config.allowUnfreePredicate = pkg: builtins.elem (pkgs.lib.getName pkg) [ "spotify" ];
+  nixpkgs.config.allowUnfreePredicate =
+    pkg:
+    builtins.elem (pkgs.lib.getName pkg) [
+      "spotify"
+      "claude"
+    ];
+
+  # pkgs.claude-code を nix-claude-code の公式ネイティブバイナリ版に差し替える
+  nixpkgs.overlays = [ inputs.nix-claude-code.overlays.default ];
 
   nix.settings.experimental-features = [
     "nix-command"

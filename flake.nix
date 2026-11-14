@@ -16,6 +16,15 @@
       url = "github:Gerg-L/spicetify-nix";
       inputs.nixpkgs.follows = "nixpkgs-spotify";
     };
+    nix-claude-code = {
+      url = "github:ryoppippi/nix-claude-code";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    # skill の取得元は flake input にせず、config/agent-skills/registry で固定する
+    agent-skills = {
+      url = "github:Kyure-A/agent-skills-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     mole = {
       url = "github:tw93/mole/V1.70.0";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -72,6 +81,22 @@
         system: nixpkgs.legacyPackages.${system}.nixfmt-tree
       );
 
+      # `nix run .#skills-sources-lock` で config/agent-skills/registry の skill の取得元をまとめて更新する
+      apps = nixpkgs.lib.genAttrs [ "aarch64-darwin" "x86_64-linux" ] (
+        system:
+        let
+          program = inputs.agent-skills.lib.agent-skills.mkSourceLockProgram {
+            pkgs = nixpkgs.legacyPackages.${system};
+          };
+        in
+        {
+          skills-sources-lock = {
+            type = "app";
+            program = "${program}/bin/skills-sources-lock";
+          };
+        }
+      );
+
       packages = {
         aarch64-darwin = mkPackages nixpkgs.legacyPackages.aarch64-darwin;
         # update-flake.yaml が ubuntu ランナーで pdf-cli の vendorHash を計算するために使う
@@ -82,6 +107,7 @@
 
       darwinConfigurations."ReinmuthLaptop" = nix-darwin.lib.darwinSystem {
         system = "aarch64-darwin";
+        specialArgs = { inherit inputs; };
         modules = [
           ./modules/darwin.nix
           ./modules/system-defaults.nix
