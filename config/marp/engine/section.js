@@ -1,5 +1,5 @@
-// 章の扉 (class: section) の見出しに番号を振り、次の扉までの全スライドのフッターに「番号. 章名」を入れる。
-// 表紙 (class: title) には入れない。スライドが自分でフッターを書いていれば、それを優先する。
+// 章の扉 (class: section) の見出しに番号を振り、次の扉までのスライドのフッターに「番号. 章名」を入れる。
+// 章の扉そのものと、表紙 (class: title) には入れない。スライドが自分でフッターを書いていれば、それを優先する。
 
 const classesOf = (token) => (token.attrGet("class") || "").split(/\s+/);
 
@@ -58,10 +58,14 @@ const section = (md) => {
         }
       }
 
-      if (footer === null || classes.includes("title")) continue;
+      // 章の扉そのものと表紙には入れない
+      if (footer === null || classes.includes("title") || classes.includes("section")) continue;
 
+      // 空のフッター (<!-- _footer: "" -->) も、スライドが自分で決めたものとして残す
+      // marpit は空のフッターを meta.marpitFooter に入れないので、指定の有無は directive で見る
       slide.meta = slide.meta || {};
-      if (!slide.meta.marpitFooter) slide.meta.marpitFooter = footer;
+      const directives = slide.meta.marpitDirectives || {};
+      if (directives.footer === undefined) slide.meta.marpitFooter = footer;
     }
   });
 };

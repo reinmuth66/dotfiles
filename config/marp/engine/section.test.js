@@ -23,13 +23,22 @@ test("章の扉の見出しに番号を振る", () => {
   assert.match(s[5], /<h2[^>]*><span class="toc-num">2\.<\/span>手法<\/h2>/);
 });
 
-test("章の扉から次の扉まで、フッターに番号と章名を入れる", () => {
+test("章の扉の後から次の扉の前まで、フッターに番号と章名を入れる", () => {
   const s = slides(render(deck));
-  assert.equal(footer(s[2]), "1. 研究背景");
   assert.equal(footer(s[3]), "1. 研究背景");
   assert.equal(footer(s[4]), "1. 研究背景");
-  assert.equal(footer(s[5]), "2. 手法");
   assert.equal(footer(s[6]), "2. 手法");
+});
+
+test("章の扉そのものには入れない", () => {
+  const s = slides(render(deck));
+  assert.equal(footer(s[2]), undefined);
+  assert.equal(footer(s[5]), undefined);
+});
+
+test("空のフッターを書いたスライドには入れない", () => {
+  const s = slides(render(`${deck}\n\n---\n\n<!-- _footer: "" -->\n# 本文 4`));
+  assert.equal(footer(s[7]), undefined);
 });
 
 test("章の扉より前のスライドと表紙には入れない", () => {

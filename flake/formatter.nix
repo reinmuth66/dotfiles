@@ -102,6 +102,11 @@
               if grep -nE '^  --[^:]+: .*([{}]|\[object)' "$theme"; then
                 fail "解決されていない値がある"
               fi
+              # 部品の規則が入っている
+              for selector in ".box {" ".box.dark," ".card {" ".card.accent {" ".row {" ".grid2 {"; do
+                grep -qF -- "$selector" "$theme" || fail "部品の規則 $selector がない"
+              done
+
               # 別名は var() になる
               grep -q -- '^  --blue: var(--blue-600);' "$theme" || fail "別名が var() になっていない"
 
