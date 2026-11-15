@@ -74,6 +74,9 @@
 
   const number = (value) => String(Math.round(value * 100) / 100);
 
+  // 点が、start から size の幅の中にあるか
+  const within = (point, start, size) => point >= start - 0.5 && point <= start + size + 0.5;
+
   // SVG の path の d を返す
   const route = (from, to, fromSide, toSide) => {
     let sideA = fromSide;
@@ -81,24 +84,27 @@
     if (!sideA && !sideB) {
       [sideA, sideB] = autoSides(from, to);
     } else if (!sideA) {
-      // 入る辺と直交する向きに自分がいれば L 字、そうでなければ向かい合う辺
+      // 入る点が自分の幅 (高さ) の中にあれば、向かい合う辺から出る。L 字にすると、線が自分の中を通ってしまう。
+      // 外にあれば、入る辺と直交する辺から出て L 字にする
       const [x2, y2] = anchor(to, sideB);
-      const centerX = from.x + from.width / 2;
-      const centerY = from.y + from.height / 2;
       if (isVertical(sideB)) {
-        sideA = Math.abs(centerX - x2) < 0.5 ? OPPOSITE[sideB] : centerX < x2 ? "right" : "left";
+        if (within(x2, from.x, from.width)) sideA = OPPOSITE[sideB];
+        else sideA = from.x + from.width / 2 < x2 ? "right" : "left";
+      } else if (within(y2, from.y, from.height)) {
+        sideA = OPPOSITE[sideB];
       } else {
-        sideA = Math.abs(centerY - y2) < 0.5 ? OPPOSITE[sideB] : centerY < y2 ? "bottom" : "top";
+        sideA = from.y + from.height / 2 < y2 ? "bottom" : "top";
       }
     } else if (!sideB) {
-      // 出る辺と直交する向きに相手がいれば L 字、そうでなければ向かい合う辺
+      // 出る点が相手の幅 (高さ) の中にあれば、向かい合う辺に入る。外にあれば L 字
       const [x1, y1] = anchor(from, sideA);
-      const centerX = to.x + to.width / 2;
-      const centerY = to.y + to.height / 2;
       if (isVertical(sideA)) {
-        sideB = Math.abs(centerX - x1) < 0.5 ? OPPOSITE[sideA] : centerX > x1 ? "left" : "right";
+        if (within(x1, to.x, to.width)) sideB = OPPOSITE[sideA];
+        else sideB = to.x + to.width / 2 > x1 ? "left" : "right";
+      } else if (within(y1, to.y, to.height)) {
+        sideB = OPPOSITE[sideA];
       } else {
-        sideB = Math.abs(centerY - y1) < 0.5 ? OPPOSITE[sideA] : centerY > y1 ? "top" : "bottom";
+        sideB = to.y + to.height / 2 > y1 ? "top" : "bottom";
       }
     }
 

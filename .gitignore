@@ -3,3 +3,5 @@ config/karabiner/automatic_backups/
 .config/.czrc
 .direnv/
 .pre-commit-config.yaml
+result
+result-*

@@ -115,6 +115,27 @@
               ];
               theme = "${config.packages.marp-theme}/modern.css";
               tokens = ../config/design-system/project/tokens.json;
+              # type のスタイルと font-size-* のトークンをわざとずらすと、テーマの組み立てが止まること
+              styleMismatchCaught =
+                let
+                  original = builtins.fromJSON (builtins.readFile ../config/design-system/project/tokens.json);
+                  shifted = original // {
+                    type = original.type // {
+                      groups = map (
+                        group:
+                        group
+                        // {
+                          styles = map (style: style // { fontSize = "999px"; }) group.styles;
+                        }
+                      ) original.type.groups;
+                    };
+                  };
+                  shiftedTheme = pkgs.callPackage ../pkgs/marp-theme {
+                    tokensFile = builtins.toFile "shifted-tokens.json" (builtins.toJSON shifted);
+                  };
+                  built = builtins.tryEval shiftedTheme.outPath;
+                in
+                if built.success then "no" else "yes";
               sources = [
                 ../config/design-system/project/components/bundle.css
                 ../config/marp/layout.css
@@ -154,6 +175,8 @@
               for selector in ".box {" ".box.dark," ".card {" ".card.accent {" ".row {" ".grid2 {"; do
                 grep -qF -- "$selector" "$theme" || fail "部品の規則 $selector がない"
               done
+
+              [ "$styleMismatchCaught" = yes ] || fail "type のスタイルと font-size-* の食い違いを検出できていない"
 
               # 別名は var() になる
               grep -q -- '^  --blue: var(--blue-600);' "$theme" || fail "別名が var() になっていない"
