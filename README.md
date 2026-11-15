@@ -57,6 +57,29 @@ git -C ~/dotfiles add .
 nh darwin switch ~/dotfiles
 ```
 
+### 整形と検査
+
+```bash
+nix fmt          # .nix、.lua、シェルスクリプトを整形する
+nix flake check  # 整形、statix、deadnix、gitleaks を確認する
+```
+
+commit 前にも同じ検査を走らせるには、一度だけ次を実行する。以後は、このディレクトリに入るたびに direnv がフックを `.git/hooks` に入れる。
+
+```bash
+direnv allow ~/dotfiles
+```
+
+direnv を使わない場合は、`nix develop` を一度実行する。
+
+### リポジトリを取得して移動する
+
+```bash
+ghq get <owner>/<repo>   # ~/ghq/github.com/<owner>/<repo> に取得する
+```
+
+`Ctrl-G` で、取得済みのリポジトリを fzf で選んで移動する。
+
 ### flake inputs を更新して適用する
 
 GitHub Actions (`.github/workflows/update-flake.yaml`) が毎週月曜に PR を作成する。マージ後に設定を適用する。Renovate は GitHub Actions のバージョン更新だけを担当する。

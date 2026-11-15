@@ -4,17 +4,22 @@
 
 nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles リポジトリ。Nix flake ベース。
 
-- `flake.nix` — エントリポイント。`darwinConfigurations."ReinmuthLaptop"` を定義
+- `flake.nix` — エントリポイント。inputs だけを書く
+- `flake/` — 出力を定義する flake-parts モジュール。`hosts.nix` が `darwinConfigurations."ReinmuthLaptop"`、`packages.nix` が自前パッケージ、`formatter.nix` が整形・lint・pre-commit フック、`apps.nix` が `nix run` のアプリを定義する
 - `modules/darwin.nix` — nix-darwin 設定 (Homebrew cask 管理など)
 - `modules/home.nix` — home-manager エントリ (パッケージ、全モジュールの import)
 - `modules/<tool>.nix` — ツールごとの設定モジュール
 - `config/` — `programs.*` で表現できないツールの設定ファイル実体
-- `pkgs/<name>/default.nix` — 自前でビルドするパッケージ。パッチなど関連ファイルも同じディレクトリに置く。単体で使えるものは `flake.nix` の `mkPackages` に登録し (`nix build .#<name>` でビルドできる)、モジュールからは `inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.<name>` で参照する
+- `pkgs/<name>/default.nix` — 自前でビルドするパッケージ。パッチなど関連ファイルも同じディレクトリに置く。単体で使えるものは `flake/packages.nix` に登録し (`nix build .#<name>` でビルドできる)、モジュールからは `inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.<name>` で参照する
 - flake の input は `inputs` としてモジュールに渡る。モジュールでは `inputs.<name>` で参照する
 
 `nh darwin switch`を行うまで実際の環境には反映されない。ただし、そのコマンドはユーザーが実行する。
 
-`.nix` を編集したら `nix fmt` で整形する。CI (`check.yaml`) が、整形・statix・deadnix とシステム全体のビルドを確認する。
+ファイルを編集したら `nix fmt` で整形する (treefmt が `.nix`、`.lua`、シェルスクリプトを整形する)。`nix flake check` が、整形・statix・deadnix・gitleaks を確認する。CI (`check.yaml`) は、それに加えてシステム全体のビルドを確認する。
+
+同じ検査は commit 前にも走る。フックは dev shell に入ると `.git/hooks` に入る (direnv を許可してあれば自動、そうでなければ `nix develop`)。
+
+GitHub Actions のアクションは commit SHA で固定し、タグをコメントに書く。Nix は `.github/actions/setup-nix` で入れる。
 
 ## 新しいツールを追加する
 
