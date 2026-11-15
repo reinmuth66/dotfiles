@@ -49,3 +49,151 @@ ol.toc > li::before {
     color: var(--accent);
     font-weight: 700;
 }
+
+/* ---- box ----
+   図の中の要素。色で役割を示す (デザインシステムの README の「図の中の色」)。
+     入力・データ   : 白地、濃い灰の枠      (.box)
+     処理・モデル   : 濃い灰の地、白い文字  (.box.dark)
+     中間の結果     : 薄い青の地、青の枠    (.box.light)
+     最終の結論     : 青の地、白い文字      (.box.blue-fill)
+     問題・否定     : 薄い赤の地、赤の枠    (.box.warn)
+     未定・対象外   : 薄い灰の地、破線の枠  (.box.muted) */
+.box {
+    background: var(--white);
+    border: var(--border-medium) solid var(--gray-900);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    text-align: center;
+    line-height: var(--line-height-normal);
+    white-space: nowrap;
+    min-width: max-content;
+}
+
+.box.dark,
+.box.dark * {
+    background: var(--gray-900);
+    color: var(--white);
+}
+
+.box.blue-fill,
+.box.blue-fill * {
+    background: var(--blue);
+    color: var(--white);
+    border-color: var(--blue);
+}
+
+.box.light {
+    background: var(--blue-light);
+    border-color: var(--blue);
+}
+
+.box.warn {
+    background: var(--red-light);
+    border-color: var(--red);
+}
+
+.box.muted {
+    background: var(--gray-100);
+    border: var(--border-medium) dashed var(--border);
+}
+
+/* box の中の補足。1 段小さく、控えめな色にする */
+.box small,
+.box .sub {
+    display: block;
+    font-size: 0.7em;
+    color: var(--text-sub);
+}
+
+.box.dark .sub,
+.box.dark small,
+.box.blue-fill .sub,
+.box.blue-fill small {
+    color: var(--gray-300);
+}
+
+/* ---- card ----
+   説明をまとめる枠。中に見出し、文、箇条書きを入れる。 */
+.card {
+    background: var(--white);
+    border: var(--border-thin) solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-5) var(--space-6);
+}
+
+.card.accent {
+    border: var(--border-medium) solid var(--accent);
+}
+
+.card.warn {
+    border: var(--border-medium) solid var(--danger);
+}
+
+.card h4 {
+    margin: 0 0 var(--space-2) 0;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.card p,
+.card li {
+    font-size: var(--font-size-small);
+}
+
+.card ul,
+.card ol {
+    margin-bottom: 0;
+}
+
+/* Markdown から作ると中身が段落になる。HTML で直接書いたときと同じ見た目にする */
+.box > p,
+.row > p,
+.col > p {
+    margin: 0;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+/* ---- 配置 ----
+   box や card を並べる。row は横、col は縦、grid2 と grid3 は等幅の列。 */
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.row.center {
+    justify-content: center;
+}
+
+.col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.grid2 {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-6);
+}
+
+.grid3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-5);
+}
+
+/* 手で置く矢印。要素同士を線でつなぐときは diagram を使う */
+.arrow {
+    font-size: 1.4em;
+    color: var(--text-sub);
+    font-weight: 700;
+    line-height: 1;
+}
+
+.arrow.blue {
+    color: var(--accent);
+}
