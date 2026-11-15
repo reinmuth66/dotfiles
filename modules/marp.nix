@@ -1,9 +1,12 @@
-{ ... }:
+{ inputs, pkgs, ... }:
 
+let
+  # テーマは、デザインシステム (config/design-system) のトークンから pkgs/marp-theme が組み立てる
+  theme = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.marp-theme;
+in
 {
   xdg.configFile = {
-    "marp/simple-theme.css".source = ../config/marp/simple-theme.css;
-    "marp/new-theme.css".source = ../config/marp/new-theme.css;
+    "marp/modern.css".source = "${theme}/modern.css";
     "marp/.marprc.yml".source = ../config/marp/.marprc.yml;
   };
 

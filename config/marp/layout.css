@@ -1,63 +1,16 @@
-/*
- * @theme new
- * @auto-scaling true
-*/
-
-@import url('https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Noto+Sans:wght@400;700&family=M+PLUS+1+Code:wght@400;700&display=swap');
-@import 'default';
+/* marp 固有のレイアウト。pkgs/marp-theme が、変数と部品の CSS の後ろに連結する。
+   色、文字サイズ、余白、角丸、線の値は書かず、config/design-system/project/tokens.json から作られる変数だけを使う。 */
 
 :root {
-    /* 有彩色 */
-    --red: #990008;
-    --yellow: #999100;
-    --green: #77994D;
-    --turquoise: #009991;
-    --blue: #005599;
-    --blue-light: #E6F2FF;
-    --purple: #450099;
+    /* 以前の変数名。既存のスライドの <style> が使っている */
+    --font-family: var(--font-sans);
 
-    /* 無彩色 */
-    --black: #000000;
-    --gray-900: #222222;
-    --gray-700: #474747;
-    --gray-300: #B3B3B3;
-    --gray-100: #F2F2F2;
-    --gray-50: #F7F7F7;
-
-    /* フォント */
-    --font-family: "Noto Sans", "BIZ UDPGothic", "Hiragino Sans", "ヒラギノ角ゴシック Pro W3", sans-serif;
-
-    /* フォントサイズ変数 */
-    --font-size-title: 52px;
-    --font-size-large: 50px;
-    --font-size-medium: 44px;
-    --font-size-body: 36px;
-    --font-size-small: 30px;
-    --font-size-caption: 28px;
-    --font-size-note: 22px;
-
-    /* 行間変数 */
-    --line-height-tight: 1.15;
-    --line-height-normal: 1.21;
-    --line-height-loose: 1.5;
-
-    --heading-strong-color: var(--gray-900);
-}
-
-section.small-text {
-    --font-size-large: 36px;
-    --font-size-medium: 32px;
-    --font-size-body: 26px;
-    --font-size-small: 22px;
-    --font-size-caption: 20px;
-    --font-size-note: 16px;
-    --line-height-tight: 1;
-    --line-height-normal: 1.1;
-    --line-height-loose: 1.3;
+    /* default テーマが見出し内の strong に使う変数 */
+    --heading-strong-color: var(--text);
 }
 
 *:not(code *) {
-    color: var(--gray-900);
+    color: var(--text);
 }
 
 h1,
@@ -66,8 +19,8 @@ h3,
 h4,
 h5,
 h6 {
-    margin-top: 4px;
-    margin-bottom: 4px;
+    margin-top: var(--space-1);
+    margin-bottom: var(--space-1);
     padding-bottom: 0;
 }
 
@@ -91,8 +44,8 @@ h6 {
 
 h1 {
     font-size: var(--font-size-title);
-    margin-top: 6px;
-    margin-bottom: 6px;
+    margin-top: var(--space-2);
+    margin-bottom: var(--space-2);
 }
 
 h2 {
@@ -119,7 +72,7 @@ p {
     font-size: var(--font-size-body);
     line-height: var(--line-height-loose);
     font-weight: 400;
-    margin-bottom: 8px;
+    margin-bottom: var(--space-2);
     margin-top: 0;
 }
 
@@ -128,23 +81,23 @@ ol {
     font-size: var(--font-size-body);
     line-height: var(--line-height-loose);
     font-weight: 400;
-    padding-left: 4px;
+    padding-left: var(--space-1);
     margin-top: 0;
-    margin-left: 22px;
-    margin-bottom: 8px;
+    margin-left: var(--space-6);
+    margin-bottom: var(--space-2);
 }
 
 ol {
-    margin-left: 32px;
+    margin-left: var(--space-8);
 }
 
 li {
-    padding-top: 6px;
+    padding-top: var(--space-2);
 
     ul,
     ol {
         margin-left: 0;
-        padding-left: 32px;
+        padding-left: var(--space-8);
         margin-top: 0;
     }
 
@@ -157,7 +110,7 @@ li {
     }
 
     &::marker {
-        margin-left: 6px;
+        margin-left: var(--space-2);
     }
 }
 
@@ -175,9 +128,9 @@ h6 {
 
 code {
     background-color: var(--gray-100);
-    border-radius: 4px;
-    padding: 1px 5px;
-    font-family: "M PLUS 1 Code", monospace !important;
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-1);
+    font-family: var(--font-mono) !important;
     font-weight: 400;
     line-height: var(--line-height-loose);
 }
@@ -193,11 +146,11 @@ em {
 :is(pre, marp-pre) {
     background-color: var(--gray-100);
     font-size: var(--font-size-small);
-    line-height: 1.45;
-    margin-bottom: 8px;
-    border-radius: 8px;
-    border: 1.3px solid var(--gray-300);
-    padding: 16px;
+    line-height: var(--line-height-code);
+    margin-bottom: var(--space-2);
+    border-radius: var(--radius-md);
+    border: var(--border-thin) solid var(--border);
+    padding: var(--space-4);
     min-height: 0;
     overflow: hidden;
 }
@@ -210,12 +163,12 @@ em {
 
 blockquote {
     font-size: var(--font-size-caption);
-    color: var(--gray-700);
+    color: var(--text-sub);
     font-weight: 400;
     line-height: var(--line-height-loose);
-    border-left: 4px solid var(--blue);
-    padding-left: 1rem;
-    margin: 12px 4px;
+    border-left: var(--border-thick) solid var(--accent);
+    padding-left: var(--space-4);
+    margin: var(--space-3) var(--space-1);
 
     &::after {
         display: none;
@@ -235,7 +188,7 @@ blockquote {
 }
 
 a {
-    color: var(--gray-900);
+    color: var(--text);
     text-decoration: underline;
 }
 
@@ -243,28 +196,36 @@ a:hover {
     text-decoration: none;
 }
 
-.blue {
-    color: var(--blue);
-}
-
-.green {
-    color: var(--green);
-}
-
 .red {
     color: var(--red);
+}
+
+.orange {
+    color: var(--orange);
 }
 
 .yellow {
     color: var(--yellow);
 }
 
-.purple {
-    color: var(--purple);
+.green {
+    color: var(--green);
 }
 
 .turquoise {
     color: var(--turquoise);
+}
+
+.blue {
+    color: var(--blue);
+}
+
+.purple {
+    color: var(--purple);
+}
+
+.pink {
+    color: var(--pink);
 }
 
 table {
@@ -272,13 +233,13 @@ table {
     line-height: var(--line-height-loose);
     border-collapse: collapse;
     width: fit-content;
-    margin-bottom: 1rem;
+    margin-bottom: var(--space-4);
     background-color: transparent;
 
     thead {
         th {
             background-color: var(--blue-light);
-            border: 1.3px solid var(--gray-300);
+            border: var(--border-thin) solid var(--border);
             font-weight: 700;
         }
     }
@@ -287,7 +248,7 @@ table {
         tr {
             td {
                 background-color: var(--gray-100);
-                border: 1.3px solid var(--gray-300);
+                border: var(--border-thin) solid var(--border);
             }
         }
     }
@@ -301,12 +262,12 @@ small {
 
 
 section {
-    background-color: var(--gray-50);
+    background-color: var(--bg);
     background-image: none;
-    font-family: var(--font-family);
+    font-family: var(--font-sans);
     height: 100%;
     overflow: hidden;
-    padding: 120px 60px 40px 60px;
+    padding: var(--space-30) var(--space-15) var(--space-10) var(--space-15);
     display: flex;
     flex-direction: column;
     justify-content: start;
@@ -320,31 +281,31 @@ section {
         width: 100%;
         top: 0;
         left: 0;
-        height: 120px;
+        height: var(--space-30);
         display: flex;
         align-items: center;
-        padding-left: 40px;
+        padding-left: var(--space-10);
         margin: 0;
     }
 
     &::after {
         position: absolute;
-        bottom: 6px;
-        right: 10px;
+        bottom: var(--space-2);
+        right: var(--space-2);
         padding: 0;
-        font-size: 14px;
+        font-size: var(--font-size-footer);
         margin: 0;
-        color: var(--gray-300);
+        color: var(--text-footer);
     }
 
     footer {
         position: absolute;
-        bottom: 6px;
-        left: 10px;
+        bottom: var(--space-2);
+        left: var(--space-2);
         padding: 0;
         margin: 0;
-        font-size: 14px;
-        color: var(--gray-300);
+        font-size: var(--font-size-footer);
+        color: var(--text-footer);
         font-weight: 400;
     }
 
@@ -354,9 +315,9 @@ section {
         justify-content: center;
         flex-direction: column;
         align-items: center;
-        gap: 32px;
-        background-color: var(--gray-50);
-        padding: 100px;
+        gap: var(--space-8);
+        background-color: var(--bg);
+        padding: var(--space-25);
 
         h1 {
             text-align: center;
@@ -369,8 +330,8 @@ section {
     }
 
     &.section {
-        background-color: var(--gray-50);
-        padding: 0 100px;
+        background-color: var(--bg);
+        padding: 0 var(--space-25);
         justify-content: center;
 
         h1 {
@@ -393,7 +354,7 @@ section {
     }
 
     &.no-header {
-        padding-top: 40px;
+        padding-top: var(--space-10);
 
         >h1:first-child {
             display: none;
@@ -401,7 +362,7 @@ section {
     }
 
     &.image {
-        padding: 40px 60px 40px 60px;
+        padding: var(--space-10) var(--space-15) var(--space-10) var(--space-15);
 
         >p:has(img) {
             height: 100%;
@@ -418,11 +379,11 @@ section {
     }
 
     &.image:not(.no-header) {
-        padding-top: 120px;
+        padding-top: var(--space-30);
     }
 
     &.content-image {
-        padding-bottom: 30px;
+        padding-bottom: var(--space-8);
 
         >p:has(img) {
             flex: 1 1 0;
@@ -472,17 +433,17 @@ section {
             box-sizing: border-box;
             overflow: hidden;
             position: absolute;
-            top: 140px;
-            bottom: 30px;
+            top: calc(var(--space-30) + var(--space-5));
+            bottom: var(--space-8);
             right: 0;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             margin: 0;
-            padding-left: 16px;
-            padding-right: 16px;
-            background-color: var(--gray-50);
+            padding-left: var(--space-4);
+            padding-right: var(--space-4);
+            background-color: var(--bg);
 
             img {
                 width: 100%;
@@ -497,24 +458,24 @@ section {
     }
 
     &.content-image-left {
-        padding-left: calc(var(--content-pad, 50%) + 32px);
+        padding-left: calc(var(--content-pad, 50%) + var(--space-8));
 
         p:has(img) {
             width: var(--content-pad, 50%);
             box-sizing: border-box;
             overflow: hidden;
             position: absolute;
-            top: 140px;
-            bottom: 30px;
+            top: calc(var(--space-30) + var(--space-5));
+            bottom: var(--space-8);
             left: 0;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             margin: 0;
-            padding-left: 16px;
-            padding-right: 16px;
-            background-color: var(--gray-50);
+            padding-left: var(--space-4);
+            padding-right: var(--space-4);
+            background-color: var(--bg);
 
             img {
                 width: 100%;
@@ -530,7 +491,7 @@ section {
 
     &.image-shadow {
         img {
-            box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.2);
+            box-shadow: var(--shadow-image);
         }
     }
 
@@ -559,7 +520,7 @@ section {
 
     &.column-layout {
         flex-direction: row;
-        gap: 16px;
+        gap: var(--space-4);
         justify-content: space-around;
 
         .column {

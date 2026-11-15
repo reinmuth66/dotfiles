@@ -8,6 +8,8 @@
       packages = {
         # update-flake.yaml が ubuntu ランナーで vendorHash を計算するので、Linux にも出す
         pdf-cli = pkgs.callPackage ../pkgs/pdf-cli { src = inputs.pdf-cli; };
+        # デザインシステムのトークンから組み立てる marp のテーマ
+        marp-theme = pkgs.callPackage ../pkgs/marp-theme { };
       }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
         cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
