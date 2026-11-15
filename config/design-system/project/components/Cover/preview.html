@@ -1,0 +1,65 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Noto+Sans:wght@400;700&display=swap">
+<style>
+  html, body { margin: 0; }
+  body { width: 960px; height: 288px; position: relative; overflow: hidden; background: var(--bg); font-family: var(--font-sans); }
+  svg { position: absolute; inset: 0; }
+  .b-accent { fill: var(--blue); }
+  .b-ink { fill: var(--gray-900); }
+  .b-tint { fill: var(--blue-light); }
+  .b-danger { fill: var(--red); }
+  .tile { rx: var(--radius-md); }
+  .s50 { fill: var(--blue-50); }
+  .s100 { fill: var(--blue-100); }
+  .s300 { fill: var(--blue-300); }
+  .s500 { fill: var(--blue-500); }
+  .s600 { fill: var(--blue-600); }
+  .s700 { fill: var(--blue-700); }
+  .s900 { fill: var(--blue-900); }
+  .g50 { fill: var(--white); }
+  .g100 { fill: var(--gray-100); }
+  .g300 { fill: var(--gray-300); }
+  .g500 { fill: var(--gray-500); }
+  .g600 { fill: var(--gray-600); }
+  .g700 { fill: var(--gray-700); }
+  .g900 { fill: var(--gray-900); }
+  .words { position: absolute; left: 40px; bottom: 32px; width: 420px; display: flex; flex-direction: column; gap: 8px; }
+  .name { margin: 0; font-size: 120px; line-height: .9; font-weight: 700; color: var(--text); }
+  .tag { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-sub); }
+</style>
+</head>
+<body>
+<svg viewBox="0 0 960 288" width="960" height="288" aria-hidden="true">
+  <!--
+    blocks: blue 240x288、gray-900 120x120、blue-light 120x120、red 60x40 (space-30、space-15、space-10 の倍数)
+    arrangement: 右端に青の縦長の板を置き、その左に濃い灰と薄い青を上下に積む。赤は小さく 1 つだけ
+    pattern: 角丸のタイル。「番号から明るさが決まる」法則そのものを、青と灰の明るい側の 5 段を 2 列に並べて見せる (10 枚)
+    steps/radii: タイルは space-10 (40px) 角、間は space-2 (8px)、角丸は radius-md
+  -->
+  <rect class="b-accent" x="720" y="0" width="240" height="288"/>
+  <rect class="b-ink" x="600" y="0" width="120" height="120"/>
+  <rect class="b-tint" x="600" y="120" width="120" height="120"/>
+  <rect class="b-danger" x="660" y="248" width="60" height="40"/>
+  <g>
+    <rect class="tile s50" x="496" y="24" width="40" height="40"/>
+    <rect class="tile s100" x="496" y="72" width="40" height="40"/>
+    <rect class="tile s300" x="496" y="120" width="40" height="40"/>
+    <rect class="tile s500" x="496" y="168" width="40" height="40"/>
+    <rect class="tile s600" x="496" y="216" width="40" height="40"/>
+    <rect class="tile g50" x="544" y="24" width="40" height="40"/>
+    <rect class="tile g100" x="544" y="72" width="40" height="40"/>
+    <rect class="tile g300" x="544" y="120" width="40" height="40"/>
+    <rect class="tile g500" x="544" y="168" width="40" height="40"/>
+    <rect class="tile g600" x="544" y="216" width="40" height="40"/>
+  </g>
+</svg>
+<div class="words">
+  <p class="name">modern</p>
+  <p class="tag">色と大きさを、法則から導く。</p>
+</div>
+</body>
+</html>
