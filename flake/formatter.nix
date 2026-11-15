@@ -44,6 +44,19 @@
 
       # 整形の検査 (checks.treefmt) は treefmt-nix が足す
       checks = {
+        # marp のエンジンの拡張と、図の線を描くスクリプトの試験
+        marp-engine =
+          pkgs.runCommand "marp-engine-check"
+            {
+              nativeBuildInputs = [ pkgs.nodejs ];
+              engine = config.packages.marp-engine;
+              # 試験は、marp-cli に入っている marp-core をそのまま使う
+              NODE_PATH = "${pkgs.marp-cli}/lib/node_modules/@marp-team/marp-cli/node_modules";
+            }
+            ''
+              node --test "$engine"/*.test.js
+              touch "$out"
+            '';
         # デザインシステムから組み立てた marp のテーマが、値の直書きなしで作られ、marp で読めることを確かめる
         marp-theme =
           pkgs.runCommand "marp-theme-check"

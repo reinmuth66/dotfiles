@@ -10,6 +10,8 @@
         pdf-cli = pkgs.callPackage ../pkgs/pdf-cli { src = inputs.pdf-cli; };
         # デザインシステムのトークンから組み立てる marp のテーマ
         marp-theme = pkgs.callPackage ../pkgs/marp-theme { };
+        # marp に短い記法を足すエンジンの拡張
+        marp-engine = pkgs.callPackage ../pkgs/marp-engine { };
       }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
         cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
