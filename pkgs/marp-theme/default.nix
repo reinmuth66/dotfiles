@@ -47,7 +47,8 @@ let
 
   # type のスタイル (ページの Typography 表示用) と font-size-* のトークンは同じ値を 2 回書くので、ずれたら止める
   styles = lib.concatMap (group: group.styles) tokens.type.groups;
-  checkedStyles = map (
+  # builtins.all は全ての要素を評価する。map で作ったリストの長さを見るだけでは、中の throw が評価されない
+  stylesMatch = builtins.all (
     style:
     let
       token = byName."font-size-${style.name}" or null;
@@ -55,7 +56,7 @@ let
     if token == null || token.value != style.fontSize then
       throw "marp-theme: type のスタイル '${style.name}' と font-size-${style.name} の値が違う"
     else
-      style
+      true
   ) styles;
 
   # section.small-text は、文字と行間を一定の比率で縮める。変数は自分自身を参照できないので、値をここで埋める
@@ -99,5 +100,5 @@ let
     ]
   );
 in
-assert builtins.length checkedStyles == builtins.length styles;
+assert stylesMatch;
 writeTextDir "${name}.css" css

@@ -58,6 +58,25 @@ test("存在しない名前を指す線は描かず、警告を出す", (t) => {
   assert.match(warn.mock.calls[0].arguments[0], /nowhere/);
 });
 
+test("box の中身が線の形をしていても、中身として残す", () => {
+  const html = render("::: diagram\n::: box #a\nx -> y\n:::\n::: box #b\nB\n:::\n\na -> b\n:::\n");
+  assert.match(html, /<div class="box" id="a">\s*<p>x -&gt; y<\/p>/);
+  assert.equal(edgesOf(html).length, 1);
+});
+
+test("箇条書きの中の a -> b は、文字のまま残す", () => {
+  const html = render(`::: diagram\n${boxes}\n- in -> model\n:::\n`);
+  assert.match(html, /<li>in -&gt; model<\/li>/);
+  assert.equal(edgesOf(html), null);
+});
+
+test("1 本も描けない段落は、文字のまま残す", (t) => {
+  t.mock.method(console, "warn", () => {});
+  const html = render(`::: diagram\n${boxes}\nfoo -> bar\n:::\n`);
+  assert.match(html, /<p>foo -&gt; bar<\/p>/);
+  assert.equal(edgesOf(html), null);
+});
+
 test("HTML で書いた要素の id も、名前として使える", () => {
   const html = render(
     '::: diagram\n<div class="box" id="raw">生</div>\n\n::: box #in\n入力\n:::\n\nraw -> in\n:::\n',

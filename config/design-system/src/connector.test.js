@@ -44,6 +44,18 @@ test("route: 片方の辺だけ省いても描ける", () => {
   assert.equal(route(A, below, null, "top"), "M50 40V100");
 });
 
+test("route: 片方の辺を省いたとき、相手が広い要素なら、中を通らずに向かい合う辺に入る", () => {
+  const narrow = { x: 50, y: 0, width: 100, height: 40 };
+  const wide = { x: 0, y: 100, width: 400, height: 40 };
+  // 下から出た線が、広い要素の上の辺に入る (左の辺に内側から入らない)
+  assert.equal(route(narrow, wide, "bottom", null), "M100 40V70H200V100");
+  assert.equal(route(wide, narrow, null, "bottom"), "M200 100V70H100V40");
+
+  const tall = { x: 200, y: -100, width: 60, height: 300 };
+  assert.equal(route(A, tall, "right", null), "M100 20H150V50H200");
+  assert.equal(route(tall, A, null, "right"), "M200 50H150V20H100");
+});
+
 test("labelPoint: 最も長い区間の中点に置く", () => {
   assert.deepEqual(labelPoint("M100 20H200"), { x: 150, y: 20 });
   // コの字: 横の区間が最も長い

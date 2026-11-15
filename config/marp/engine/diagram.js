@@ -61,9 +61,11 @@ const diagram = (md, options = {}) => {
           for (const match of token.content.matchAll(ID_IN_HTML)) names.add(match[1]);
         }
 
-        // 全ての行が線の記法である段落だけを、記法として扱う
+        // 図の直下にあり、全ての行が線の記法である段落だけを、記法として扱う。
+        // box や箇条書きの中の段落は、線の形をしていても中身として残す
         if (
           token.type === "paragraph_open" &&
+          token.level === tokens[open].level + 1 &&
           tokens[i + 1]?.type === "inline" &&
           tokens[i + 2]?.type === "paragraph_close"
         ) {
@@ -75,7 +77,13 @@ const diagram = (md, options = {}) => {
 
       const edges = [];
       for (const candidate of candidates) {
-        remove.add(candidate.index).add(candidate.index + 1).add(candidate.index + 2);
+        // 1 本も描けない段落は、線のつもりで書いたものではないとみなし、文字のまま残す
+        const drawable = candidate.edges.some(
+          (edge) => names.has(edge.from) && names.has(edge.to),
+        );
+        if (drawable) {
+          remove.add(candidate.index).add(candidate.index + 1).add(candidate.index + 2);
+        }
         for (const edge of candidate.edges) {
           const missing = [edge.from, edge.to].filter((name) => !names.has(name));
           if (missing.length > 0) {
