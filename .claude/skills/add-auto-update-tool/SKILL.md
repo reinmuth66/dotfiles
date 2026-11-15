@@ -63,7 +63,7 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
    nix store prefetch-file --hash-type sha256 --json "<成果物の URL>" | jq -r .hash
    ```
 
-2. `flake.nix` の `mkPackages` に `<tool> = pkgs.callPackage ./pkgs/<tool> { };` を足す。`modules/<tool>.nix` で `inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.<tool>` を `home.packages` に追加し、`modules/home.nix` の `imports` に加える。
+2. `flake/packages.nix` の `packages` に `<tool> = pkgs.callPackage ../pkgs/<tool> { };` を足す。`modules/<tool>.nix` で `inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.<tool>` を `home.packages` に追加し、`modules/home.nix` の `imports` に加える。
 3. `assets/update-release-binary.yaml` を `.github/workflows/update-<tool>.yaml` にコピーし、プレースホルダ (`<tool>`、`<owner>/<repo>`、アセット名) を埋める。
 4. タグの接頭辞に注意する。雛形は、タグの `v` (例: `v1.2.3`) を外して `version` に入れ、URL で付け直している。upstream のタグが `v` で始まらない場合は、`sed 's/^v//'` と URL の `v${VERSION}` を調整する。
 5. 雛形のワークフローは、`version = "..."` と `hash = "..."` の全一致を `sed` で書き換える。`pkgs/<tool>/default.nix` では、`version` と `hash` を 1 回ずつだけ代入し、コメントの中にも、その形の文字列を書かない。
@@ -111,13 +111,13 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
    };
    ```
 
-2. 使う側で `fetchFromGitHub` を input に置き換える。input は `home-manager.extraSpecialArgs = { inherit inputs; }` でモジュールに渡っているので、`flake.nix` の `outputs` 側を足す必要はない。
+2. 使う側で `fetchFromGitHub` を input に置き換える。input は `home-manager.extraSpecialArgs = { inherit inputs; }` でモジュールに渡っているので、`flake/` 側を足す必要はない。
 
    - モジュールなら引数に `inputs` を足し、`src = inputs.<name>;` とする
-   - `pkgs/` のパッケージなら、`flake.nix` の `mkPackages` で引数 (`src = inputs.<name>;` など) として渡す
+   - `pkgs/` のパッケージなら、`flake/packages.nix` で引数 (`src = inputs.<name>;` など) として渡す
    - `${inputs.<name>}` はストアパスになる。`.rev`、`.shortRev`、`.lastModifiedDate` も使える (version の組み立てなど)
 
-   実例は、`flake.nix` の既存の `flake = false` の input 名を `grep -rn 'inputs.<input 名>' modules flake.nix` で引くと見つかる。
+   実例は、`flake.nix` の既存の `flake = false` の input 名を `grep -rn 'inputs.<input 名>' modules flake` で引くと見つかる。
 
 4. 既存の固定コミットから移す場合は、同じコミットのままロックする。何もしないと、ロック時点の最新コミットまで進んでしまう。
 
@@ -138,7 +138,7 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 ソースから導出される hash (Go の `vendorHash`、npm の `npmDepsHash`、Rust の `cargoHash`) は `go.sum` などに依存するため、flake input では追従できない。ソースを C にしたら、`update-flake.yaml` の `nix flake update` の後に、hash を再計算する step を足す。実例は `update-flake.yaml` の、`vendorHash` を再計算する step (`grep -n vendorHash .github/workflows/update-flake.yaml`)。
 
 1. hash をダミー (`sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=`) に `sed` で置換する。
-2. パッケージ全体ではなく、hash を持つ中間 derivation だけをビルドする。Go なら `nix build --no-link '.#<name>.goModules'` である。ubuntu ランナーで動かすので、`flake.nix` の `packages.x86_64-linux` にもそのパッケージを足す。
+2. パッケージ全体ではなく、hash を持つ中間 derivation だけをビルドする。Go なら `nix build --no-link '.#<name>.goModules'` である。ubuntu ランナーで動かすので、`flake/packages.nix` で、そのパッケージを Linux にも出す (darwin 専用の `optionalAttrs` の外に置く)。
 3. 失敗出力の `got:` 行から正しい hash を取り、`sed` で書き戻す。
 4. 取得できなかった場合は `git checkout` で戻し、`continue-on-error: true` で PR 作成は止めない。
 
@@ -150,7 +150,7 @@ upstream の形と、何に追従させたいかで決まる。上から順に�
 
 ## 共通の仕上げ
 
-- 雛形のアクションのバージョン (`checkout`、`nix-installer-action`、`create-pull-request`) は、雛形を作った時点のもの。既存の `update-*.yaml` (`ls .github/workflows/update-*.yaml`) と揃える。
+- 雛形のアクション (`checkout`、`create-pull-request`) は commit SHA で固定してあり、SHA は雛形を作った時点のもの。既存の `update-*.yaml` (`ls .github/workflows/update-*.yaml`) と揃える。Nix は `./.github/actions/setup-nix` で入れる。
 - **失敗の通知を付ける。** PR が作られないことは、「更新なし」と「失敗」を区別できない。雛形のワークフローには、次の step と `issues: write` の `permissions` が、すでに入っている。別のワークフローに足すときは、ジョブの末尾に次の step を置き、`permissions` に `issues: write` を足す。
   同じ失敗が続く間は、open な Issue にコメントが追記され、直してクローズしたあとの再発は、新しい Issue になる。
 
