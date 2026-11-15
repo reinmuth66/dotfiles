@@ -57,6 +57,10 @@
       url = "github:ahkohd/eza-preview.yazi";
       flake = false;
     };
+    eza-themes = {
+      url = "github:eza-community/eza-themes";
+      flake = false;
+    };
     catppuccin-bat = {
       url = "github:catppuccin/bat";
       flake = false;

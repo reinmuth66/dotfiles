@@ -68,6 +68,22 @@
         "type": "github"
       }
     },
+    "eza-themes": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1784485423,
+        "narHash": "sha256-53J0plgB+d6b4LzSwrCezmIhfVm7WZrKMA1ORGdUtQU=",
+        "owner": "eza-community",
+        "repo": "eza-themes",
+        "rev": "21184b55bfe34e8473c8160f9de0c03e4f76857f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "eza-community",
+        "repo": "eza-themes",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -260,6 +276,7 @@
         "catppuccin-bat": "catppuccin-bat",
         "compress-yazi": "compress-yazi",
         "eza-preview-yazi": "eza-preview-yazi",
+        "eza-themes": "eza-themes",
         "flake-parts": "flake-parts",
         "git-hooks": "git-hooks",
         "home-manager": "home-manager",
