@@ -6,7 +6,10 @@ local M = {}
 
 -- Check with pgrep first so that osascript does not launch a Spotify that is not running.
 function M.command(script)
-	return string.format([[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to %s' 2>/dev/null]], script)
+	return string.format(
+		[[pgrep -x Spotify >/dev/null && osascript -e 'tell application "Spotify" to %s' 2>/dev/null]],
+		script
+	)
 end
 
 -- Matches "Playing" and "Paused" of the distributed notification's Player State. Anything else, such as stopped, is nil.

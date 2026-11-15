@@ -18,12 +18,15 @@ OUT="${GITHUB_OUTPUT:-/dev/stdout}"
 LABEL="spotify-update"
 
 say() { echo "$*" >&2; }
-output() { echo "$1=$2" >> "$OUT"; }
-stop() { output go false; exit 0; }
+output() { echo "$1=$2" >>"$OUT"; }
+stop() {
+  output go false
+  exit 0
+}
 
 # 外部から得た文字列は、検証してから使う。
-valid_version() { [[ "$1" =~ ^[0-9]+(\.[0-9]+)*$ ]]; }
-valid_rev() { [[ "$1" =~ ^[0-9a-f]{40}$ ]]; }
+valid_version() { [[ $1 =~ ^[0-9]+(\.[0-9]+)*$ ]]; }
+valid_rev() { [[ $1 =~ ^[0-9a-f]{40}$ ]]; }
 
 # 先頭 3 要素を数値で比較する。a < b なら -1、a = b なら 0、a > b なら 1。
 # Spotify の版は 4 要素 (1.2.98.301)、対応範囲は 3 要素 (1.3.3) なので、先頭 3 要素で揃える。
@@ -76,13 +79,22 @@ ${body}"
 
 # --- 1. 候補と現在の版 ---
 current_rev=$(sed -nE 's|.*github:nixos/nixpkgs/([0-9a-f]{40}).*|\1|p' flake.nix | head -1)
-valid_rev "$current_rev" || { say "flake.nix から nixpkgs-spotify の rev を取得できない"; exit 1; }
+valid_rev "$current_rev" || {
+  say "flake.nix から nixpkgs-spotify の rev を取得できない"
+  exit 1
+}
 candidate_rev=$(gh api repos/NixOS/nixpkgs/commits/nixpkgs-unstable --jq .sha)
-valid_rev "$candidate_rev" || { say "候補の rev が不正: ${candidate_rev}"; exit 1; }
+valid_rev "$candidate_rev" || {
+  say "候補の rev が不正: ${candidate_rev}"
+  exit 1
+}
 
 read -r current_spotify current_cli <<<"$(eval_versions "$current_rev")"
 read -r spotify cli <<<"$(eval_versions "$candidate_rev")"
-valid_version "$spotify" && valid_version "$cli" || { say "版の取得結果が不正: ${spotify} / ${cli}"; exit 1; }
+valid_version "$spotify" && valid_version "$cli" || {
+  say "版の取得結果が不正: ${spotify} / ${cli}"
+  exit 1
+}
 say "現在: Spotify ${current_spotify} / spicetify-cli ${current_cli} (${current_rev:0:10})"
 say "候補: Spotify ${spotify} / spicetify-cli ${cli} (${candidate_rev:0:10})"
 
@@ -94,7 +106,7 @@ fi
 # --- 2. 猶予期間 ---
 last_change=$(gh api "repos/NixOS/nixpkgs/commits?path=pkgs/by-name/sp/spotify/darwin.nix&sha=${candidate_rev}&per_page=1" \
   --jq '.[0].commit.committer.date | fromdateiso8601')
-age_days=$(( ($(date +%s) - last_change) / 86400 ))
+age_days=$((($(date +%s) - last_change) / 86400))
 if [ "$spotify" != "$current_spotify" ] && [ "$age_days" -lt "$SOAK_DAYS" ]; then
   say "darwin.nix の最終変更から ${age_days} 日 (猶予 ${SOAK_DAYS} 日)。今回は見送る"
   stop
@@ -104,7 +116,7 @@ fi
 if [ "${cli%%.*}" != "${current_cli%%.*}" ]; then
   say "spicetify-cli のメジャー更新 (${current_cli} から ${cli})。Issue にして終了する"
   open_issue "major:${cli}" "spicetify-cli ${cli} へのメジャー更新が nixpkgs に入りました" \
-"nixpkgs-unstable で spicetify-cli が ${current_cli} から ${cli} に上がったため、自動更新の PR を見送りました。
+    "nixpkgs-unstable で spicetify-cli が ${current_cli} から ${cli} に上がったため、自動更新の PR を見送りました。
 
 | 項目 | 値 |
 |---|---|
@@ -127,7 +139,7 @@ high=$(printf '%s' "$line" | sed -nE 's/.*`([0-9.]+)`[^`]*`([0-9.]+)`.*/\2/p')
 if ! { valid_version "$low" && valid_version "$high"; }; then
   say "対応範囲を解析できない (spicetify-cli v${cli})。Issue にして終了する"
   open_issue "parse:${cli}" "spicetify-cli ${cli} の対応範囲を解析できませんでした" \
-"spicetify-cli v${cli} のリリースノートから、macOS の対応範囲を取得できませんでした。
+    "spicetify-cli v${cli} のリリースノートから、macOS の対応範囲を取得できませんでした。
 書式が変わった可能性があります。自動更新は、この状態では PR を作りません。
 
 - リリースノート: https://github.com/spicetify/cli/releases/tag/v${cli}
@@ -139,7 +151,7 @@ fi
 if [ "$(cmp3 "$low" "$spotify")" = 1 ] || [ "$(cmp3 "$spotify" "$high")" = 1 ]; then
   say "Spotify ${spotify} は、spicetify-cli ${cli} の対応範囲 (${low} から ${high}) の外。Issue にして終了する"
   open_issue "compat:${cli}" "Spotify ${spotify} は spicetify-cli ${cli} の対応範囲外です" \
-"nixpkgs-unstable の候補を評価した結果、自動更新の PR を見送りました。
+    "nixpkgs-unstable の候補を評価した結果、自動更新の PR を見送りました。
 
 | 項目 | 値 |
 |---|---|

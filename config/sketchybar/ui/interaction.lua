@@ -23,7 +23,8 @@ end tell
 end tell]],
 		title_pattern
 	)
-	local close = [[tell application "System Events" to tell process "System Settings" to click (value of attribute "AXCloseButton" of window 1)]]
+	local close =
+		[[tell application "System Events" to tell process "System Settings" to click (value of attribute "AXCloseButton" of window 1)]]
 	local command = string.format(
 		"if pgrep -qx 'System Settings' && [ \"$(osascript -e '%s' 2>/dev/null)\" = close ]; then osascript -e '%s' >/dev/null 2>&1; else open '%s'; fi",
 		check,

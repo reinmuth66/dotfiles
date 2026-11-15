@@ -188,11 +188,15 @@ local function render()
 	local ram_percent = ram_total > 0 and ram_used / ram_total * 100 or 0
 	local disk_percent = disk_total > 0 and (disk_total - disk_free) / disk_total * 100 or 0
 	cpu_item:set(colored(percent_label(cpu), threshold_color(cpu, CPU_THRESHOLDS)))
-	ram_item:set(colored(percent_label(ram_percent), PRESSURE_COLORS[tonumber(env.MEM_PRESSURE)] or colors.status.normal))
-	disk_item:set(colored(
-		{ string = string.format("%s/%s", format_disk(disk_total - disk_free), format_disk(disk_total)) },
-		threshold_color(disk_percent, DISK_THRESHOLDS)
-	))
+	ram_item:set(
+		colored(percent_label(ram_percent), PRESSURE_COLORS[tonumber(env.MEM_PRESSURE)] or colors.status.normal)
+	)
+	disk_item:set(
+		colored(
+			{ string = string.format("%s/%s", format_disk(disk_total - disk_free), format_disk(disk_total)) },
+			threshold_color(disk_percent, DISK_THRESHOLDS)
+		)
+	)
 end
 
 gear:subscribe("system_stats", function(env)

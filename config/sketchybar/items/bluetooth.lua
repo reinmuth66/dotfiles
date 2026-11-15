@@ -35,7 +35,8 @@ sbar.add("event", "bluetooth_status", "com.apple.bluetooth.status")
 
 -- When power is off, device_connected itself disappears.
 -- A connected device shows up in the system_profiler output about 0.3 seconds after the notification. Verified on the actual device.
-local COMMAND = [[system_profiler SPBluetoothDataType -json | jq -r '.SPBluetoothDataType[0] | if .controller_properties.controller_state == "attrib_on" then (if ((.device_connected // []) | length) > 0 then "connected" else "on" end) else "off" end']]
+local COMMAND =
+	[[system_profiler SPBluetoothDataType -json | jq -r '.SPBluetoothDataType[0] | if .controller_properties.controller_state == "attrib_on" then (if ((.device_connected // []) | length) > 0 then "connected" else "on" end) else "off" end']]
 
 local SETTLE = 0.4
 

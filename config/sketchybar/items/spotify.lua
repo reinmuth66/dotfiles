@@ -484,16 +484,18 @@ local function viz_render_config()
 	if not template then
 		return nil
 	end
-	return (template:gsub("@(%u+)@", {
-		X = VIZ_HIDDEN_POS,
-		Y = VIZ_HIDDEN_POS,
-		W = VIZ_WIDTH,
-		H = POPUP_BG_HEIGHT,
-		FG = viz.fg,
-		PLAYED = viz.played,
-		BG = viz.bg,
-		BORDER = viz.border,
-	}))
+	return (
+		template:gsub("@(%u+)@", {
+			X = VIZ_HIDDEN_POS,
+			Y = VIZ_HIDDEN_POS,
+			W = VIZ_WIDTH,
+			H = POPUP_BG_HEIGHT,
+			FG = viz.fg,
+			PLAYED = viz.played,
+			BG = viz.bg,
+			BORDER = viz.border,
+		})
+	)
 end
 
 -- Returns nil before the popup is drawn. The result of ui.visible_rect.
