@@ -54,7 +54,10 @@ function M.add_bracket(name, members, props, padding)
 			padding = { left = padding, right = padding }
 		end
 		local first, last = members[1], members[#members]
-		assert(type(first) == "table" and type(last) == "table", "add_bracket: padding requires item objects as members")
+		assert(
+			type(first) == "table" and type(last) == "table",
+			"add_bracket: padding requires item objects as members"
+		)
 		if padding.right ~= nil then
 			first:set({ padding_right = padding.right })
 		end
@@ -63,12 +66,7 @@ function M.add_bracket(name, members, props, padding)
 		end
 	end
 
-	return sbar.add(
-		"bracket",
-		name,
-		names,
-		merge(props, { background = merge(colors.bracket, props.background) })
-	)
+	return sbar.add("bracket", name, names, merge(props, { background = merge(colors.bracket, props.background) }))
 end
 
 -- Measured on the actual device that an empty label has a width of 1px.

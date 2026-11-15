@@ -173,7 +173,8 @@ local function analyze(list)
 	for _, c in ipairs(list) do
 		local h, s, v = rgb_to_hsv(c[2], c[3], c[4])
 		local l, hsl_s = rgb_to_hsl(c[2], c[3], c[4])
-		out[#out + 1] = { r = c[2], g = c[3], b = c[4], h = h, s = s, v = v, l = l, hsl_s = hsl_s, share = c[1] / total }
+		out[#out + 1] =
+			{ r = c[2], g = c[3], b = c[4], h = h, s = s, v = v, l = l, hsl_s = hsl_s, share = c[1] / total }
 	end
 	return out
 end
@@ -304,7 +305,10 @@ M.hex = hex
 
 -- Returns the relative luminance of unplayed and played. UNPLAYED_STEP is the position from the background, seen on the logarithm of the contrast ratio between the background and the played one.
 local function bar_luminances(bg, text, subtext, light)
-	local lb, lt, ls = luminance(bg[1], bg[2], bg[3]) + 0.05, luminance(text[1], text[2], text[3]) + 0.05, luminance(subtext[1], subtext[2], subtext[3]) + 0.05
+	local lb, lt, ls =
+		luminance(bg[1], bg[2], bg[3]) + 0.05,
+		luminance(text[1], text[2], text[3]) + 0.05,
+		luminance(subtext[1], subtext[2], subtext[3]) + 0.05
 	local lp
 	if light then
 		lp = math.min(math.max(PLAYED_TEXT_CONTRAST * lt, PLAYED_SUBTEXT_CONTRAST * ls), lb / BAR_MIN_STEP)

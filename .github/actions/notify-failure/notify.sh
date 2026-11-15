@@ -27,7 +27,9 @@ if [ -n "$existing" ]; then
 - 実行: ${RUN_URL}
 - 失敗した step: ${failed_steps}"
   if [ "$DRY_RUN" = 1 ]; then
-    echo "[DRY_RUN] Issue #${existing} にコメントを追記する:"; echo "$comment"; exit 0
+    echo "[DRY_RUN] Issue #${existing} にコメントを追記する:"
+    echo "$comment"
+    exit 0
   fi
   gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" --body "$comment"
   exit 0
@@ -53,7 +55,9 @@ body="${body}
 クローズ後に再発した場合は、新しい Issue が作られます。"
 
 if [ "$DRY_RUN" = 1 ]; then
-  echo "[DRY_RUN] Issue を作成する: ${title}"; echo "$body"; exit 0
+  echo "[DRY_RUN] Issue を作成する: ${title}"
+  echo "$body"
+  exit 0
 fi
 gh label create "$LABEL" --repo "$GITHUB_REPOSITORY" --force --color d93f0b \
   --description "ワークフローの失敗の通知" >/dev/null

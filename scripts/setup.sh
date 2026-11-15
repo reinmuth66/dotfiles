@@ -10,7 +10,7 @@ yellow="\033[33m"
 reset="\033[0m"
 
 step() { echo -e "\n${bold}==> $1${reset}"; }
-ok()   { echo -e "${green}  ✓ $1${reset}"; }
+ok() { echo -e "${green}  ✓ $1${reset}"; }
 note() { echo -e "${yellow}  ! $1${reset}"; }
 
 # --- 1. Xcode Command Line Tools ---

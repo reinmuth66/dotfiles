@@ -3,6 +3,18 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    flake-parts = {
+      url = "github:hercules-ci/flake-parts";
+      inputs.nixpkgs-lib.follows = "nixpkgs";
+    };
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    git-hooks = {
+      url = "github:cachix/git-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     nix-darwin = {
       url = "github:lnl7/nix-darwin";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -59,67 +71,6 @@
     };
   };
 
-  outputs =
-    inputs@{
-      nixpkgs,
-      nix-darwin,
-      home-manager,
-      ...
-    }:
-    let
-      # pkgs/ の自前パッケージ。モジュールからは inputs.self.packages.<system>.<name> で参照する
-      mkPackages = pkgs: {
-        cavaviz = pkgs.callPackage ./pkgs/cavaviz { };
-        media-key = pkgs.callPackage ./pkgs/media-key { };
-        pdf-cli = pkgs.callPackage ./pkgs/pdf-cli { src = inputs.pdf-cli; };
-        sketchybar = pkgs.callPackage ./pkgs/sketchybar { };
-        zmk-battery-center = pkgs.callPackage ./pkgs/zmk-battery-center { };
-      };
-    in
-    {
-      formatter = nixpkgs.lib.genAttrs [ "aarch64-darwin" "x86_64-linux" ] (
-        system: nixpkgs.legacyPackages.${system}.nixfmt-tree
-      );
-
-      # `nix run .#skills-sources-lock` で config/agent-skills/registry の skill の取得元をまとめて更新する
-      apps = nixpkgs.lib.genAttrs [ "aarch64-darwin" "x86_64-linux" ] (
-        system:
-        let
-          program = inputs.agent-skills.lib.agent-skills.mkSourceLockProgram {
-            pkgs = nixpkgs.legacyPackages.${system};
-          };
-        in
-        {
-          skills-sources-lock = {
-            type = "app";
-            program = "${program}/bin/skills-sources-lock";
-          };
-        }
-      );
-
-      packages = {
-        aarch64-darwin = mkPackages nixpkgs.legacyPackages.aarch64-darwin;
-        # update-flake.yaml が ubuntu ランナーで pdf-cli の vendorHash を計算するために使う
-        x86_64-linux = {
-          inherit (mkPackages nixpkgs.legacyPackages.x86_64-linux) pdf-cli;
-        };
-      };
-
-      darwinConfigurations."ReinmuthLaptop" = nix-darwin.lib.darwinSystem {
-        system = "aarch64-darwin";
-        specialArgs = { inherit inputs; };
-        modules = [
-          ./modules/darwin.nix
-          ./modules/system-defaults.nix
-          home-manager.darwinModules.home-manager
-          {
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-            home-manager.backupFileExtension = "bak";
-            home-manager.extraSpecialArgs = { inherit inputs; };
-            home-manager.users.reinmuth = import ./modules/home.nix;
-          }
-        ];
-      };
-    };
+  # 出力は flake/ 配下の flake-parts モジュールに分けてある
+  outputs = inputs: inputs.flake-parts.lib.mkFlake { inherit inputs; } { imports = [ ./flake ]; };
 }
