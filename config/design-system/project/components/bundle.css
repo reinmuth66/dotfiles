@@ -1,2 +1,51 @@
 /* 部品の CSS。デザインシステムのプレビューと marp のテーマの両方が、このファイルを使う。
    色や大きさは書かず、tokens.json から作られる変数だけを使う。 */
+
+/* ---- 目次 ----
+   番号付きリストを 2 列に並べる。番号は CSS が振る。
+   marp では <!-- _class: toc --> を付けたスライドの <ol>、それ以外では <ol class="toc">。
+   marp はテーマの規則をスライドの中に閉じ込めるので、スライド自身の class は section.toc と書かないと当たらない。 */
+section.toc > ol,
+.toc > ol,
+ol.toc {
+    list-style: none;
+    counter-reset: toc;
+    column-count: 2;
+    column-gap: var(--space-15);
+    width: 86%;
+    margin: 0 auto;
+    padding: 0;
+    font-size: var(--font-size-body);
+    line-height: var(--line-height-loose);
+}
+
+section.toc > ol > li,
+.toc > ol > li,
+ol.toc > li {
+    counter-increment: toc;
+    break-inside: avoid;
+    margin: 0 0 var(--space-6) 0;
+    /* 2 行になったとき、番号の幅だけ字下げして揃える */
+    padding: 0 0 var(--space-2) 1.4em;
+    text-indent: -1.4em;
+    border-bottom: var(--border-medium) solid var(--border);
+}
+
+section.toc > ol > li::before,
+.toc > ol > li::before,
+ol.toc > li::before {
+    content: counter(toc) ".";
+    display: inline-block;
+    width: 1.4em;
+    text-indent: 0;
+    color: var(--accent);
+    font-weight: 700;
+}
+
+/* 章の番号。目次と章の扉で同じ見た目にする */
+.toc-num {
+    display: inline-block;
+    width: 1.4em;
+    color: var(--accent);
+    font-weight: 700;
+}

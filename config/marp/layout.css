@@ -344,6 +344,11 @@ section {
         }
     }
 
+    /* 目次。リストの見た目は部品の CSS (.toc) が決める。ここでは縦の中央に置くだけ */
+    &.toc {
+        justify-content: center;
+    }
+
     &.black {
         background-color: var(--black);
 
