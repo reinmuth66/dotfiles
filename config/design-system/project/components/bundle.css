@@ -197,3 +197,76 @@ ol.toc > li::before {
 .arrow.blue {
     color: var(--accent);
 }
+
+/* ---- diagram ----
+   要素同士を線でつなぐ図。線は、要素の位置を測って SVG で描く (src/connector.js)。
+   線を通す場所が要るので、図の中では要素の間隔を広げる。 */
+.diagram {
+    position: relative;
+}
+
+.diagram.row,
+.diagram .row {
+    gap: var(--space-25);
+}
+
+.diagram.col,
+.diagram .col {
+    gap: var(--space-15);
+}
+
+.diagram.grid2,
+.diagram.grid3,
+.diagram .grid2,
+.diagram .grid3 {
+    gap: var(--space-15) var(--space-25);
+    justify-items: center;
+    align-items: center;
+}
+
+.diagram > svg.diagram-edges {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    pointer-events: none;
+}
+
+.diagram-edge {
+    fill: none;
+    stroke: var(--text-sub);
+    stroke-width: var(--border-medium);
+}
+
+.diagram-edge.blue {
+    stroke: var(--accent);
+}
+
+.diagram-edge.red {
+    stroke: var(--danger);
+}
+
+.diagram-edge.dashed {
+    stroke-dasharray: 8 6;
+}
+
+/* 線の上のラベル。線と重なっても読めるよう、地の色で縁を取る */
+.diagram-label {
+    fill: var(--text-sub);
+    stroke: var(--bg);
+    stroke-width: var(--space-2);
+    paint-order: stroke;
+    font-size: var(--font-size-note);
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: central;
+}
+
+.diagram-label.blue {
+    fill: var(--accent);
+}
+
+.diagram-label.red {
+    fill: var(--danger);
+}

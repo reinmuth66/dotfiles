@@ -54,7 +54,7 @@
               NODE_PATH = "${pkgs.marp-cli}/lib/node_modules/@marp-team/marp-cli/node_modules";
             }
             ''
-              node --test "$engine"/*.test.js
+              node --test "$engine"/*.test.js ${../config/design-system/src}/*.test.js
               touch "$out"
             '';
         # デザインシステムから組み立てた marp のテーマが、値の直書きなしで作られ、marp で読めることを確かめる

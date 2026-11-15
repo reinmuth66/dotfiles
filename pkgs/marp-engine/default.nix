@@ -3,8 +3,11 @@
 {
   runCommand,
   engineSrc ? ../../config/marp/engine,
+  # 図の線を描くスクリプト。正本はデザインシステムの側にあり、React の部品と共有する
+  connectorSrc ? ../../config/design-system/src/connector.js,
 }:
-runCommand "marp-engine" { inherit engineSrc; } ''
+runCommand "marp-engine" { inherit engineSrc connectorSrc; } ''
   mkdir -p "$out"
   cp "$engineSrc"/*.js "$out"/
+  cp "$connectorSrc" "$out"/connector.js
 ''
