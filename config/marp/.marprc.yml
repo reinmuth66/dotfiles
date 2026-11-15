@@ -1,5 +1,4 @@
 theme: /Users/reinmuth/.config/marp/modern.css
-themeSet:
-  - /Users/reinmuth/.config/marp/modern.css
+engine: /Users/reinmuth/.config/marp/engine/index.js
 html: true
 allowLocalFiles: true
