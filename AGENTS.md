@@ -10,6 +10,7 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 - `modules/home.nix` — home-manager エントリ (パッケージ、全モジュールの import)
 - `modules/<tool>.nix` — ツールごとの設定モジュール
 - `config/` — `programs.*` で表現できないツールの設定ファイル実体
+- `config/design-system/project/` — デザインシステム「modern」の正本。claude.ai の Artifact に publish する
 - `pkgs/<name>/default.nix` — 自前でビルドするパッケージ。パッチなど関連ファイルも同じディレクトリに置く。単体で使えるものは `flake/packages.nix` に登録し (`nix build .#<name>` でビルドできる)、モジュールからは `inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.<name>` で参照する
 - flake の input は `inputs` としてモジュールに渡る。モジュールでは `inputs.<name>` で参照する
 
@@ -48,6 +49,11 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
 - `spicetify.nix`: Spotify と spicetify-cli は nixpkgs-spotify の rev で固定し、`update-spotify.yaml` が、猶予期間・互換性・ビルドを確認してから PR で更新する
 - `cavaviz.nix`: Spotify ポップアップの背景と棒グラフを描くサウンドビジュアライザ。`pkgs/cavaviz/` の CavaViz.app と、cava の設定とシェーダーからなる
 - `mole.nix`: タグ固定の flake input。`update-mole.yaml` が新しいリリースで PR を作る
+- `marp.nix`: テーマ `modern` は手で書かず、`pkgs/marp-theme/` がデザインシステムから組み立てる (`nix build .#marp-theme` で確認できる)
+  - 連結の順は、`tokens.json` から作る変数、`components/bundle.css` (部品)、`config/marp/layout.css` (marp 固有のレイアウト)
+  - 色、文字サイズ、余白、角丸、線の値は `config/design-system/project/tokens.json` にだけ書く。CSS では変数で指す。色の直書きは `nix flake check` (`checks.marp-theme`) が止める
+  - 色は OKLCH の法則から計算した 16 進の値。法則は `tokens.json` の `meta` と `README.md` にある。色を足すときは、法則から計算する
+  - デザインシステムは <https://claude.ai/artifact/LvnvWfqkhouGZxRA2cieud> にある。`config/design-system/project/` を変えたら、Artifact ツールで同じ URL に publish する (`root` は `config/design-system`、変えたファイルだけを送る)。索引 `design-system.json` は、直前に読み直してから最後に送る
 - `czg.nix`: conventional commit の TUI。`importNpmLock` で `pkgs/czg/` から作る
 - `claude.nix`: Claude Code 本体は `nix-claude-code` input の overlay (`darwin.nix`) で入れる。`update-claude-code.yaml` が、この input だけを毎日更新して PR を作る。MCP サーバーは `programs.claude-code.mcpServers` で宣言する
   - `settings.json` は丸ごと置き換えず、activation で jq マージする。Nix に書いたキーが勝ち、`enabledPlugins` や `permissions.allow` など Claude Code が書き込むものは残る。`hooks` だけは Nix の内容で置き換える
