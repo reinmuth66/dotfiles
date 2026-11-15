@@ -1,0 +1,20 @@
+<!-- @dsCard group="図" height=260 -->
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Noto+Sans:wght@400;700&display=swap">
+<style>
+  /* スライド用の大きさでは枠に入らないので、プレビューの中だけ文字を縮める */
+  :root { --font-size-body: 20px; --font-size-small: 16px; --font-size-note: 13px; }
+  body { margin: 0; padding: 20px; background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 18px; }
+  h4 { font-size: 18px; }
+  ul { margin: 0; padding-left: 1.2em; }
+</style></head>
+<body>
+<div id="root"></div>
+<script>
+  var M = window.Modern, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h(M.Diagram, { className: "grid3", edges: ["meta -> ridge", "ridge -> res", "img -> resnet", "resnet -> sign", "res.bottom -> sign.top {blue} : 教師信号", "sign.bottom -> img.bottom {dashed} : 再学習"] }, h(M.Box, { id: "meta" }, "メタデータ"), h(M.Box, { id: "ridge", variant: "dark" }, "Ridge"), h(M.Box, { id: "res", variant: "light" }, "残差"), h(M.Box, { id: "img" }, "画像"), h(M.Box, { id: "resnet", variant: "dark" }, "ResNet50"), h(M.Box, { id: "sign", variant: "blue-fill" }, "残差の正負")));
+</script>
+</body>
+</html>

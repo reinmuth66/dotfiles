@@ -41,7 +41,7 @@
 
 ## 書き方
 
-HTML では、`diagram` の class と、線の一覧を JSON にした `data-edges` を付ける。線を描くには、`ModernConnector.draw(要素)` を呼ぶ。React と marp では、これは自動で行われる。
+HTML では、`diagram` の class と、線の一覧を JSON にした `data-edges` を付ける。線を描くには、`Modern.draw(要素)` を呼ぶ。React と marp では、これは自動で行われる。
 
 ```jsx
 <Modern.Diagram edges={["in -> model", "model.bottom -> in.bottom {dashed} : 再学習"]}>
