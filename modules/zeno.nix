@@ -120,6 +120,8 @@ in
     bindkey ' ' zeno-auto-snippet
     bindkey '^m' zeno-auto-snippet-and-accept-line
     bindkey '^i' zeno-completion
+    # ghq で取得したリポジトリを fzf で選んで移動する
+    bindkey '^g' zeno-ghq-cd
     (( $+functions[_zsh_highlight_bind_widgets] )) && _zsh_highlight_bind_widgets
 
     # Fix: zeno-completion declares 'local options' (scalar) which shadows

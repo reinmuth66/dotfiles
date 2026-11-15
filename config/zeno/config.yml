@@ -45,6 +45,10 @@ snippets:
     keyword: gst
     snippet: git stash
 
+  - name: ghq get
+    keyword: gg
+    snippet: ghq get
+
   # nix
   - name: darwin rebuild
     keyword: dr

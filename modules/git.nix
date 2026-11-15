@@ -5,11 +5,57 @@
     enable = true;
     settings = {
       user.name = "reinmuth66";
-      merge.conflictstyle = "diff3";
-      diff.colorMoved = "default";
+      init.defaultBranch = "main";
+
+      # ghq get の取得先 (~/ghq/github.com/<owner>/<repo>)
+      ghq.root = "~/ghq";
+
+      push = {
+        # 初回の push で upstream を自動設定する
+        autoSetupRemote = true;
+        # --force-with-lease のとき、手元に取り込んでいないリモートの変更を上書きしない
+        useForceIfIncludes = true;
+      };
+      fetch = {
+        # リモートで消えたブランチの追跡ブランチを消す
+        prune = true;
+      };
+      pull.rebase = true;
+      rebase = {
+        autoStash = true;
+        # fixup! / squash! コミットを自動で並べ替える
+        autoSquash = true;
+      };
+
+      merge.conflictstyle = "zdiff3";
+      diff = {
+        algorithm = "histogram";
+        colorMoved = "default";
+      };
+
+      # 一度解決したコンフリクトを覚えて、同じものを自動で解決する
+      rerere = {
+        enabled = true;
+        autoupdate = true;
+      };
+
+      branch.sort = "-committerdate";
+      tag.sort = "version:refname";
     };
     includes = [ { path = "~/.config/git/config.local"; } ];
-    ignores = [ "**/.claude/settings.local.json" ];
+    ignores = [
+      # macOS
+      ".DS_Store"
+      "._*"
+
+      # direnv
+      ".direnv"
+
+      # Claude Code
+      "**/.claude/settings.local.json"
+      "**/.claude/worktrees"
+      "**/CLAUDE.local.md"
+    ];
   };
 
   programs.delta = {

@@ -47,6 +47,7 @@
     docker
     dust
     ffmpeg
+    ghq
     imagemagick
     marp-cli
     moralerspace-hw
