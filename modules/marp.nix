@@ -12,5 +12,12 @@ in
     "marp/.marprc.yml".source = ../config/marp/.marprc.yml;
   };
 
-  home.file.".marprc.yml".source = ../config/marp/.marprc.yml;
+  home.file = {
+    ".marprc.yml".source = ../config/marp/.marprc.yml;
+
+    # modern テーマでスライドを書くときに、AI エージェントが読む skill。
+    # 記法の説明の正本は config/marp/README.md で、skill からは syntax.md として読める
+    ".claude/skills/marp-modern/SKILL.md".source = ../config/marp/skill/SKILL.md;
+    ".claude/skills/marp-modern/syntax.md".source = ../config/marp/README.md;
+  };
 }

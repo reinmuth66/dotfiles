@@ -10,7 +10,7 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 - `modules/home.nix` — home-manager エントリ (パッケージ、全モジュールの import)
 - `modules/<tool>.nix` — ツールごとの設定モジュール
 - `config/` — `programs.*` で表現できないツールの設定ファイル実体
-- `config/design-system/project/` — デザインシステム「modern」の正本。claude.ai の Artifact に publish する
+- `config/design-system/` — デザインシステム「modern」の正本。`project/` がトークン・説明・部品の CSS、`src/` が React の部品。claude.ai の Artifact に publish する
 - `pkgs/<name>/default.nix` — 自前でビルドするパッケージ。パッチなど関連ファイルも同じディレクトリに置く。単体で使えるものは `flake/packages.nix` に登録し (`nix build .#<name>` でビルドできる)、モジュールからは `inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.<name>` で参照する
 - flake の input は `inputs` としてモジュールに渡る。モジュールでは `inputs.<name>` で参照する
 
@@ -53,7 +53,11 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
   - 連結の順は、`tokens.json` から作る変数、`components/bundle.css` (部品)、`config/marp/layout.css` (marp 固有のレイアウト)
   - 色、文字サイズ、余白、角丸、線の値は `config/design-system/project/tokens.json` にだけ書く。CSS では変数で指す。色の直書きは `nix flake check` (`checks.marp-theme`) が止める
   - 色は OKLCH の法則から計算した 16 進の値。法則は `tokens.json` の `meta` と `README.md` にある。色を足すときは、法則から計算する
-  - デザインシステムは <https://claude.ai/artifact/LvnvWfqkhouGZxRA2cieud> にある。`config/design-system/project/` を変えたら、Artifact ツールで同じ URL に publish する (`root` は `config/design-system`、変えたファイルだけを送る)。索引 `design-system.json` は、直前に読み直してから最後に送る
+  - 部品 (目次、card、box、配置、図) の見た目は `components/bundle.css` に 1 か所だけ書く。React の部品 (`config/design-system/src/index.jsx`) は、その class を付けた HTML を出すだけにする
+  - marp では、エンジンの拡張 (`config/marp/engine/`、`pkgs/marp-engine/` がまとめて `~/.config/marp/engine/` に配る) が、`:::` の記法、章の番号とフッターの自動反映、図の線を足す。外部のパッケージは使わない。図の線を描く `config/design-system/src/connector.js` は、拡張と React の部品が共有する
+  - 書き方の説明は `config/marp/README.md`。記法や部品を変えたら、この README、`config/marp/skill/SKILL.md` (AI エージェント用の skill `marp-modern`。`~/.claude/skills/marp-modern/` に配る)、デザインシステムの `components/<部品>/README.md` を合わせて直す
+  - 拡張と線の試験は `node --test` で書き、`nix flake check` (`checks.marp-engine`) が走らせる。`checks.design-system` は、React の部品をまとめた `bundle.js` を確かめる
+  - デザインシステムは <https://claude.ai/artifact/LvnvWfqkhouGZxRA2cieud> にある。`config/design-system/` を変えたら publish する。`bundle.js` はリポジトリに置かないので、`nix build .#design-system` の結果 (`result/project/`) をスクラッチパッドにコピーし、それを `root` にして Artifact ツールで同じ URL に送る。`index.d.ts` は `contentType: text/plain` を付ける。索引 `design-system.json` は、直前に読み直してから最後に送る
 - `czg.nix`: conventional commit の TUI。`importNpmLock` で `pkgs/czg/` から作る
 - `claude.nix`: Claude Code 本体は `nix-claude-code` input の overlay (`darwin.nix`) で入れる。`update-claude-code.yaml` が、この input だけを毎日更新して PR を作る。MCP サーバーは `programs.claude-code.mcpServers` で宣言する
   - `settings.json` は丸ごと置き換えず、activation で jq マージする。Nix に書いたキーが勝ち、`enabledPlugins` や `permissions.allow` など Claude Code が書き込むものは残る。`hooks` だけは Nix の内容で置き換える
