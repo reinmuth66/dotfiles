@@ -19,8 +19,8 @@ jobs:
       compat_low: ${{ steps.check.outputs.compat_low }}
       compat_high: ${{ steps.check.outputs.compat_high }}
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-nix
       - name: Check candidate
         id: check
         env:
@@ -42,8 +42,8 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-nix
       - name: Move nixpkgs-spotify to the candidate
         env:
           CANDIDATE_REV: ${{ needs.decide.outputs.candidate_rev }}
@@ -57,7 +57,7 @@ jobs:
           nix build --no-link \
             '.#darwinConfigurations.ReinmuthLaptop.config.home-manager.users.reinmuth.programs.spicetify.spicedSpotify'
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8.1.2
+        uses: peter-evans/create-pull-request@15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8 # v8.1.2
         with:
           # A PR created with GITHUB_TOKEN does not trigger pull_request workflows, so check.yaml would not run on it.
           token: ${{ secrets.CREATE_PR_TOKEN }}

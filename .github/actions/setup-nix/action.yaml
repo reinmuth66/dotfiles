@@ -1,0 +1,27 @@
+name: Setup Nix
+description: >-
+  Nix を入れる。cache-key を渡すと、Nix ストアを GitHub Actions のキャッシュに保存して次回に復元する。
+inputs:
+  cache-key:
+    description: キャッシュを分ける名前。空なら、キャッシュしない
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    # cache-nix-action は、ストアがランナーのユーザーの持ち物になるこのインストーラーを前提にしている
+    - name: Install Nix
+      uses: nixbuild/nix-quick-install-action@9f63be77f412a248c9d9a65a4c82cf066cdf8f0c # v35
+      with:
+        nix_conf: |
+          experimental-features = nix-command flakes
+          max-jobs = auto
+    - name: Cache Nix store
+      if: inputs.cache-key != ''
+      uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
+      with:
+        primary-key: nix-${{ inputs.cache-key }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.lock') }}
+        restore-prefixes-first-match: nix-${{ inputs.cache-key }}-${{ runner.os }}-${{ runner.arch }}-
+        # リポジトリのキャッシュ上限は 10GB なので、保存前にストアをこの大きさまで GC する
+        gc-max-store-size-linux: 2G
+        gc-max-store-size-macos: 5G

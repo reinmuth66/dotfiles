@@ -1,6 +1,7 @@
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
-  extends: ['config:recommended'],
+  // Actions は commit SHA で固定し、タグはコメントに残す
+  extends: ['config:recommended', 'helpers:pinGitHubActionDigests'],
   labels: ['dependencies', 'renovate'],
   dependencyDashboard: false,
   minimumReleaseAge: '3 days',

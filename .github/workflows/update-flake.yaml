@@ -11,8 +11,8 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-nix
       - name: Update flake inputs
         run: nix flake update
       # vendorHash depends on go.sum, so the flake input alone cannot track it.
@@ -42,7 +42,7 @@ jobs:
             pdf-cli の vendorHash を更新できませんでした。flake inputs の PR は作られていますが、
             そのままマージすると、switch のビルドが失敗します。pkgs/pdf-cli/default.nix の vendorHash を手動で更新してください。
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v8.1.2
+        uses: peter-evans/create-pull-request@15733dbdfeedb4f7fdb73d13c6f5ac83b710fab8 # v8.1.2
         with:
           # A PR created with GITHUB_TOKEN does not trigger pull_request workflows, so check.yaml would not run on it.
           token: ${{ secrets.CREATE_PR_TOKEN }}

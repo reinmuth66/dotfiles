@@ -1,8 +1,11 @@
 name: 'Check'
 on:
-  # Direct pushes to main are checked locally with `nh darwin switch` before pushing, so only PRs run this.
-  pull_request:
   # The update-*.yaml workflows create PRs with the CREATE_PR_TOKEN secret, so pull_request runs on them too.
+  pull_request:
+  # Direct pushes to main are built locally with `nh darwin switch` before pushing, so only lint runs on them.
+  push:
+    branches:
+      - main
   workflow_dispatch:
 concurrency:
   group: check-${{ github.ref }}
@@ -12,19 +15,23 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: DeterminateSystems/nix-installer-action@v23
-      - name: Format (nixfmt)
-        run: nix fmt -- --ci
-      - name: Lint (statix)
-        run: nix run --inputs-from . nixpkgs#statix -- check .
-      - name: Dead code (deadnix)
-        run: nix run --inputs-from . nixpkgs#deadnix -- --fail .
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-nix
+        with:
+          cache-key: lint
+      # Runs the checks in flake/formatter.nix: treefmt, statix, deadnix and gitleaks.
+      - name: Check flake
+        run: nix flake check --print-build-logs
   build:
+    if: github.event_name != 'push'
     runs-on: macos-latest
+    timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v7.0.1
-      - uses: DeterminateSystems/nix-installer-action@v23
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-nix
+        with:
+          cache-key: build
       - name: Build the darwin system
         run: nix build --no-link --print-build-logs '.#darwinConfigurations.ReinmuthLaptop.system'
