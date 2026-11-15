@@ -10,6 +10,8 @@
         pdf-cli = pkgs.callPackage ../pkgs/pdf-cli { src = inputs.pdf-cli; };
         # デザインシステムのトークンから組み立てる marp のテーマ
         marp-theme = pkgs.callPackage ../pkgs/marp-theme { };
+        # デザインシステムの publish 用の一式 (React の部品をまとめた bundle.js つき)
+        design-system = pkgs.callPackage ../pkgs/design-system { };
         # marp に短い記法を足すエンジンの拡張
         marp-engine = pkgs.callPackage ../pkgs/marp-engine { };
       }

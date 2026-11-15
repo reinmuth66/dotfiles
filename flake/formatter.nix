@@ -44,6 +44,54 @@
 
       # 整形の検査 (checks.treefmt) は treefmt-nix が足す
       checks = {
+        # React の部品をまとめた bundle.js が、デザインシステムの決まりを守り、部品が class を正しく出すことを確かめる
+        design-system =
+          pkgs.runCommand "design-system-check"
+            {
+              nativeBuildInputs = [ pkgs.nodejs ];
+              bundle = "${config.packages.design-system}/project/components/bundle.js";
+            }
+            ''
+              fail() { echo "design-system: $1" >&2; exit 1; }
+
+              # デザインシステムはこのスクリプトをページに埋め込むので、これらの文字列があると壊れる
+              if grep -nE '^\s*import\s|</script|<!--' "$bundle"; then
+                fail "bundle.js に import、</script、<!-- のどれかがある"
+              fi
+              head -n 1 "$bundle" | grep -q '@ds-bundle: {' || fail "先頭行に @ds-bundle がない"
+
+              node -e '
+                const assert = require("node:assert/strict");
+                // createElement の引数をそのまま返す、にせの React
+                globalThis.React = {
+                  createElement: (type, props, ...children) => ({ type, props: props || {}, children }),
+                  Fragment: "fragment",
+                  useRef: () => ({ current: null }),
+                  useEffect: () => {},
+                };
+                new Function(require("node:fs").readFileSync(process.argv[1], "utf8") + "; globalThis.Modern = Modern;")();
+                const M = globalThis.Modern;
+                for (const name of ["Toc", "Card", "Box", "Row", "Col", "Grid", "Diagram", "draw"]) {
+                  assert.equal(typeof M[name], "function", name + " がない");
+                }
+                assert.equal(M.Card({ variant: "accent" }).props.className, "card accent");
+                assert.equal(M.Card({}).props.className, "card");
+                assert.equal(M.Box({ variant: "dark", id: "model" }).props.className, "box dark");
+                assert.equal(M.Box({ id: "model" }).props.id, "model");
+                assert.equal(M.Row({ center: true }).props.className, "row center");
+                assert.equal(M.Grid({ columns: 3 }).props.className, "grid3");
+                assert.equal(M.Grid({}).props.className, "grid2");
+                assert.equal(M.Toc({ items: ["a", "b"] }).props.className, "toc");
+                const diagram = M.Diagram({ edges: ["in.right -> model.left", "これは線ではない"] });
+                assert.equal(diagram.props.className, "diagram");
+                const edges = JSON.parse(diagram.props["data-edges"]);
+                assert.equal(edges.length, 1);
+                assert.equal(edges[0].toSide, "left");
+              ' "$bundle"
+
+              touch "$out"
+            '';
+
         # marp のエンジンの拡張と、図の線を描くスクリプトの試験
         marp-engine =
           pkgs.runCommand "marp-engine-check"

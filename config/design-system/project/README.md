@@ -101,6 +101,22 @@
 - 1 枚のスライドに 1 つの主張。箇条書きは 2 階層まで。
 - 図は左から右、上から下に読めるように並べる。
 
+## 部品
+
+部品は `components/` にある。見た目は `components/bundle.css` の class が決め、React の部品 (`window.Modern`) はその class を付けた HTML を出す。class を直接書いても、同じ見た目になる。
+
+| 部品 | class | 使い道 |
+|---|---|---|
+| `Toc` | `toc`、`toc-num` | 目次。番号付きの 2 列 |
+| `Card` | `card` (`accent`、`warn`) | 説明をまとめる枠。見出し、文、箇条書きを入れる |
+| `Box` | `box` (`dark`、`light`、`blue-fill`、`warn`、`muted`) | 図の中の 1 つの要素。短い言葉を入れる |
+| `Row`、`Col`、`Grid` | `row`、`col`、`grid2`、`grid3` | 並べ方 |
+| `Diagram` | `diagram` | 要素同士を線でつなぐ図 |
+
+- 文を読ませたいときは `Card`、関係を見せたいときは `Box` と `Diagram` を使う。
+- 使う前に、その部品の `components/<部品>/README.md` を読む。
+- ここにない部品が要るときは、まずこれらの組み合わせで作れないかを考える。新しい見た目を、その場で作らない。
+
 ## アイコンと画像
 
 - アイコンの決まった集まりは持たない。必要なときは、単色の SVG を `text`、`accent`、`danger` のどれかで塗る。

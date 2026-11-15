@@ -1,0 +1,20 @@
+<!-- @dsCard group="図" height=220 -->
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Noto+Sans:wght@400;700&display=swap">
+<style>
+  /* スライド用の大きさでは枠に入らないので、プレビューの中だけ文字を縮める */
+  :root { --font-size-body: 20px; --font-size-small: 16px; --font-size-note: 13px; }
+  body { margin: 0; padding: 20px; background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 18px; }
+  h4 { font-size: 18px; }
+  ul { margin: 0; padding-left: 1.2em; }
+</style></head>
+<body>
+<div id="root"></div>
+<script>
+  var M = window.Modern, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h(M.Row, { center: true }, h(M.Col, null, h(M.Box, null, "メタデータ"), h(M.Box, null, "画像")), h(M.Box, { variant: "dark" }, "単一モデル"), h(M.Col, null, h(M.Box, { variant: "light" }, "予測"), h(M.Box, { variant: "warn" }, "偏り"))));
+</script>
+</body>
+</html>
