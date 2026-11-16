@@ -21,5 +21,7 @@ in
     # テーマ modern と拡張の記法を、AI エージェントに伝える skill。
     # これ 1 つで足りるように書いてある (人が読む説明は config/marp/README.md)
     ".claude/skills/marp-modern/SKILL.md".source = ../config/marp/skill/SKILL.md;
+    # 必要なときだけ読む資料 (手書きの HTML からの対応表など)
+    ".claude/skills/marp-modern/references".source = ../config/marp/skill/references;
   };
 }
