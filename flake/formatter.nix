@@ -97,6 +97,14 @@
               touch "$out"
             '';
 
+        # tokens.json の色が、法則 (meta.colorRule) から計算した値と一致することを確かめる
+        design-system-colors =
+          pkgs.runCommand "design-system-colors-check" { nativeBuildInputs = [ pkgs.python3 ]; }
+            ''
+              python3 ${../config/design-system/tools/color.py} check ${../config/design-system/project/tokens.json}
+              touch "$out"
+            '';
+
         # marp のエンジンの拡張と、図の線を描くスクリプトの試験
         marp-engine =
           pkgs.runCommand "marp-engine-check"

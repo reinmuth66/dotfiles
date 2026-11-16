@@ -10,7 +10,7 @@ nix-darwin + home-manager で macOS (aarch64) の環境を管理する dotfiles 
 - `modules/home.nix` — home-manager エントリ (パッケージ、全モジュールの import)
 - `modules/<tool>.nix` — ツールごとの設定モジュール
 - `config/` — `programs.*` で表現できないツールの設定ファイル実体
-- `config/design-system/` — デザインシステム「modern」の正本。`project/` がトークン・説明・部品の CSS、`src/` が React の部品。claude.ai の Artifact に publish する
+- `config/design-system/` — デザインシステム「modern」の正本。`project/` がトークン・説明・部品の CSS、`src/` が React の部品、`tools/` が色を法則から計算するスクリプト。claude.ai の Artifact に publish する
 - `pkgs/<name>/default.nix` — 自前でビルドするパッケージ。パッチなど関連ファイルも同じディレクトリに置く。単体で使えるものは `flake/packages.nix` に登録し (`nix build .#<name>` でビルドできる)、モジュールからは `inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.<name>` で参照する
 - flake の input は `inputs` としてモジュールに渡る。モジュールでは `inputs.<name>` で参照する
 
@@ -52,7 +52,7 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
 - `marp.nix`: テーマ `modern` は手で書かず、`pkgs/marp-theme/` がデザインシステムから組み立てる (`nix build .#marp-theme` で確認できる)
   - 連結の順は、`tokens.json` から作る変数、`components/bundle.css` (部品)、`config/marp/layout.css` (marp 固有のレイアウト)
   - 色、文字サイズ、余白、角丸、線の値は `config/design-system/project/tokens.json` にだけ書く。CSS では変数で指す。色の直書きは `nix flake check` (`checks.marp-theme`) が止める
-  - 色は OKLCH の法則から計算した 16 進の値。法則は `tokens.json` の `meta` と `README.md` にある。色を足すときは、法則から計算する
+  - 色は OKLCH の法則から計算した 16 進の値。法則は `tokens.json` の `meta` と `README.md` にある。計算は `config/design-system/tools/color.py` が行う (`python3 color.py ladder <色相の角度>` で 7 段の値が出る)。色相を足すときは、`meta.colorRule.hue` に名前と角度を足し、`python3 color.py check <tokens.json>` が出す値を書く。`nix flake check` (`checks.design-system-colors`) が、全ての色が法則どおりかを確かめる
   - 部品 (目次、card、box、配置、図) の見た目は `components/bundle.css` に 1 か所だけ書く。React の部品 (`config/design-system/src/index.jsx`) は、その class を付けた HTML を出すだけにする
   - marp では、エンジンの拡張 (`config/marp/engine/`、`pkgs/marp-engine/` がまとめて `~/.config/marp/engine/` に配る) が、`:::` の記法、章の番号とフッターの自動反映、図の線を足す。外部のパッケージは使わない。図の線を描く `config/design-system/src/connector.js` は、拡張と React の部品が共有する
   - 書き方の説明は `config/marp/README.md`。記法や部品を変えたら、この README、`config/marp/skill/SKILL.md` (AI エージェント用の skill `marp-modern`。`~/.claude/skills/marp-modern/` に配る)、デザインシステムの `components/<部品>/README.md` を合わせて直す
