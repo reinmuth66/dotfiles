@@ -15,8 +15,8 @@
   "docs": { "sections": [] },
   "lastChange": {
     "by": "Claude",
-    "at": "2026-11-15T13:29:56Z",
+    "at": "2026-11-16T03:00:00Z",
     "via": "Claude Code",
-    "note": "部品 (Toc、Card、Box、Layout、Diagram) と React の bundle を追加"
+    "note": "box と card に角丸なし (square) を追加。矢印の文字を中心に揃え、部品の中の比率をトークンにした"
   }
 }

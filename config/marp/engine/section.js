@@ -10,6 +10,9 @@ const plainText = (inline) =>
     .map((child) => child.content)
     .join("");
 
+// marp はフッターを Markdown として読む。章名の中の記号やタグが解釈されないよう、記号を全てエスケープする
+const literal = (text) => text.replace(/[!-/:-@[-`{-~]/g, "\\$&");
+
 const section = (md) => {
   // marpit_header_and_footer も同じ規則の直後に入るので、後から登録したこちらが先に走る
   md.core.ruler.after("marpit_directives_apply", "modern_section", (state) => {
@@ -45,15 +48,17 @@ const section = (md) => {
             // 番号を手で書いてある。番号の後ろに空白を入れて、フッターの文字にする
             const text = plainText(heading);
             const manual = /^(\d+)\.\s*(.*)$/.exec(text);
-            footer = manual ? `${manual[1]}. ${manual[2]}` : text;
+            footer = manual ? `${manual[1]}. ${literal(manual[2])}` : literal(text);
             if (manual) count = Number(manual[1]);
           } else {
             count += 1;
             const title = plainText(heading);
             const number = new state.Token("html_inline", "", 0);
             number.content = `<span class="toc-num">${count}.</span>`;
+            // marp は見出しの id を中身から作る。hidden にすると id には入らず、表示はされる
+            number.hidden = true;
             heading.children = [number, ...children];
-            footer = `${count}. ${title}`;
+            footer = `${count}. ${literal(title)}`;
           }
         }
       }

@@ -104,3 +104,8 @@ test("parseEdge: 記法でない行は null", () => {
   assert.equal(parseEdge("a → b"), null);
   assert.equal(parseEdge(""), null);
 });
+
+test("route: コの字の離れは、5 つ目の引数で変えられる", () => {
+  assert.equal(route(A, lowerRight, "top", "top", 40), "M50 0V-40H250V100");
+  assert.equal(route(A, lowerRight, "right", "right", 8), "M100 20H308V120H300");
+});

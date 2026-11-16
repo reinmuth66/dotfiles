@@ -91,6 +91,7 @@
 ## 角丸、線、影
 
 - 角丸は 2 つだけ。文中のコードは `radius-sm`、それ以外の枠 (コード、box、card) は `radius-md`。
+- box と card は、`square` を足すと角丸がなくなる (`radius-none`)。1 つの図や 1 枚のスライドの中では、角丸ありとなしを混ぜない。
 - 線は 3 つ。表・コードの枠・card は `border-thin`、box と強調した card は `border-medium`、引用の左の線は `border-thick`。
 - 影は `shadow-image` の 1 つだけで、画像を地から浮かせたいときにだけ使う。box や card に影を付けない。
 - グラデーションは使わない。
