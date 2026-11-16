@@ -5,6 +5,4 @@ config/karabiner/automatic_backups/
 .pre-commit-config.yaml
 result
 result-*
-
-# Playwright MCP が書き出す、ページの記録
 .playwright-mcp/
