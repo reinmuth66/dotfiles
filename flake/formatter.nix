@@ -126,6 +126,36 @@
               node --test engine/*.test.js
               touch "$out"
             '';
+        # marp コマンドが、関数を通らない呼び方 (timeout 越し、標準入力が端末でない) でも、設定を読んで止まらずに変換する
+        marp-command =
+          pkgs.runCommand "marp-command-check"
+            {
+              nativeBuildInputs = [
+                config.packages.marp
+                pkgs.coreutils
+              ];
+              theme = "${config.packages.marp-theme}/modern.css";
+              engine = "${config.packages.marp-engine}/index.js";
+            }
+            ''
+              fail() { echo "marp-command: $1" >&2; exit 1; }
+              export HOME=$TMPDIR
+              printf 'theme: %s\nengine: %s\nhtml: true\n' "$theme" "$engine" > "$HOME/.marprc.yml"
+              mkdir work && cd work
+              printf -- '---\nmarp: true\ntheme: modern\n---\n\n::: box\n中身\n:::\n' > slide.md
+
+              # 標準入力を開いたままにする。--no-stdin が足されなければ、ここで止まる
+              sleep 30 | timeout 20 marp slide.md -o slide.html || fail "変換が止まった、または失敗した"
+              grep -q '<div class="box">' slide.html || fail "拡張が効いていない (::: が変換されていない)"
+              grep -q -- '--blue-600' slide.html || fail "テーマが効いていない"
+
+              # --stdin を付ければ、標準入力から原稿を渡せる
+              timeout 20 marp --stdin -o stdin.html < slide.md || fail "--stdin で標準入力を読めない"
+              grep -q '<div class="box">' stdin.html || fail "--stdin の変換で拡張が効いていない"
+
+              touch "$out"
+            '';
+
         # デザインシステムから組み立てた marp のテーマが、値の直書きなしで作られ、marp で読めることを確かめる
         marp-theme =
           pkgs.runCommand "marp-theme-check"

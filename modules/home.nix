@@ -49,7 +49,6 @@
     ffmpeg
     ghq
     imagemagick
-    marp-cli
     moralerspace-hw
     nerd-fonts.hack
     poppler

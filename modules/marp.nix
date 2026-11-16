@@ -4,6 +4,9 @@ let
   packages = inputs.self.packages.${pkgs.stdenv.hostPlatform.system};
 in
 {
+  # marp-cli を包んだコマンド。設定を必ず読むので、シェルの関数は要らない
+  home.packages = [ packages.marp ];
+
   xdg.configFile = {
     # テーマは、デザインシステム (config/design-system) のトークンから pkgs/marp-theme が組み立てる
     "marp/modern.css".source = "${packages.marp-theme}/modern.css";
