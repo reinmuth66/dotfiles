@@ -38,7 +38,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     mole = {
-      url = "github:tw93/mole/V1.70.0";
+      url = "github:tw93/mole/V1.72.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     ax = {
