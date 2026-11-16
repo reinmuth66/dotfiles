@@ -41,7 +41,6 @@ paginate: true
 | `image` | 画像だけを大きく見せる |
 | `content-image` | 文の下に画像を置く |
 | `content-image-right`、`content-image-left` | 文の右 (左) に画像を置く。既定は半々。`content-30`〜`content-80` で文の幅を変える |
-| `image-shadow` | 画像に影を付ける |
 | `column-layout` | 2 列に分ける。列は `<div class="column">` で囲む |
 | `text-center`、`h1-text-center`〜`h6-text-center`、`all-text-center` | 中央揃え |
 

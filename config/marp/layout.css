@@ -494,12 +494,6 @@ section {
         }
     }
 
-    &.image-shadow {
-        img {
-            box-shadow: var(--shadow-image);
-        }
-    }
-
     &.all-text-center,
     &.h1-text-center h1,
     &.h2-text-center h2,
