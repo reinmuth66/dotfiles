@@ -302,10 +302,34 @@
     }
     shareBends(plans);
 
+    // ラベルの場所では、どの線も描かない。白いところだけ描くマスクを作り、ラベルの場所を黒く塗る
+    const maskId = `modern-labels-${serial}`;
+    const mask = doc.createElementNS(SVG_NS, "mask");
+    mask.setAttribute("id", maskId);
+    mask.setAttribute("maskUnits", "userSpaceOnUse");
+    const everywhere = doc.createElementNS(SVG_NS, "rect");
+    // 線は図の外側も通るので、図より十分に広く取る
+    for (const [name, value] of [
+      ["x", -base.width / scale],
+      ["y", -base.height / scale],
+      ["width", (base.width / scale) * 3],
+      ["height", (base.height / scale) * 3],
+    ]) {
+      mask.setAttribute(name, number(value));
+      everywhere.setAttribute(name, number(value));
+    }
+    everywhere.setAttribute("fill", "white");
+    mask.appendChild(everywhere);
+    defs.appendChild(mask);
+    // ラベルの左右に空ける幅 (space-2) と、上下に空ける幅 (space-1)
+    const gapX = (view && parseFloat(view.getComputedStyle(diagram).getPropertyValue("--space-2"))) || 8;
+    const gapY = (view && parseFloat(view.getComputedStyle(diagram).getPropertyValue("--space-1"))) || 4;
+
     for (const { edge, fromRect, toRect, sideA, sideB, bend } of plans) {
       const d = route(fromRect, toRect, sideA, sideB, detour, bend);
       const path = doc.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
+      path.setAttribute("mask", `url(#${maskId})`);
       path.setAttribute("class", ["diagram-edge", ...(edge.options || [])].join(" "));
       if (edge.kind !== "line") path.setAttribute("marker-end", `url(#${markerId})`);
       if (edge.kind === "both") path.setAttribute("marker-start", `url(#${markerId})`);
@@ -319,6 +343,16 @@
         text.setAttribute("y", number(middle.y));
         text.textContent = edge.label;
         svg.appendChild(text);
+
+        // ラベルの大きさを測り、その場所をマスクで切り抜く
+        const box = text.getBBox();
+        const hole = doc.createElementNS(SVG_NS, "rect");
+        hole.setAttribute("x", number(box.x - gapX));
+        hole.setAttribute("y", number(box.y - gapY));
+        hole.setAttribute("width", number(box.width + gapX * 2));
+        hole.setAttribute("height", number(box.height + gapY * 2));
+        hole.setAttribute("fill", "black");
+        mask.appendChild(hole);
       }
     }
   };

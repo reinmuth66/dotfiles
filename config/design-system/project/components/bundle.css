@@ -32,9 +32,8 @@ ol.toc > li {
     break-inside: avoid;
     margin: 0 0 var(--space-6) 0;
     /* 2 行になったとき、番号の幅だけ字下げして揃える */
-    padding: 0 0 var(--space-2) var(--toc-number-width);
+    padding: 0 0 0 var(--toc-number-width);
     text-indent: calc(var(--toc-number-width) * -1);
-    border-bottom: var(--border-medium) solid var(--border);
 }
 
 section.toc > ol > li::before,
@@ -279,12 +278,9 @@ ol.toc > li::before {
     stroke-dasharray: var(--space-2) var(--space-2);
 }
 
-/* 線の上のラベル。線と重なっても読めるよう、地の色で縁を取る */
+/* 線の上のラベル。ラベルの場所では線を描かない (src/connector.js がマスクで切り抜く) */
 .diagram-label {
     fill: var(--text-sub);
-    stroke: var(--bg);
-    stroke-width: var(--space-2);
-    paint-order: stroke;
     font-size: var(--font-size-note);
     font-weight: 700;
     text-anchor: middle;
