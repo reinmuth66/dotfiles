@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseEdge, route, autoSides, labelPoint } = require("./connector.js");
+const { parseEdge, route, autoSides, labelPoint, plan, shareBends } = require("./connector.js");
 
 const A = { x: 0, y: 0, width: 100, height: 40 };
 const right = { x: 200, y: 0, width: 100, height: 40 };
@@ -48,12 +48,13 @@ test("route: 片方の辺を省いたとき、相手が広い要素なら、中�
   const narrow = { x: 50, y: 0, width: 100, height: 40 };
   const wide = { x: 0, y: 100, width: 400, height: 40 };
   // 下から出た線が、広い要素の上の辺に入る (左の辺に内側から入らない)
-  assert.equal(route(narrow, wide, "bottom", null), "M100 40V70H200V100");
-  assert.equal(route(wide, narrow, null, "bottom"), "M200 100V70H100V40");
+  // 範囲が重なっているので、段を付けずにまっすぐ入る
+  assert.equal(route(narrow, wide, "bottom", null), "M100 40V100");
+  assert.equal(route(wide, narrow, null, "bottom"), "M100 100V40");
 
   const tall = { x: 200, y: -100, width: 60, height: 300 };
-  assert.equal(route(A, tall, "right", null), "M100 20H150V50H200");
-  assert.equal(route(tall, A, null, "right"), "M200 50H150V20H100");
+  assert.equal(route(A, tall, "right", null), "M100 20H200");
+  assert.equal(route(tall, A, null, "right"), "M200 20H100");
 });
 
 test("labelPoint: 最も長い区間の中点に置く", () => {
@@ -108,4 +109,63 @@ test("parseEdge: 記法でない行は null", () => {
 test("route: コの字の離れは、5 つ目の引数で変えられる", () => {
   assert.equal(route(A, lowerRight, "top", "top", 40), "M50 0V-40H250V100");
   assert.equal(route(A, lowerRight, "right", "right", 8), "M100 20H308V120H300");
+});
+
+// 高さの違う 2 つの要素。中心は 10 ずれているが、縦の範囲は重なっている
+const short = { x: 0, y: 20, width: 100, height: 40 };
+const tall = { x: 200, y: 0, width: 100, height: 100 };
+
+test("route: 向かい合う辺の範囲が重なっていれば、段を付けずに直線で結ぶ", () => {
+  // 重なりは y = 20〜60。その中央の 40 を通す
+  assert.equal(route(short, tall, "right", "left"), "M100 40H200");
+  assert.equal(route(tall, short, "left", "right"), "M200 40H100");
+  // 縦の並びでも同じ
+  const narrow = { x: 20, y: 0, width: 40, height: 40 };
+  const wide = { x: 0, y: 100, width: 100, height: 40 };
+  assert.equal(route(narrow, wide, "bottom", "top"), "M40 40V100");
+});
+
+test("route: 重なりが角丸より狭いときは、直線にせず中間で折れる", () => {
+  const barely = { x: 200, y: 30, width: 100, height: 40 };
+  // A は y = 0〜40、barely は y = 30〜70。重なりは 10 しかない
+  assert.equal(route(A, barely, "right", "left"), "M100 20H150V50H200");
+});
+
+test("route: 折れる位置は、6 つ目の引数で変えられる", () => {
+  assert.equal(route(A, lowerRight, "right", "left", 24, 120), "M100 20H120V120H200");
+});
+
+test("shareBends: 同じ辺から出る線は、出る側に最も近い位置で揃えて折る", () => {
+  const near = { x: 200, y: -100, width: 100, height: 40 };
+  const far = { x: 260, y: 100, width: 100, height: 40 };
+  const plans = [
+    { edge: { from: "a", to: "near" }, ...plan(A, near, "right", "left") },
+    { edge: { from: "a", to: "far" }, ...plan(A, far, "right", "left") },
+  ];
+  assert.deepEqual(plans.map((p) => p.bend), [150, 180]);
+  shareBends(plans);
+  assert.deepEqual(plans.map((p) => p.bend), [150, 150]);
+});
+
+test("shareBends: 同じ辺に入る線は、入る側に最も近い位置で揃えて折る", () => {
+  const target = { x: 300, y: 0, width: 100, height: 40 };
+  const nearSource = { x: 100, y: -100, width: 100, height: 40 };
+  const farSource = { x: 0, y: 100, width: 100, height: 40 };
+  const plans = [
+    { edge: { from: "n", to: "t" }, ...plan(nearSource, target, "right", "left") },
+    { edge: { from: "f", to: "t" }, ...plan(farSource, target, "right", "left") },
+  ];
+  assert.deepEqual(plans.map((p) => p.bend), [250, 200]);
+  shareBends(plans);
+  assert.deepEqual(plans.map((p) => p.bend), [250, 250]);
+});
+
+test("shareBends: 直線や L 字の線は、そのままにする", () => {
+  const plans = [
+    { edge: { from: "a", to: "r" }, ...plan(A, right, "right", "left") },
+    { edge: { from: "a", to: "l" }, ...plan(A, lowerRight, "right", "left") },
+  ];
+  shareBends(plans);
+  assert.equal(plans[0].bend, null);
+  assert.equal(plans[1].bend, 150);
 });

@@ -77,8 +77,18 @@
   // 点が、start から size の幅の中にあるか
   const within = (point, start, size) => point >= start - 0.5 && point <= start + size + 0.5;
 
-  // SVG の path の d を返す
-  const route = (from, to, fromSide, toSide, detour = DETOUR) => {
+  // 向かい合う辺を直線で結ぶとき、線が角丸にかからないよう、端から空ける幅 (radius-md)
+  const INSET = 8;
+
+  // 2 つの範囲が重なっていれば、重なりの中央を返す。直線を通せるだけの幅がなければ null
+  const overlapCenter = (startA, sizeA, startB, sizeB) => {
+    const low = Math.max(startA, startB);
+    const high = Math.min(startA + sizeA, startB + sizeB);
+    return high - low >= INSET * 2 ? (low + high) / 2 : null;
+  };
+
+  // 省かれた辺を決める
+  const resolveSides = (from, to, fromSide, toSide) => {
     let sideA = fromSide;
     let sideB = toSide;
     if (!sideA && !sideB) {
@@ -107,7 +117,63 @@
         sideB = to.y + to.height / 2 > y1 ? "top" : "bottom";
       }
     }
+    return [sideA, sideB];
+  };
 
+  // 経路の下調べ。辺と、「向かい合う辺を、中間で 1 回折れて結ぶ」ときの折れる位置 (bend) を返す。
+  // 直線、L 字、コの字のときは、bend は null。origin と target は、線の進む向きでの始点と終点の位置
+  const plan = (from, to, fromSide, toSide) => {
+    const [sideA, sideB] = resolveSides(from, to, fromSide, toSide);
+    const [x1, y1] = anchor(from, sideA);
+    const [x2, y2] = anchor(to, sideB);
+    const result = { sideA, sideB, bend: null, origin: null, target: null };
+
+    if (sideA === sideB || isVertical(sideA) !== isVertical(sideB)) return result;
+    if (isVertical(sideA)) {
+      if (overlapCenter(from.x, from.width, to.x, to.width) !== null) return result;
+      return { ...result, bend: (y1 + y2) / 2, origin: y1, target: y2 };
+    }
+    if (overlapCenter(from.y, from.height, to.y, to.height) !== null) return result;
+    return { ...result, bend: (x1 + x2) / 2, origin: x1, target: x2 };
+  };
+
+  // 1 つの辺から何本も出る線、1 つの辺に何本も入る線の、折れる位置を揃える。
+  // 揃えないと、相手の位置によって折れる位置が少しずつずれ、枝分かれが段々に見える
+  const shareBends = (plans) => {
+    const done = new Set();
+    const align = (keyOf, anchorOf) => {
+      const groups = new Map();
+      for (const item of plans) {
+        if (item.bend === null || done.has(item)) continue;
+        const key = keyOf(item);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(item);
+      }
+      for (const group of groups.values()) {
+        if (group.length < 2) continue;
+        // 束ねる側 (出る辺、または入る辺) に最も近い位置を選ぶ。どの線にとっても、始点と終点の間に収まる
+        const distance = (item) => Math.abs(item.bend - anchorOf(item));
+        const shared = group.reduce((best, item) => (distance(item) < distance(best) ? item : best)).bend;
+        for (const item of group) {
+          item.bend = shared;
+          done.add(item);
+        }
+      }
+    };
+    align(
+      (item) => `${item.edge.from}.${item.sideA}`,
+      (item) => item.origin,
+    );
+    align(
+      (item) => `${item.edge.to}.${item.sideB}`,
+      (item) => item.target,
+    );
+    return plans;
+  };
+
+  // SVG の path の d を返す。bend は、中間で折れる経路の折れる位置 (省くと中間)
+  const route = (from, to, fromSide, toSide, detour = DETOUR, bend = null) => {
+    const [sideA, sideB] = resolveSides(from, to, fromSide, toSide);
     const [x1, y1] = anchor(from, sideA);
     const [x2, y2] = anchor(to, sideB);
     const start = `M${number(x1)} ${number(y1)}`;
@@ -127,13 +193,16 @@
       return isVertical(sideA) ? start + V(y2) + H(x2) : start + H(x2) + V(y2);
     }
 
-    // 向かい合う辺: 揃っていれば直線、ずれていれば中間で折れる
+    // 向かい合う辺: 2 つの要素の範囲が重なっていれば、重なりの中央を通る直線。
+    // 辺の中点同士を結ぶと、高さの違う要素の間で、線が数 px だけ折れてしまう
     if (isVertical(sideA)) {
-      if (Math.abs(x1 - x2) < 0.5) return start + V(y2);
-      return start + V((y1 + y2) / 2) + H(x2) + V(y2);
+      const x = overlapCenter(from.x, from.width, to.x, to.width);
+      if (x !== null) return `M${number(x)} ${number(y1)}` + V(y2);
+      return start + V(bend ?? (y1 + y2) / 2) + H(x2) + V(y2);
     }
-    if (Math.abs(y1 - y2) < 0.5) return start + H(x2);
-    return start + H((x1 + x2) / 2) + V(y2) + H(x2);
+    const y = overlapCenter(from.y, from.height, to.y, to.height);
+    if (y !== null) return `M${number(x1)} ${number(y)}` + H(x2);
+    return start + H(bend ?? (x1 + x2) / 2) + V(y2) + H(x2);
   };
 
   // ラベルを置く点。route が作った経路 (M、H、V だけ) の、最も長い区間の中点
@@ -220,13 +289,21 @@
     defs.appendChild(marker);
     svg.appendChild(defs);
 
+    // 先に全ての線の辺と折れる位置を決め、枝分かれの折れる位置を揃えてから描く
+    const plans = [];
     for (const edge of edges) {
       // 名前は、この図の中だけで探す
       const from = diagram.querySelector(`#${CSS.escape(edge.from)}`);
       const to = diagram.querySelector(`#${CSS.escape(edge.to)}`);
       if (!from || !to) continue;
+      const fromRect = rectOf(from);
+      const toRect = rectOf(to);
+      plans.push({ edge, fromRect, toRect, ...plan(fromRect, toRect, edge.fromSide, edge.toSide) });
+    }
+    shareBends(plans);
 
-      const d = route(rectOf(from), rectOf(to), edge.fromSide, edge.toSide, detour);
+    for (const { edge, fromRect, toRect, sideA, sideB, bend } of plans) {
+      const d = route(fromRect, toRect, sideA, sideB, detour, bend);
       const path = doc.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
       path.setAttribute("class", ["diagram-edge", ...(edge.options || [])].join(" "));
@@ -275,5 +352,5 @@
     }
   };
 
-  return { parseEdge, route, autoSides, labelPoint, draw, auto };
+  return { parseEdge, route, autoSides, labelPoint, plan, shareBends, draw, auto };
 });

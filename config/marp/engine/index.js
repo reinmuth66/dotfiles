@@ -3,5 +3,6 @@
 const container = require("./container.js");
 const diagram = require("./diagram.js");
 const section = require("./section.js");
+const title = require("./title.js");
 
-module.exports = ({ marp }) => marp.use(container).use(diagram).use(section);
+module.exports = ({ marp }) => marp.use(container).use(diagram).use(section).use(title);

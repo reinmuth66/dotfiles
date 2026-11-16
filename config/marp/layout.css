@@ -281,10 +281,13 @@ section {
         width: 100%;
         top: 0;
         left: 0;
-        height: var(--space-30);
+        /* 題は 1 行に収める前提。2 行になっても上に見切れないよう、高さは固定せず、下に伸ばす */
+        min-height: var(--space-30);
         display: flex;
         align-items: center;
+        box-sizing: border-box;
         padding-left: var(--space-10);
+        padding-right: var(--space-10);
         margin: 0;
     }
 
@@ -334,8 +337,16 @@ section {
         padding: 0 var(--space-25);
         justify-content: center;
 
-        h1 {
+        /* 章名は ## で書くが、# で書いても同じ位置に出す。
+           題の規則 (上の >h1:first-child) より強くするため、同じ形のセレクタで打ち消す */
+        >h1:first-child:not(.title > h1) {
             position: static;
+            width: auto;
+            min-height: 0;
+            display: block;
+            padding-left: 0;
+            padding-right: 0;
+            font-size: var(--font-size-large);
         }
 
         >*:not(footer) {
