@@ -55,7 +55,9 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
   - 色は OKLCH の法則から計算した 16 進の値。法則は `tokens.json` の `meta` と `README.md` にある。計算は `config/design-system/tools/color.py` が行う (`python3 color.py ladder <色相の角度>` で 7 段の値が出る)。色相を足すときは、`meta.colorRule.hue` に名前と角度を足し、`python3 color.py check <tokens.json>` が出す値を書く。`nix flake check` (`checks.design-system-colors`) が、全ての色が法則どおりかを確かめる
   - 部品 (目次、card、box、配置、図) の見た目は `components/bundle.css` に 1 か所だけ書く。React の部品 (`config/design-system/src/index.jsx`) は、その class を付けた HTML を出すだけにする
   - marp では、エンジンの拡張 (`config/marp/engine/`、`pkgs/marp-engine/` がまとめて `~/.config/marp/engine/` に配る) が、`:::` の記法、章の番号とフッターの自動反映、図の線を足す。外部のパッケージは使わない。図の線を描く `config/design-system/src/connector.js` は、拡張と React の部品が共有する
+  - `marp` コマンドは marp-cli を包んだもの (`pkgs/marp/`)。`~/.marprc.yml` を必ず読み、端末以外から呼ばれたときは標準入力を待たない。シェルの関数にしない (`timeout` やエージェント越しでは関数を通らず、拡張が効かないまま変換が成功してしまう)
   - 書き方の説明は `config/marp/README.md`。記法や部品を変えたら、この README、`config/marp/skill/SKILL.md` (AI エージェント用の skill `marp-modern`。`~/.claude/skills/marp-modern/` に配る)、デザインシステムの `components/<部品>/README.md` を合わせて直す
+  - skill `marp-modern` は、テーマと拡張の記法の一覧だけを書く。それ 1 つで足りるようにし、書き方は例ではなく形 (`<名前>` や `[省ける部分]`) で示し、「する」ことだけを書く。スライドの作り方 (構成、文章、枚数) は書かない (別の skill にする。Issue #74)。試験は `config/marp/skill/evals/` にある
   - 拡張と線の試験は `node --test` で書き、`nix flake check` (`checks.marp-engine`) が走らせる。`checks.design-system` は、React の部品をまとめた `bundle.js` を確かめる
   - デザインシステムは <https://claude.ai/artifact/LvnvWfqkhouGZxRA2cieud> にある。`config/design-system/` を変えたら publish する。`bundle.js` はリポジトリに置かないので、`nix build .#design-system` の結果 (`result/project/`) をスクラッチパッドにコピーし、それを `root` にして Artifact ツールで同じ URL に送る。`index.d.ts` は `contentType: text/plain` を付ける。索引 `design-system.json` は、直前に読み直してから最後に送る
 - `czg.nix`: conventional commit の TUI。`importNpmLock` で `pkgs/czg/` から作る
