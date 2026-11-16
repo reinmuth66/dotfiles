@@ -171,16 +171,16 @@
       },
       "ui-ux-pro-max": {
         "branch": "main",
-        "hash": "sha256-t2stnIwWIuIZZ7oYSKo/fOYYfZXTFTic4Zpd2/BwxO0=",
+        "hash": "sha256-QazKixrky2y1KGT5ltrjvSAZ1cOjF77LFt91ZnSRNLY=",
         "repository": {
           "owner": "nextlevelbuilder",
           "repo": "ui-ux-pro-max-skill",
           "type": "GitHub"
         },
-        "revision": "6ae86f61f520d6ca229d2f40e070410638c908c5",
+        "revision": "e59ff376a41f7ca47b7541ad5c116495cbade3ee",
         "submodules": false,
         "type": "Git",
-        "url": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/archive/6ae86f61f520d6ca229d2f40e070410638c908c5.tar.gz"
+        "url": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/archive/e59ff376a41f7ca47b7541ad5c116495cbade3ee.tar.gz"
       },
       "yomiyasu": {
         "branch": "main",
