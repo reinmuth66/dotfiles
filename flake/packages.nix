@@ -14,6 +14,8 @@
         design-system = pkgs.callPackage ../pkgs/design-system { };
         # marp に短い記法を足すエンジンの拡張
         marp-engine = pkgs.callPackage ../pkgs/marp-engine { };
+        # 設定 (~/.marprc.yml) を必ず読み、端末以外から呼んでも止まらない marp コマンド
+        marp = pkgs.callPackage ../pkgs/marp { };
       }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
         cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
