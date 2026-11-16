@@ -14,6 +14,12 @@ paginate: true
 
 変換は `marp` コマンドで行う (`marp slides.md`、`marp --pdf slides.md`、`marp --pptx slides.md`)。テーマと拡張は `~/.marprc.yml` が指しているので、指定は要らない。
 
+この `marp` は、`--config ~/.marprc.yml` を足す zsh の関数 (`modules/zsh.nix`)。スクリプトや `timeout` 越し、AI エージェントから呼ぶときは、関数を通らず、標準入力も待ってしまうので、次の形で呼ぶ。
+
+```sh
+command marp --config "$HOME/.marprc.yml" --no-stdin slides.md --pdf
+```
+
 ## 効く環境
 
 | 書き方 | `marp` コマンド | VS Code のプレビュー、ほかの PC |

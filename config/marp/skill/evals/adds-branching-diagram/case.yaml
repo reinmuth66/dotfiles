@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: adds-branching-diagram
+expected_outcome: |
+  足したスライドは ::: diagram と名前付きの box、線の記法 (a -> b) で図を書く。2 つの入力が合流し、誤差が 2 つのエンコーダに戻る線がある。戻る線は破線か色で区別する。位置を margin や position で動かさず、独自の style や SVG を書かない。変換して見た目を確かめている。
+context:
+  scaffold_script: place-files.sh
