@@ -52,3 +52,25 @@ test("名前が英字で始まらなければ変換しない", () => {
   const html = render("::: 123\n本文\n:::\n");
   assert.doesNotMatch(html, /<div class="123">/);
 });
+
+test("閉じ忘れの後ろのスライドに余分な ::: があっても、スライドの区切りを飲み込まない", () => {
+  const html = render("::: card\n本文\n\n---\n\n# 次のスライド\n\n:::\n");
+  assert.doesNotMatch(html, /<div class="card">/);
+  assert.equal(html.match(/<section/g).length, 2);
+});
+
+test("リストの中の閉じ忘れは、リストの外の ::: で閉じない", () => {
+  const html = render("- 項目\n  ::: card\n  中\n\n外の文\n\n:::\n");
+  assert.doesNotMatch(html, /<div class="card">/);
+  assert.match(html, /外の文/);
+});
+
+test("1 行で閉じている ``` は、コードブロックの始まりとして数えない", () => {
+  const html = render("::: card\n```code``` の説明\n:::\n\n後ろ\n");
+  assert.match(html, /<div class="card">\s*<p><code>code<\/code> の説明<\/p>\s*<\/div>\s*<p>後ろ<\/p>/);
+});
+
+test("字下げしたコードの中の ::: では閉じない", () => {
+  const html = render("::: card\n前\n\n    :::\n\n後ろ\n:::\n");
+  assert.match(html, /<div class="card">[\s\S]*<p>後ろ<\/p>\s*<\/div>/);
+});

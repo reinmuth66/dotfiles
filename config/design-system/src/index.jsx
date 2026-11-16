@@ -17,16 +17,16 @@ export const Toc = ({ items = [], className, ...rest }) => (
   </ol>
 );
 
-// 説明をまとめる枠。variant は accent か warn
-export const Card = ({ variant, className, children, ...rest }) => (
-  <div className={cx("card", variant, className)} {...rest}>
+// 説明をまとめる枠。variant は accent か warn。square で角丸をなくす
+export const Card = ({ variant, square, className, children, ...rest }) => (
+  <div className={cx("card", variant, square && "square", className)} {...rest}>
     {children}
   </div>
 );
 
-// 図の中の要素。variant は dark、light、blue-fill、muted、warn。sub は補足の 1 行
-export const Box = ({ variant, sub, className, children, ...rest }) => (
-  <div className={cx("box", variant, className)} {...rest}>
+// 図の中の要素。variant は dark、light、blue-fill、muted、warn。sub は補足の 1 行。square で角丸をなくす
+export const Box = ({ variant, sub, square, className, children, ...rest }) => (
+  <div className={cx("box", variant, square && "square", className)} {...rest}>
     {children}
     {sub ? <span className="sub">{sub}</span> : null}
   </div>
@@ -65,6 +65,8 @@ export const Diagram = ({ edges = [], className, children, ...rest }) => {
   return (
     <div ref={ref} className={cx("diagram", className)} data-edges={data} {...rest}>
       {children}
+      {/* 線を描く場所。中身は connector が描くので、React からは空のままにする */}
+      <svg className="diagram-edges" aria-hidden="true" />
     </div>
   );
 };

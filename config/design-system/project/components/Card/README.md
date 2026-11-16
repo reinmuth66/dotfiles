@@ -13,6 +13,8 @@
 | `accent` | 強調したい項目、提案 | 青の枠 |
 | `warn` | 問題、従来の方法の欠点 | 赤の枠 |
 
+`square` を足すと、角丸がなくなる (`class="card accent square"`、React では `square`、marp では `::: card accent square`)。並べた card では、全部に付けるか、全部に付けないかに揃える。
+
 ## 渡すもの
 
 中身。見出しは `h4`、文は段落、箇条書きはリスト。文字は `small` の大きさになる。

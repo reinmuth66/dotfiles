@@ -78,6 +78,8 @@
                 assert.equal(M.Card({}).props.className, "card");
                 assert.equal(M.Box({ variant: "dark", id: "model" }).props.className, "box dark");
                 assert.equal(M.Box({ id: "model" }).props.id, "model");
+                assert.equal(M.Card({ variant: "accent", square: true }).props.className, "card accent square");
+                assert.equal(M.Box({ square: true }).props.className, "box square");
                 assert.equal(M.Row({ center: true }).props.className, "row center");
                 assert.equal(M.Grid({ columns: 3 }).props.className, "grid3");
                 assert.equal(M.Grid({}).props.className, "grid2");
@@ -87,6 +89,9 @@
                 const edges = JSON.parse(diagram.props["data-edges"]);
                 assert.equal(edges.length, 1);
                 assert.equal(edges[0].toSide, "left");
+                // 線を描く場所は、部品が自分で出す
+                const svg = diagram.children.find((child) => child && child.type === "svg");
+                assert.equal(svg.props.className, "diagram-edges");
               ' "$bundle"
 
               touch "$out"
@@ -102,7 +107,15 @@
               NODE_PATH = "${pkgs.marp-cli}/lib/node_modules/@marp-team/marp-cli/node_modules";
             }
             ''
-              node --test "$engine"/*.test.js ${../config/design-system/src}/*.test.js
+              # 配る形 (拡張と connector.js が同じディレクトリ) に試験を足して走らせる。試験そのものは配らない
+              cp -r "$engine" engine
+              chmod -R u+w engine
+              if [ -n "$(find engine -name '*.test.js')" ]; then
+                echo "marp-engine: 試験のファイルが配られている" >&2
+                exit 1
+              fi
+              cp ${../config/marp/engine}/*.test.js ${../config/design-system/src}/connector.test.js engine/
+              node --test engine/*.test.js
               touch "$out"
             '';
         # デザインシステムから組み立てた marp のテーマが、値の直書きなしで作られ、marp で読めることを確かめる
@@ -157,6 +170,15 @@
                 if grep -nE '#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?|oklch|oklab)\(' "$f"; then
                   fail "$f に色が直接書かれている"
                 fi
+                # 色の名前 (white、red など) も書かない。値として書かれたものだけを見る
+                if grep -nE ':[^;{]*[ :,(](white|black|gray|grey|silver|red|orange|yellow|green|blue|purple|pink|navy|teal|aqua|cyan|magenta|maroon|olive|lime|fuchsia|brown|gold|indigo|violet)[ ,);!]' "$f" \
+                  | grep -vE '^[0-9]+:\s*(/\*|\*|[^:]*\{\s*$)'; then
+                  fail "$f に色の名前が直接書かれている"
+                fi
+                # 大きさ (px) も tokens.json にだけ書く
+                if grep -nE '[0-9]px\b' "$f" | grep -vE '^[0-9]+:\s*(/\*|\*)'; then
+                  fail "$f に px の値が直接書かれている"
+                fi
               done
 
               # 全てのトークンが変数になっている
@@ -172,7 +194,7 @@
                 fail "解決されていない値がある"
               fi
               # 部品の規則が入っている
-              for selector in ".box {" ".box.dark," ".card {" ".card.accent {" ".row {" ".grid2 {"; do
+              for selector in ".box {" ".box.dark," ".card {" ".card.accent {" ".card.square {" ".row {" ".grid2 {" ".arrow > p,"; do
                 grep -qF -- "$selector" "$theme" || fail "部品の規則 $selector がない"
               done
 

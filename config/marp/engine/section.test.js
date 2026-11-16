@@ -77,3 +77,22 @@ test("見出しの中の装飾は、フッターでは文字だけにする", ()
   const s = slides(render("<!-- _class: section -->\n## **強い**見出し\n\n---\n\n# 本文"));
   assert.equal(footer(s[1]), "1. 強い見出し");
 });
+
+test("章名の中のコードは、フッターでタグとして解釈されない", () => {
+  const s = slides(
+    render("<!-- _class: section -->\n## `<b>` と *記号* の話\n\n---\n\n# 本文"),
+  );
+  assert.equal(footer(s[1]), "1. &lt;b&gt; と 記号 の話");
+});
+
+test("章名の中の記号は、フッターで Markdown として解釈されない", () => {
+  const s = slides(render("<!-- _class: section -->\n## `*a*` と `_b_`\n\n---\n\n# 本文"));
+  assert.equal(footer(s[1]), "1. *a* と _b_");
+});
+
+test("番号を足しても、見出しの id は変わらない", () => {
+  const plain = new Marp({ html: true }).render("## 研究背景").html;
+  const numbered = slides(render(deck))[2];
+  const idOf = (html) => /<h2 id="([^"]*)"/.exec(html)[1];
+  assert.equal(idOf(numbered), idOf(plain));
+});

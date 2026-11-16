@@ -11,6 +11,8 @@ export declare function Toc(props: TocProps): React.ReactElement;
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   /** accent は強調 (青の枠)、warn は問題 (赤の枠)。省くと細い灰の枠。 */
   variant?: 'accent' | 'warn';
+  /** 角丸をなくす。 */
+  square?: boolean;
   children?: React.ReactNode;
 }
 export declare function Card(props: CardProps): React.ReactElement;
@@ -21,6 +23,8 @@ export interface BoxProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'dark' | 'light' | 'blue-fill' | 'muted' | 'warn';
   /** 補足の 1 行。小さく、控えめな色で下に出る。 */
   sub?: React.ReactNode;
+  /** 角丸をなくす。 */
+  square?: boolean;
   /** Diagram の線でつなぐときの名前。 */
   id?: string;
   children?: React.ReactNode;

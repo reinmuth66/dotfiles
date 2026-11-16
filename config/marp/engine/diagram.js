@@ -16,7 +16,10 @@ const isDiagram = (token) =>
   token.type === "modern_container_open" &&
   (token.attrGet("class") || "").split(/\s+/).includes("diagram");
 
-const ID_IN_HTML = /\bid\s*=\s*["']([^"']+)["']/g;
+// HTML で書いた要素の id。タグの中の属性だけを読む
+const ID_IN_TAG = /<[A-Za-z][^<>]*?\sid\s*=\s*["']([^"']+)["']/g;
+// 文中のコード (`...`) を取り除く。この時点では、段落の中身はまだ解釈されていない
+const withoutCode = (text) => text.replace(/(`+)[\s\S]*?\1/g, "");
 
 const diagram = (md, options = {}) => {
   // 既定では connector.js の中身をそのまま埋め込む
@@ -57,8 +60,10 @@ const diagram = (md, options = {}) => {
         if (token.type === "modern_container_open" && token.attrGet("id")) {
           names.add(token.attrGet("id"));
         }
+        // 入れ子の図の中の名前も、外の図の名前として数える (線を描く側も、図の中の全ての要素から探す)
         if (token.type === "html_block" || token.type === "inline") {
-          for (const match of token.content.matchAll(ID_IN_HTML)) names.add(match[1]);
+          const html = token.type === "inline" ? withoutCode(token.content) : token.content;
+          for (const match of html.matchAll(ID_IN_TAG)) names.add(match[1]);
         }
 
         // 図の直下にあり、全ての行が線の記法である段落だけを、記法として扱う。

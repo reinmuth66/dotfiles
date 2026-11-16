@@ -9,5 +9,7 @@
 runCommand "marp-engine" { inherit engineSrc connectorSrc; } ''
   mkdir -p "$out"
   cp "$engineSrc"/*.js "$out"/
+  # 試験は配らない (checks.marp-engine が、ここに足して走らせる)
+  rm "$out"/*.test.js
   cp "$connectorSrc" "$out"/connector.js
 ''

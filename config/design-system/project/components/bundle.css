@@ -12,7 +12,7 @@ ol.toc {
     counter-reset: toc;
     column-count: 2;
     column-gap: var(--space-15);
-    width: 86%;
+    width: var(--toc-width);
     margin: 0 auto;
     padding: 0;
     font-size: var(--font-size-body);
@@ -26,8 +26,8 @@ ol.toc > li {
     break-inside: avoid;
     margin: 0 0 var(--space-6) 0;
     /* 2 行になったとき、番号の幅だけ字下げして揃える */
-    padding: 0 0 var(--space-2) 1.4em;
-    text-indent: -1.4em;
+    padding: 0 0 var(--space-2) var(--toc-number-width);
+    text-indent: calc(var(--toc-number-width) * -1);
     border-bottom: var(--border-medium) solid var(--border);
 }
 
@@ -36,7 +36,7 @@ section.toc > ol > li::before,
 ol.toc > li::before {
     content: counter(toc) ".";
     display: inline-block;
-    width: 1.4em;
+    width: var(--toc-number-width);
     text-indent: 0;
     color: var(--accent);
     font-weight: 700;
@@ -45,7 +45,7 @@ ol.toc > li::before {
 /* 章の番号。目次と章の扉で同じ見た目にする */
 .toc-num {
     display: inline-block;
-    width: 1.4em;
+    width: var(--toc-number-width);
     color: var(--accent);
     font-weight: 700;
 }
@@ -57,7 +57,8 @@ ol.toc > li::before {
      中間の結果     : 薄い青の地、青の枠    (.box.light)
      最終の結論     : 青の地、白い文字      (.box.blue-fill)
      問題・否定     : 薄い赤の地、赤の枠    (.box.warn)
-     未定・対象外   : 薄い灰の地、破線の枠  (.box.muted) */
+     未定・対象外   : 薄い灰の地、破線の枠  (.box.muted)
+   square を足すと、角丸がなくなる (.box.square)。色の種類と組み合わせられる。 */
 .box {
     background: var(--white);
     border: var(--border-medium) solid var(--gray-900);
@@ -101,7 +102,7 @@ ol.toc > li::before {
 .box small,
 .box .sub {
     display: block;
-    font-size: 0.7em;
+    font-size: var(--sub-text-size);
     color: var(--text-sub);
 }
 
@@ -113,7 +114,8 @@ ol.toc > li::before {
 }
 
 /* ---- card ----
-   説明をまとめる枠。中に見出し、文、箇条書きを入れる。 */
+   説明をまとめる枠。中に見出し、文、箇条書きを入れる。
+   square を足すと、角丸がなくなる (.card.square)。 */
 .card {
     background: var(--white);
     border: var(--border-thin) solid var(--border);
@@ -146,8 +148,15 @@ ol.toc > li::before {
     margin-bottom: 0;
 }
 
+/* 角丸なし。色の種類の規則より後ろに置く */
+.box.square,
+.card.square {
+    border-radius: var(--radius-none);
+}
+
 /* Markdown から作ると中身が段落になる。HTML で直接書いたときと同じ見た目にする */
 .box > p,
+.arrow > p,
 .row > p,
 .col > p {
     margin: 0;
@@ -186,12 +195,23 @@ ol.toc > li::before {
     gap: var(--space-5);
 }
 
-/* 手で置く矢印。要素同士を線でつなぐときは diagram を使う */
+/* 手で置く矢印。要素同士を線でつなぐときは diagram を使う。
+   Markdown の中に <span class="arrow"> と書くと、段落で包まれる。span のままだと、
+   段落の行の高さの中で文字の位置が決まり、隣の box の中心からずれる。
+   ブロックにして矢印の文字だけの行を作ると、行の中心が文字の中心になる。 */
 .arrow {
-    font-size: 1.4em;
+    display: block;
+    font-size: var(--arrow-size);
     color: var(--text-sub);
     font-weight: 700;
     line-height: 1;
+    text-align: center;
+}
+
+/* `::: arrow` と書いたときの段落。太さと色を、span で書いたときと同じにする */
+.arrow > p {
+    font-weight: inherit;
+    color: inherit;
 }
 
 .arrow.blue {
@@ -248,7 +268,7 @@ ol.toc > li::before {
 }
 
 .diagram-edge.dashed {
-    stroke-dasharray: 8 6;
+    stroke-dasharray: var(--space-2) var(--space-2);
 }
 
 /* 線の上のラベル。線と重なっても読めるよう、地の色で縁を取る */

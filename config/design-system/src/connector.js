@@ -15,7 +15,7 @@
   const SIDES = ["top", "right", "bottom", "left"];
   const OPTIONS = ["blue", "red", "dashed"];
   const KINDS = { "->": "arrow", "--": "line", "<->": "both" };
-  // コの字の線が、要素の外側を通るときの離れ (space-6)
+  // コの字の線が、要素の外側を通るときの離れ。ブラウザでは --space-6 の値を使い、これは読めないときの値
   const DETOUR = 24;
 
   const NAME = "([A-Za-z][\\w-]*)";
@@ -78,7 +78,7 @@
   const within = (point, start, size) => point >= start - 0.5 && point <= start + size + 0.5;
 
   // SVG の path の d を返す
-  const route = (from, to, fromSide, toSide) => {
+  const route = (from, to, fromSide, toSide, detour = DETOUR) => {
     let sideA = fromSide;
     let sideB = toSide;
     if (!sideA && !sideB) {
@@ -116,10 +116,10 @@
 
     // 同じ向きの辺: コの字で外側を回る
     if (sideA === sideB) {
-      if (sideA === "top") return start + V(Math.min(y1, y2) - DETOUR) + H(x2) + V(y2);
-      if (sideA === "bottom") return start + V(Math.max(y1, y2) + DETOUR) + H(x2) + V(y2);
-      if (sideA === "left") return start + H(Math.min(x1, x2) - DETOUR) + V(y2) + H(x2);
-      return start + H(Math.max(x1, x2) + DETOUR) + V(y2) + H(x2);
+      if (sideA === "top") return start + V(Math.min(y1, y2) - detour) + H(x2) + V(y2);
+      if (sideA === "bottom") return start + V(Math.max(y1, y2) + detour) + H(x2) + V(y2);
+      if (sideA === "left") return start + H(Math.min(x1, x2) - detour) + V(y2) + H(x2);
+      return start + H(Math.max(x1, x2) + detour) + V(y2) + H(x2);
     }
 
     // 直交する辺: L 字
@@ -162,9 +162,11 @@
   const SVG_NS = "http://www.w3.org/2000/svg";
   let serial = 0;
 
-  // 1 つの図に線を描く。描き直せるよう、前に描いた SVG は消す
+  // 1 つの図に線を描く。図の直下の svg.diagram-edges があれば、その中身だけを描き直す。
+  // React の部品は、この svg を自分で出す (React が管理する要素に、外から要素を足さないため)
   const drawDiagram = (diagram) => {
-    for (const old of diagram.querySelectorAll(":scope > svg.diagram-edges")) old.remove();
+    let svg = diagram.querySelector(":scope > svg.diagram-edges");
+    if (svg) svg.replaceChildren();
 
     let edges;
     try {
@@ -188,9 +190,17 @@
     };
 
     const doc = diagram.ownerDocument;
-    const svg = doc.createElementNS(SVG_NS, "svg");
-    svg.setAttribute("class", "diagram-edges");
-    svg.setAttribute("aria-hidden", "true");
+    if (!svg) {
+      svg = doc.createElementNS(SVG_NS, "svg");
+      svg.setAttribute("class", "diagram-edges");
+      svg.setAttribute("aria-hidden", "true");
+      diagram.appendChild(svg);
+    }
+
+    // コの字の離れは、トークン (space-6) から取る
+    const view = doc.defaultView;
+    const detour =
+      (view && parseFloat(view.getComputedStyle(diagram).getPropertyValue("--space-6"))) || DETOUR;
 
     const markerId = `modern-arrow-${(serial += 1)}`;
     const defs = doc.createElementNS(SVG_NS, "defs");
@@ -209,7 +219,6 @@
     marker.appendChild(head);
     defs.appendChild(marker);
     svg.appendChild(defs);
-    diagram.appendChild(svg);
 
     for (const edge of edges) {
       // 名前は、この図の中だけで探す
@@ -217,7 +226,7 @@
       const to = diagram.querySelector(`#${CSS.escape(edge.to)}`);
       if (!from || !to) continue;
 
-      const d = route(rectOf(from), rectOf(to), edge.fromSide, edge.toSide);
+      const d = route(rectOf(from), rectOf(to), edge.fromSide, edge.toSide, detour);
       const path = doc.createElementNS(SVG_NS, "path");
       path.setAttribute("d", d);
       path.setAttribute("class", ["diagram-edge", ...(edge.options || [])].join(" "));

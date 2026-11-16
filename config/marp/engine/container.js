@@ -4,7 +4,9 @@
 const OPEN = /^:::[ \t]*([A-Za-z][\w-]*(?:[ \t]+[A-Za-z][\w-]*)*)(?:[ \t]+#([A-Za-z][\w-]*))?[ \t]*$/;
 const OPEN_ANY = /^:::[ \t]*\S/;
 const CLOSE = /^:::[ \t]*$/;
-const FENCE = /^(`{3,}|~{3,})/;
+const FENCE = /^(`{3,}|~{3,})(.*)$/;
+// スライドの区切り (水平線)。部品はスライドをまたげない
+const RULE = /^([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 
 const container = (md) => {
   md.block.ruler.before(
@@ -26,13 +28,33 @@ const container = (md) => {
       let closeLine = -1;
       for (let line = startLine + 1; line < endLine; line++) {
         const text = lineAt(line);
-        const fenceMatch = FENCE.exec(text);
+
+        // 字下げが浅くなったら、囲んでいるブロック (リストなど) の外。そこから先では閉じない
+        if (text !== "" && state.sCount[line] < state.blkIndent) break;
+
+        // 4 つ以上の字下げは、コードか前の行の続き。記法としては読まない
+        const indented = state.sCount[line] - state.blkIndent >= 4;
+        const fenceMatch = indented ? null : FENCE.exec(text);
+
         if (fence) {
-          if (fenceMatch && text.startsWith(fence) && text.trim() === fenceMatch[1]) fence = null;
+          // 閉じは、同じ記号が開きと同じ数以上あり、後ろに何もない行
+          if (
+            fenceMatch &&
+            fenceMatch[1][0] === fence[0] &&
+            fenceMatch[1].length >= fence.length &&
+            fenceMatch[2].trim() === ""
+          ) {
+            fence = null;
+          }
           continue;
         }
-        if (fenceMatch) {
+        if (indented) continue;
+
+        // ``` の後ろに ` がある行 (```code``` など) は、コードブロックの始まりではない
+        if (fenceMatch && !(fenceMatch[1][0] === "`" && fenceMatch[2].includes("`"))) {
           fence = fenceMatch[1];
+        } else if (RULE.test(text)) {
+          break;
         } else if (CLOSE.test(text)) {
           depth -= 1;
           if (depth === 0) {

@@ -108,3 +108,25 @@ test("線のない図には、スクリプトを入れない", () => {
   const html = render(`::: diagram\n${boxes}:::\n`);
   assert.equal(html.includes(SCRIPT), false);
 });
+
+test("文中のコードに書いた id= は、名前として数えない", (t) => {
+  t.mock.method(console, "warn", () => {});
+  const html = render(
+    '::: diagram\n::: box #in\n入力\n:::\n\n`<div id="ghost">` と書く\n\nin -> ghost\n:::\n',
+  );
+  assert.equal(edgesOf(html), null);
+  assert.match(html, /in -&gt; ghost/);
+});
+
+test("タグの外に書いた id= は、名前として数えない", (t) => {
+  t.mock.method(console, "warn", () => {});
+  const html = render('::: diagram\n::: box #in\n入力\n:::\n\n属性は id="ghost" と書く\n\nin -> ghost\n:::\n');
+  assert.equal(edgesOf(html), null);
+});
+
+test("入れ子の図の中の名前は、外の図からもつなげる", () => {
+  const html = render(
+    "::: diagram\n::: box #a\nA\n:::\n::: diagram\n::: box #b\nB\n:::\n:::\n\na -> b\n:::\n",
+  );
+  assert.equal(edgesOf(html).length, 1);
+});
