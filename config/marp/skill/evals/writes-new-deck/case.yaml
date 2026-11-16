@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: writes-new-deck
+expected_outcome: |
+  slides.md は theme: modern を使い、表紙・目次・章の扉をテーマの class で書く。番号やフッターを手で書かず、独自の style で見た目を作らない。PDF に変換できている。

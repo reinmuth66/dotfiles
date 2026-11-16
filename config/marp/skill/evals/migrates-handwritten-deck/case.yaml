@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: migrates-handwritten-deck
+expected_outcome: |
+  new.md は theme: modern を使い、スライドの中の style と色・大きさの直書きがなくなっている。目次は toc の class と番号付きリスト、章の扉は section の class、枠は ::: card、図は ::: diagram か ::: row と box になっている。手書きのフッターと章の番号がない。内容と枚数 (6 枚) は元のまま。
+context:
+  scaffold_script: place-files.sh
