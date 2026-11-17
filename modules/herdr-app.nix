@@ -11,7 +11,7 @@ let
     "settings.json"
     "keys.json"
     "themes/catppuccin-macchiato.json"
-    "layouts/my-main.json"
+    "layouts/workbench.json"
   ];
 
   # 自分の mod。フォルダごと配る (herdr は mod のフォルダに jsconfig.json と gpui-kit.d.ts を書く。
