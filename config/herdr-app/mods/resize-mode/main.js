@@ -6,12 +6,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { checking, focused, layout, nextCommand, run, theme } from "herdr";
-import { keyToMove, nextSize, nextSidebarMode } from "./logic.js";
-
-// 境目ごとの、動かすブロックと、レイアウトに値がないときの大きさ
-const SIDEBAR = { id: "sidebar", min: 160, max: 480, fallback: 240 };
-const PREVIEW = { id: "preview-area", min: 160, max: 1200, fallback: 480 };
-const WORKSPACE = { id: "workspace", min: 80, max: 1200, fallback: 300 };
+import { keyToMove, nextSize, nextSidebarMode, LIMITS } from "./logic.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -74,14 +69,28 @@ export default class ResizeMode extends View {
     this.handle.focus();
     // 描く前は focus を受ける要素がないので、描いたあとにもう一度取る
     cx.timer.after(16, () => this.active && this.handle.focus());
+    // クリックなどでフォーカスが外へ出たら、モードを畳む (RESIZE の表示を残さない)
+    if (!this.watching) {
+      this.watching = true;
+      cx.timer.every(200, (cx) => {
+        if (this.active && this.focusedOnce && !this.handle.is_focused()) {
+          this.collapse();
+          cx.notify();
+        }
+        if (this.active && this.handle.is_focused()) this.focusedOnce = true;
+      });
+    }
   }
 
-  // 枠にも端末のブロックにもフォーカスがなければ、帯の mod にあったとみなす
-  inSidebar() {
-    return !this.back?.pane && !this.back?.terminal;
+  // フォーカスは動かさずに、モードだけを畳む (修飾キー付きの操作や、外へのクリックのとき)
+  collapse() {
+    this.active = false;
+    this.back = null;
+    this.focusedOnce = false;
   }
 
   exit() {
+    this.focusedOnce = false;
     this.active = false;
     const back = this.back;
     this.back = null;
@@ -101,13 +110,16 @@ export default class ResizeMode extends View {
   }
 
   key(e, cx) {
-    const m = e.modifiers ?? {};
-    if (m.control || m.alt || m.platform) return;
-    const move = keyToMove(e.key);
+    const move = keyToMove(e.key, e.modifiers ?? {});
     if (!move) return;
+    if (move === "collapse") {
+      // キーは止めずに global の操作 (Ctrl+Shift+L の pane.go など) に渡す
+      this.collapse();
+      cx.notify();
+      return;
+    }
     if (move === "exit") this.exit();
-    else if (move.target === "vertical") resize(this.inSidebar() ? SIDEBAR : PREVIEW, move.delta);
-    else resize(WORKSPACE, move.delta);
+    else resize(LIMITS[move.target], move.delta);
     cx.stop_propagation();
     cx.notify();
   }

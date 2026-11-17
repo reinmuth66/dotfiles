@@ -32,12 +32,12 @@
       "min": 160,
       "max": 480,
       "background": "chrome",
-      "window_drag": true,
       "divider": { "width": 1, "color": "border" },
       "children": [
         {
           "id": "usage",
           "type": "block",
+          "window_drag": true,
           "size": { "px": 72 },
           "content": { "mod": "usage" }
         },
@@ -78,6 +78,7 @@
       "active": "preview",
       "size": { "px": 480 },
       "min": 160,
+      "max": 900,
       "children": [
         {
           "id": "preview",
@@ -89,6 +90,7 @@
     {
       "id": "agent-area",
       "type": "block",
+      "min": 320,
       "padding": 8,
       "content": {
         "tab": "active",
