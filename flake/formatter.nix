@@ -126,6 +126,21 @@
               node --test engine/*.test.js
               touch "$out"
             '';
+
+        # herdr アプリの設定と mod の、herdr に依存しない部分 (logic.js、keys.json) の試験
+        herdr-mods = pkgs.runCommand "herdr-mods-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+          cp -r ${../config/herdr-app} herdr-app
+          chmod -R u+w herdr-app
+          tests=$(find herdr-app -name '*.test.js' | sort)
+          if [ -z "$tests" ]; then
+            echo "herdr-mods: 試験のファイルがない" >&2
+            exit 1
+          fi
+          # shellcheck disable=SC2086
+          node --test $tests
+          touch "$out"
+        '';
+
         # marp コマンドが、関数を通らない呼び方 (timeout 越し、標準入力が端末でない) でも、設定を読んで止まらずに変換する
         marp-command =
           pkgs.runCommand "marp-command-check"

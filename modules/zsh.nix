@@ -45,6 +45,11 @@
         bindkey "^[[B" down-line-or-beginning-search
         bindkey "^[[3~" delete-char
 
+        # カーソルを点滅しない縦線にする (DECSCUSR 6)。nvim などがブロックに変えても、プロンプトのたびに戻す
+        autoload -Uz add-zsh-hook
+        _cursor_bar() { print -n '\e[6 q' }
+        add-zsh-hook precmd _cursor_bar
+
         # zsh-autosuggestions
         ZSH_AUTOSUGGEST_CLEAR_WIDGETS+=(up-line-or-beginning-search down-line-or-beginning-search)
         ZSH_AUTOSUGGEST_ACCEPT_WIDGETS=(forward-char end-of-line vi-forward-char vi-end-of-line vi-add-eol)
