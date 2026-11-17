@@ -38,6 +38,25 @@
       },
       "subdir": "skills"
     },
+    "i-have-adhd": {
+      "filter": {
+        "maxDepth": 1,
+        "nameRegex": null
+      },
+      "idPrefix": null,
+      "pin": {
+        "at": null,
+        "branch": "main",
+        "owner": "ayghri",
+        "preReleases": false,
+        "releasePrefix": null,
+        "repo": "i-have-adhd",
+        "submodules": false,
+        "type": "github",
+        "versionUpperBound": null
+      },
+      "subdir": "skills"
+    },
     "imozuru": {
       "filter": {
         "maxDepth": 1,
@@ -123,6 +142,19 @@
         "submodules": false,
         "type": "Git",
         "url": "https://github.com/plannotator/effective-html/archive/5ce160a3e76dc1c0f9301f8a1903704ec607636a.tar.gz"
+      },
+      "i-have-adhd": {
+        "branch": "main",
+        "hash": "sha256-GTqrnZxQvzo/ogAuUrffkOaMK1BYm/4rAZsnfmDt7DU=",
+        "repository": {
+          "owner": "ayghri",
+          "repo": "i-have-adhd",
+          "type": "GitHub"
+        },
+        "revision": "1ecea1993b7fce257ffbd686c070948b5e07eda6",
+        "submodules": false,
+        "type": "Git",
+        "url": "https://github.com/ayghri/i-have-adhd/archive/1ecea1993b7fce257ffbd686c070948b5e07eda6.tar.gz"
       },
       "imozuru": {
         "branch": "main",

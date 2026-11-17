@@ -62,6 +62,7 @@ in
     skills.explicit = lib.mapAttrs usePythonFromNix (
       fromSource "yomiyasu" [ "yomiyasu" ]
       // fromSource "imozuru" [ "imozuru" ]
+      // fromSource "i-have-adhd" [ "i-have-adhd" ]
       // fromSource "effective-html" [
         "html"
         "big-pics-little-words"

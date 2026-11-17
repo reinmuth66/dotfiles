@@ -25,6 +25,7 @@
     ./agent-skills.nix
     ./zmk-battery-center.nix
     ./mole.nix
+    ./ax.nix
     ./czg.nix
     ./marp.nix
     ./pdf-cli.nix

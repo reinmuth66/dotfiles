@@ -41,6 +41,10 @@
       url = "github:tw93/mole/V1.70.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    ax = {
+      url = "github:yusukebe/ax/v0.1.25";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     yazi-flavors = {
       url = "github:yazi-rs/flavors";
       flake = false;
