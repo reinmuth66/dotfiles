@@ -6,3 +6,4 @@ config/karabiner/automatic_backups/
 result
 result-*
 .playwright-mcp/
+.superpowers/
