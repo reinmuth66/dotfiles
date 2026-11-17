@@ -20,7 +20,6 @@
         # リモートで消えたブランチの追跡ブランチを消す
         prune = true;
       };
-      pull.rebase = true;
       rebase = {
         autoStash = true;
         # fixup! / squash! コミットを自動で並べ替える
