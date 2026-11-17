@@ -2,183 +2,111 @@
   "id": "root",
   "type": "row",
   "titlebar": "none",
+  "traffic_lights": [-100, -100],
   "toast": "quiet-toast",
-  "traffic_lights": [
-    12,
-    16
-  ],
+  "theme": "catppuccin-macchiato",
+  "window_blur": true,
+  "colors": {
+    "canvas": "#24273ab3",
+    "chrome": "#1e2030b3"
+  },
   "background": "canvas",
-  "terminal_padding": [
-    14,
-    12
-  ],
+  "terminal_padding": [14, 12],
   "divider": {
     "width": 1,
     "color": "border"
   },
+  "floating": [
+    {
+      "id": "resize-mode",
+      "content": { "mod": "resize-mode" },
+      "edge": "top",
+      "align": "end"
+    }
+  ],
   "children": [
     {
       "id": "sidebar",
       "type": "column",
-      "size": {
-        "px": 268
-      },
-      "min": 44,
+      "size": { "px": 240 },
+      "min": 160,
       "max": 480,
       "background": "chrome",
-      "resizable": false,
+      "window_drag": true,
+      "divider": { "width": 1, "color": "border" },
       "children": [
         {
-          "id": "brand",
+          "id": "usage",
           "type": "block",
-          "size": {
-            "px": 46
-          },
-          "window_drag": true,
-          "content": {
-            "mod": "workspace-chrome"
-          }
+          "size": { "px": 72 },
+          "content": { "mod": "usage" }
         },
         {
-          "id": "sidebar-lists",
+          "id": "workspace",
           "type": "column",
+          "size": { "weight": 1 },
+          "min": 90,
           "children": [
             {
-              "id": "spaces",
+              "id": "workspace-spaces",
               "type": "block",
-              "size": {
-                "weight": 1
-              },
-              "min": 90,
-              "content": {
-                "mod": "spaces"
-              }
+              "size": { "weight": 1 },
+              "min": 60,
+              "content": { "mod": "spaces" }
             },
             {
-              "id": "agents",
+              "id": "workspace-agents",
               "type": "block",
-              "size": {
-                "weight": 1
-              },
-              "min": 90,
-              "content": {
-                "mod": "agents"
-              }
+              "size": { "weight": 1 },
+              "min": 60,
+              "content": { "mod": "agents" }
             }
           ]
         },
         {
-          "id": "sidebar-footer",
+          "id": "tree",
           "type": "block",
-          "size": {
-            "px": 69
-          },
-          "content": {
-            "mod": "workspace-chrome",
-            "props": {
-              "footer": true
-            }
-          }
+          "size": { "weight": 1 },
+          "min": 90,
+          "content": { "mod": "files" }
         }
       ]
     },
     {
-      "id": "work",
-      "type": "column",
-      "resizable": false,
+      "id": "preview-area",
+      "type": "stack",
+      "active": "preview",
+      "size": { "px": 480 },
+      "min": 160,
       "children": [
         {
-          "id": "tabs",
+          "id": "preview",
           "type": "block",
-          "size": {
-            "px": 42
-          },
-          "window_drag": true,
-          "content": {
-            "mod": "tabs"
-          }
-        },
-        {
-          "id": "work-body",
-          "type": "row",
-          "padding": 8,
-          "gap": 8,
-          "children": [
-            {
-              "id": "main",
-              "type": "block",
-              "content": {
-                "tab": "active",
-                "pane": {
-                  "gap": 8,
-                  "radius": 10,
-                  "background": "background",
-                  "lone": true,
-                  "border": {
-                    "width": 1,
-                    "color": "border"
-                  },
-                  "focus": {
-                    "width": 1,
-                    "color": "accent"
-                  },
-                  "header": {
-                    "content": {
-                      "mod": "pane"
-                    },
-                    "height": 30,
-                    "position": "top",
-                    "reveal": "always"
-                  }
-                }
-              }
-            },
-            {
-              "id": "panel",
-              "type": "column",
-              "hidden": true,
-              "size": {
-                "px": 368
-              },
-              "min": 280,
-              "max": 900,
-              "children": [
-                {
-                  "id": "panel-body",
-                  "type": "stack",
-                  "active": "files",
-                  "children": [
-                    {
-                      "id": "files",
-                      "type": "block",
-                      "content": {
-                        "mod": "files"
-                      }
-                    },
-                    {
-                      "id": "changes",
-                      "type": "block",
-                      "content": {
-                        "mod": "changes"
-                      }
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "status",
-          "type": "block",
-          "size": {
-            "px": 28
-          },
-          "content": {
-            "mod": "workspace-status"
-          }
+          "content": { "mod": "preview" }
         }
       ]
+    },
+    {
+      "id": "agent-area",
+      "type": "block",
+      "padding": 8,
+      "content": {
+        "tab": "active",
+        "pane": {
+          "gap": 8,
+          "radius": 10,
+          "background": "background",
+          "lone": true,
+          "border": { "width": 1, "color": "border" },
+          "focus": { "width": 1, "color": "accent" },
+          "header": {
+            "content": { "mod": "pane" },
+            "height": 30,
+            "position": "top",
+            "reveal": "always"
+          }
+        }
+      }
     }
   ]
 }
