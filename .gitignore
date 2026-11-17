@@ -7,3 +7,8 @@ result
 result-*
 .playwright-mcp/
 .superpowers/
+.impeccable/
+
+# herdr アプリが mod のフォルダに書くファイル
+config/herdr-app/mods/*/jsconfig.json
+config/herdr-app/mods/*/*.d.ts

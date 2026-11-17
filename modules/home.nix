@@ -22,6 +22,7 @@
     ./nvim.nix
     ./nh.nix
     ./claude.nix
+    ./herdr-app.nix
     ./agent-skills.nix
     ./zmk-battery-center.nix
     ./mole.nix

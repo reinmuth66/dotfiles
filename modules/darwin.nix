@@ -17,6 +17,7 @@
       "google-drive"
       "google-chrome"
       "google-japanese-ime"
+      "herdr-app"
       "karabiner-elements"
       "kicad"
       "microsoft-excel"
