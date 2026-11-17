@@ -8,5 +8,8 @@
   "terminal_cell_width": 1.0,
   "terminal_scroll_speed": 1.0,
   "minimum_contrast": 1.0,
-  "appearance": "dark"
+  "appearance": "dark",
+  "theme": "catppuccin-macchiato",
+  "font": "Moralerspace Neon HW",
+  "font_size": 14
 }

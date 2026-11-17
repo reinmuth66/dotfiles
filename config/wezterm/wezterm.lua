@@ -29,7 +29,7 @@ config.window_frame = {
 
 -- タブバーを背景色に合わせる
 config.window_background_gradient = {
-	colors = { "#161821" },
+	colors = { "#24273a" },
 }
 
 -- タブの追加ボタンを非表示
@@ -37,16 +37,16 @@ config.show_new_tab_button_in_tab_bar = false
 -- タブの閉じるボタンを非表示
 config.show_close_tab_button_in_tabs = false
 
--- タブ同士の境界線を非表示 + Iceberg Dark カラーパレット
+-- タブ同士の境界線を非表示 + Catppuccin Macchiato カラーパレット
 config.colors = {
-	foreground = "#c6c8d1",
-	background = "#161821",
-	cursor_bg = "#c6c8d1",
-	cursor_fg = "#161821",
-	selection_bg = "#1e2132",
-	selection_fg = "#c6c8d1",
-	ansi = { "#1e2132", "#e27878", "#b4be82", "#e2a478", "#84a0c6", "#a093c7", "#89b8c2", "#c6c8d1" },
-	brights = { "#6b7089", "#e98989", "#c0ca8e", "#e9b189", "#91afd7", "#ada0d3", "#95c4ce", "#d2d4de" },
+	foreground = "#cad3f5",
+	background = "#24273a",
+	cursor_bg = "#f4dbd6",
+	cursor_fg = "#24273a",
+	selection_bg = "#5b6078",
+	selection_fg = "#cad3f5",
+	ansi = { "#494d64", "#ed8796", "#a6da95", "#eed49f", "#8aadf4", "#f5bde6", "#8bd5ca", "#b8c0e0" },
+	brights = { "#5b6078", "#ed8796", "#a6da95", "#eed49f", "#8aadf4", "#f5bde6", "#8bd5ca", "#a5adcb" },
 	tab_bar = {
 		inactive_tab_edge = "none",
 	},

@@ -52,7 +52,10 @@
   "theme": {
     "mode": "dark",
     "light": "One Light",
-    "dark": "Iceberg",
+    "dark": "Catppuccin Macchiato",
+  },
+  "auto_install_extensions": {
+    "catppuccin": true,
   },
   "tabs": {
     "file_icons": true,
