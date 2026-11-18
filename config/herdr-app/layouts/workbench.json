@@ -38,7 +38,7 @@
           "id": "usage",
           "type": "block",
           "window_drag": true,
-          "size": { "px": 72 },
+          "size": { "px": 96 },
           "content": { "mod": "usage" }
         },
         {

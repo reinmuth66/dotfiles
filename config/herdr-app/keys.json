@@ -66,7 +66,8 @@
     "ctrl-shift-x": { "command": "tab.move", "args": { "by": -1 } },
     "ctrl-shift-h": "resize-mode.start",
     "ctrl-shift-b": "resize-mode.cycle-sidebar",
-    "ctrl-shift-v": "workspace.toggle-view"
+    "ctrl-shift-v": "workspace.toggle-view",
+    "ctrl-shift-u": "usage.cycle-mode"
   },
   "terminal": {
     "cmd-f": "terminal.search",
