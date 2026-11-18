@@ -136,6 +136,8 @@ export default class Workspace extends View {
   close() {
     this.watch?.cancel();
     this.activityWatch?.cancel();
+    this.tick?.cancel();
+    this.tick = null;
   }
 
   toggleView() {
@@ -269,13 +271,13 @@ export default class Workspace extends View {
   key(e, cx) {
     const m = e.modifiers ?? {};
     if (m.control || m.alt || m.platform) return;
-    const last = this.rows.length - 1;
+    const last = Math.max(0, this.rows.length - 1);
     if (e.key === "j") this.cursor = Math.min(last, this.cursor + 1);
     else if (e.key === "k") this.cursor = Math.max(0, this.cursor - 1);
     else if (e.key === "enter") this.activate(this.rows[this.cursor]);
     else if (e.key === "escape") run("pane.go", { direction: "right" });
     else return;
-    this.scroll.scroll_to_item(this.cursor);
+    if (this.cursor < this.rows.length) this.scroll.scroll_to_item(this.cursor);
     cx.stop_propagation();
     cx.notify();
   }

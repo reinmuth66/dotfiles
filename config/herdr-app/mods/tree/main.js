@@ -341,10 +341,10 @@ export default class Tree extends View {
     return agents()
       .filter((a) => !isRemoteAddress(a.address))
       .map((a) => ({
-      name: names[a.address] ?? a.tab_name,
-      status: a.status,
-      cwd: all.find((p) => p.pane === a.pane)?.cwd ?? null,
-    }));
+        name: names[a.address] ?? a.tab_name,
+        status: a.status,
+        cwd: all.find((p) => p.pane === a.pane)?.cwd ?? null,
+      }));
   }
 
   choose(cx) {
@@ -419,7 +419,7 @@ export default class Tree extends View {
     const m = e.modifiers ?? {};
     if (m.control || m.alt || m.platform) return;
     // カーソルの位置: 0..rows.length-1 は行 (0 は根)、rows.length はブランチの欄 (あるときだけ)
-    const last = this.rows.length - 1 + (this.branch ? 1 : 0);
+    const last = Math.max(0, this.rows.length - 1 + (this.branch ? 1 : 0));
     const row = this.rows[this.cursor];
     if (e.key === "j") {
       this.cursor = Math.min(last, this.cursor + 1);
@@ -626,7 +626,7 @@ export default class Tree extends View {
     // 根が git のリポジトリで、枠にブランチがあるときだけ出す (ホームのフォルダでは数も欄も出ない)
     this.branch = this.isRepo ? (pane?.branch ?? null) : null;
     const max = this.rows.length - 1 + (this.branch ? 1 : 0);
-    this.cursor = Math.min(this.cursor, max);
+    this.cursor = Math.max(0, Math.min(this.cursor, max));
     if (!this.branch) this.picker = null; // 欄が消えたら窓も閉じる
     return base
       .child(
