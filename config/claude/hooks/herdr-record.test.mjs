@@ -119,6 +119,58 @@ test("SessionStart の clear で空にする", () => {
   assert.equal(existsSync(join(app, "data/edits/t1")), false);
 });
 
+test("SessionStart で、7 日より古い他の端末の activity、edits、sessions を消す", () => {
+  const home = join(tmp, "prune");
+  const d = join(home, "data");
+  const e = { HC_TERMINAL_ID: "cur", HERDR_APP_HOME: home, HOME: tmp };
+  const now = Date.now();
+  const old = (now - 8 * 24 * 3600 * 1000) / 1000;
+  const recent = (now - 6 * 24 * 3600 * 1000) / 1000;
+  const put = (rel, age, dir = false) => {
+    const p = join(d, rel);
+    if (dir) {
+      mkdirSync(p, { recursive: true });
+      writeFileSync(join(p, "1.json"), "{}");
+    } else {
+      mkdirSync(dirname(p), { recursive: true });
+      writeFileSync(p, "{}");
+    }
+    utimesSync(p, age, age);
+  };
+  for (const t of ["old", "new", "cur"]) {
+    const age = t === "new" ? recent : old;
+    put(`activity/${t}.json`, age);
+    put(`sessions/${t}.json`, age);
+    put(`edits/${t}`, age, true);
+  }
+  // data/ の外を指すリンクはたどらず消さない。ID の形でない名前、ロック中の端末も消さない
+  const outside = join(tmp, "prune-outside");
+  mkdirSync(outside, { recursive: true });
+  writeFileSync(join(outside, "keep.json"), "{}");
+  symlinkSync(outside, join(d, "edits/link"));
+  put("sessions/.x.json", old);
+  put("activity/locked.json", old);
+  mkdirSync(join(d, "activity/.locked.lock"));
+
+  record({ hook_event_name: "SessionStart", session_id: "s", cwd: "/r", source: "startup" }, e, now);
+  const ls = (rel) => readdirSync(join(d, rel)).sort();
+  assert.deepEqual(ls("activity"), [".locked.lock", "cur.json", "locked.json", "new.json"]);
+  assert.deepEqual(ls("sessions"), [".x.json", "cur.json", "new.json"]);
+  assert.deepEqual(ls("edits"), ["link", "new"]); // cur は SessionStart で空にした
+  assert.equal(existsSync(join(outside, "keep.json")), true);
+});
+
+test("PostToolUse では古いファイルを消さない", () => {
+  const home = join(tmp, "prune-post");
+  const p = join(home, "data/sessions/old.json");
+  mkdirSync(dirname(p), { recursive: true });
+  writeFileSync(p, "{}");
+  const old = (Date.now() - 8 * 24 * 3600 * 1000) / 1000;
+  utimesSync(p, old, old);
+  record(post("Read", { file_path: file }), { HC_TERMINAL_ID: "cur", HERDR_APP_HOME: home, HOME: tmp }, Date.now());
+  assert.equal(existsSync(p), true);
+});
+
 test("SessionStart の resume では消さない", () => {
   record({ hook_event_name: "SessionStart", session_id: "abc", cwd: "/r", source: "resume" }, env("t5"), 3000);
   assert.equal(readJson("data/activity/t5.json").actions.length, 20);

@@ -1,7 +1,7 @@
 // Claude Code の hook。行動、編集の前後、サブエージェントを herdr-app の data/ に書き出す。
 // 読む側は herdr-app の mod (workspace、preview)。形は設計書の「データの受け渡し」。
 // Claude Code を止めないよう、標準出力には何も出さず、どんな例外でも終了コード 0 で終わる
-import { mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -14,6 +14,7 @@ const MAX_EDIT_BYTES = 900 * 1024;
 const LOCK_WAIT_MS = 50;
 const LOCK_GIVE_UP_MS = 2000;
 const LOCK_STALE_MS = 60_000;
+const STALE_DATA_MS = 7 * 24 * 60 * 60 * 1000;
 
 const KINDS = {
   Edit: "edit",
@@ -190,6 +191,60 @@ function recordSubagent(activity, event, now) {
   activity.subagents = activity.subagents.filter((s) => s.status !== "done" || ++done <= MAX_DONE_SUBAGENTS);
 }
 
+// 名前の一覧。フォルダがない、またはリンクなら空 (data/ の外をたどらない)
+function namesIn(dir) {
+  try {
+    return lstatSync(dir).isDirectory() ? readdirSync(dir) : [];
+  } catch {
+    return [];
+  }
+}
+
+// path が isDir の種類で、STALE_DATA_MS より古ければ消す。リンクは消さずにたどらない。
+// 調べる間に他の誰かが消しても、書き直しても気にしない
+function removeIfStale(path, isDir, now) {
+  try {
+    const st = lstatSync(path);
+    if (st.isSymbolicLink() || st.isDirectory() !== isDir) return;
+    if (now - st.mtimeMs <= STALE_DATA_MS) return;
+    rmSync(path, { recursive: isDir, force: true });
+  } catch {
+    // 他の誰かが先に消した
+  }
+}
+
+const terminalOfJson = (name) => (name.endsWith(".json") ? name.slice(0, -".json".length) : null);
+
+// 端末の ID は使い回されないので、終わった端末の activity、edits、sessions (statusline.sh が書く) は
+// 残り続ける。新しいセッションの始まりに、7 日より古いものを、他の端末の分も含めて消す (今の端末は除く)。
+// activity と edits は、その端末のロックを 1 回だけ試し、取れたときだけ消す (取れなければ次の機会に)
+function pruneStale(data, id, now) {
+  const activityDir = join(data, "activity");
+  const editsDir = join(data, "edits");
+  const terminals = new Set([...namesIn(activityDir).map(terminalOfJson), ...namesIn(editsDir)]);
+  for (const term of terminals) {
+    if (term === null || term === id || !ID_PATTERN.test(term)) continue;
+    const lock = join(activityDir, `.${term}.lock`);
+    try {
+      mkdirSync(lock);
+    } catch {
+      continue;
+    }
+    try {
+      removeIfStale(join(activityDir, `${term}.json`), false, now);
+      removeIfStale(join(editsDir, term), true, now);
+    } finally {
+      rmSync(lock, { recursive: true, force: true });
+    }
+  }
+  const sessionsDir = join(data, "sessions");
+  for (const name of namesIn(sessionsDir)) {
+    const term = terminalOfJson(name);
+    if (term === null || term === id || !ID_PATTERN.test(term)) continue;
+    removeIfStale(join(sessionsDir, name), false, now);
+  }
+}
+
 export function record(event, env, now) {
   try {
     if (!event || typeof event !== "object") return;
@@ -211,15 +266,16 @@ export function record(event, env, now) {
       if (isReset) {
         rmSync(editsDir, { recursive: true, force: true });
         writeJson(activityPath, emptyActivity(id, event));
-        return;
+      } else {
+        const activity = loadActivity(activityPath, id, event);
+        if (name === "PostToolUse") recordTool(activity, event, editsDir, now);
+        else recordSubagent(activity, event, now);
+        writeJson(activityPath, activity);
       }
-      const activity = loadActivity(activityPath, id, event);
-      if (name === "PostToolUse") recordTool(activity, event, editsDir, now);
-      else recordSubagent(activity, event, now);
-      writeJson(activityPath, activity);
     } finally {
       rmSync(lock, { recursive: true, force: true });
     }
+    if (isReset) pruneStale(data, id, now);
   } catch {
     // Claude Code を止めない
   }
