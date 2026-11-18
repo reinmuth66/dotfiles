@@ -11,6 +11,7 @@ import { RETRY_MS, repoRoot, watchJsonDir } from "./data.js";
 import { diffArgs, parseUnifiedDiff } from "./diff.js";
 import {
   MAX_TEXT_BYTES,
+  PREVIEW_CACHE_DIR,
   agentTerminalFor,
   editTexts,
   editsFor,
@@ -21,6 +22,7 @@ import {
   headerText,
   imagePlan,
   initialTabState,
+  isCacheFile,
   languageOf,
   moveHistory,
   pathspecFor,
@@ -62,7 +64,7 @@ async function statFile(path) {
   return Number.isFinite(size) ? { size, mtimeMs: mtime * 1000 } : null;
 }
 
-// data/preview/ が上限を超えたら、古いものから消す
+// data/preview-cache/ の写しが上限を超えたら、古いものから消す (自分が作った名前のものだけ)
 async function pruneCache(dir) {
   let names;
   try {
@@ -70,6 +72,7 @@ async function pruneCache(dir) {
   } catch {
     return;
   }
+  names = names.filter(isCacheFile);
   if (names.length <= CACHE_MAX) return;
   const paths = names.map((n) => `${dir}/${n}`);
   const r = await exec("stat", ["-f", "%m", ...paths], { timeout: STAT_TIMEOUT }).catch(() => null);
@@ -324,7 +327,7 @@ export default class Preview extends View {
       const plan = imagePlan(path);
       if (plan) {
         const home = appHome();
-        const dir = `${home}/data/preview`;
+        const dir = `${home}/${PREVIEW_CACHE_DIR}`;
         const dest = previewCachePath(home, path, stat.mtimeMs, plan.ext);
         if (!(await fs.exists(dest))) {
           await fs.mkdir(dir, { recursive: true });

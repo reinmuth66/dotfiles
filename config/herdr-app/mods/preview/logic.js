@@ -139,11 +139,16 @@ function fnv1a(text, seed) {
 }
 
 // image() はアプリのフォルダの中しか読めないので、写しをここに置く。
-// パスと mtime から名前を決めるので、ファイルが変わらなければ同じ写しを使い回す
+// パスと mtime から名前を決めるので、ファイルが変わらなければ同じ写しを使い回す。
+// data/<mod の名前>/ は herdr が mod の localStorage に使うので、別の名前のフォルダに置く
+export const PREVIEW_CACHE_DIR = "data/preview-cache";
 export function previewCachePath(appHome, path, mtimeMs, ext) {
   const key = `${path}\0${mtimeMs}`;
-  return `${appHome}/data/preview/${fnv1a(key, 0x811c9dc5)}${fnv1a(key, 0x050c5d1f)}.${ext}`;
+  return `${appHome}/${PREVIEW_CACHE_DIR}/${fnv1a(key, 0x811c9dc5)}${fnv1a(key, 0x050c5d1f)}.${ext}`;
 }
+
+// previewCachePath が作った名前か (16 桁の 16 進と拡張子)
+export const isCacheFile = (name) => /^[0-9a-f]{16}\.[a-z0-9_]+$/.test(name);
 
 export function formatSize(bytes) {
   if (bytes == null || !Number.isFinite(bytes)) return "?";
@@ -153,12 +158,14 @@ export function formatSize(bytes) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
 }
 
-// 写しが max 件を超えたら、古いもの (mtime が小さいもの) から消す名前
+// 写しが max 件を超えたら、古いもの (mtime が小さいもの) から消す名前。
+// 自分が作った名前 (isCacheFile) だけを数え、ほかのファイルは消さない
 export function pruneTargets(entries, max) {
-  if (entries.length <= max) return [];
-  return [...entries]
+  const own = entries.filter((e) => isCacheFile(e.name));
+  if (own.length <= max) return [];
+  return own
     .sort((a, b) => a.mtime - b.mtime)
-    .slice(0, entries.length - max)
+    .slice(0, own.length - max)
     .map((e) => e.name);
 }
 

@@ -15,6 +15,7 @@ import {
   follow,
   formatSize,
   imagePlan,
+  isCacheFile,
   initialTabState,
   languageOf,
   moveHistory,
@@ -64,7 +65,8 @@ test("extOf", () => {
 });
 test("previewCachePath は同じ入力で同じ、mtime が変われば別", () => {
   const p = previewCachePath("/h/.config/herdr-app", "/r/a.png", 1, "png");
-  assert.match(p, /^\/h\/\.config\/herdr-app\/data\/preview\/[0-9a-f]+\.png$/);
+  assert.match(p, /^\/h\/\.config\/herdr-app\/data\/preview-cache\/[0-9a-f]{16}\.png$/);
+  assert.equal(isCacheFile(p.split("/").pop()), true);
   assert.equal(p, previewCachePath("/h/.config/herdr-app", "/r/a.png", 1, "png"));
   assert.notEqual(p, previewCachePath("/h/.config/herdr-app", "/r/a.png", 2, "png"));
   assert.notEqual(p, previewCachePath("/h/.config/herdr-app", "/r/b.png", 1, "png"));
@@ -152,14 +154,29 @@ test("formatSize", () => {
   assert.equal(formatSize(null), "?");
 });
 test("pruneTargets は上限を超えた分を古い順に返す", () => {
+  const a = "0000000000000000.png";
+  const b = "1111111111111111.svg";
+  const c = "2222222222222222.png";
   const entries = [
-    { name: "c", mtime: 3 },
-    { name: "a", mtime: 1 },
-    { name: "b", mtime: 2 },
+    { name: c, mtime: 3 },
+    { name: a, mtime: 1 },
+    { name: b, mtime: 2 },
   ];
-  assert.deepEqual(pruneTargets(entries, 2), ["a"]);
+  assert.deepEqual(pruneTargets(entries, 2), [a]);
   assert.deepEqual(pruneTargets(entries, 3), []);
-  assert.deepEqual(pruneTargets(entries, 1), ["a", "b"]);
+  assert.deepEqual(pruneTargets(entries, 1), [a, b]);
+});
+test("pruneTargets は自分が作った写しだけを数え、ほかのファイルは消さない", () => {
+  const entries = [
+    { name: "store.json", mtime: 0 },
+    { name: "store-b30492047b252f01.json", mtime: 0 },
+    { name: ".tmp", mtime: 0 },
+    { name: "0000000000000000.png", mtime: 1 },
+    { name: "1111111111111111.png", mtime: 2 },
+  ];
+  assert.deepEqual(pruneTargets(entries, 2), []);
+  assert.deepEqual(pruneTargets(entries, 1), ["0000000000000000.png"]);
+  assert.equal(isCacheFile("store.json"), false);
 });
 test("タブの状態", () => {
   let s = initialTabState();
