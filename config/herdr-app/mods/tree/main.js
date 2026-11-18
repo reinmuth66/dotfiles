@@ -32,6 +32,8 @@ function save(key, value) {
 }
 
 const baseName = (path) => path.replace(/\/+$/, "").split("/").pop() || path;
+const trimSlash = (path) => (path.length > 1 ? path.replace(/\/+$/, "") : path);
+const isHome = (path) => trimSlash(path) === trimSlash(home());
 
 // 今の space (focused() の space、なければ表示中の space)
 function currentSpace() {
@@ -46,7 +48,12 @@ function currentPane() {
   const f = focused();
   if (!f) return null;
   const all = panes();
-  return (f.pane && all.find((p) => p.pane === f.pane)) || all.find((p) => p.tab === f.tab && p.terminal) || null;
+  return (
+    (f.pane && all.find((p) => p.pane === f.pane)) ||
+    all.find((p) => p.tab === f.tab && p.focused) ||
+    all.find((p) => p.tab === f.tab && p.terminal) ||
+    null
+  );
 }
 
 async function readFolder(path) {
@@ -108,7 +115,7 @@ export default class Tree extends View {
     });
     if (checking()) return;
     this.poll = cx.timer.every(HOME_POLL, (cx) => {
-      if (this.root && this.root === home()) this.reload(cx);
+      if (this.root && isHome(this.root)) this.reload(cx);
     });
     cx.spawn(async (cx) => {
       for (;;) {
@@ -176,7 +183,7 @@ export default class Tree extends View {
 
   // ホームは見張らない (ホーム全体の見張りは重い。10 秒ごとに読み直す)
   watchRoot(context, cx) {
-    if (context.root === home()) return;
+    if (isHome(context.root)) return;
     cx.spawn(async (cx) => {
       while (!context.stopped) {
         try {
@@ -218,6 +225,8 @@ export default class Tree extends View {
           }
           const git = this.isRepo ? await readGit(context.root).catch(() => null) : null;
           if (context.stopped) return;
+          // 読んでいる間に開いたフォルダの中身は残す (loadFolder が読んだもの)
+          for (const rel of this.open) if (!(rel in children) && this.children[rel]) children[rel] = this.children[rel];
           this.children = children;
           this.states = git?.states ?? {};
           this.ignored = git?.ignored ?? new Set();
@@ -237,6 +246,7 @@ export default class Tree extends View {
         const entries = await readFolder(`${context.root}/${rel}`);
         if (context.stopped || !this.open.has(rel)) return;
         this.children = { ...this.children, [rel]: entries };
+        if (context.loading) context.again = true; // 読み直しの途中に開いた: 読み直しにも入れる
       } catch {
         if (!context.stopped) this.open.delete(rel);
       }
