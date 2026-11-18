@@ -65,9 +65,13 @@ function sleep(ms) {
 }
 
 function writeJson(path, value) {
+  writeText(path, JSON.stringify(value));
+}
+
+function writeText(path, text) {
   const tmp = join(dirname(path), `.${basename(path)}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`);
   try {
-    writeFileSync(tmp, JSON.stringify(value));
+    writeFileSync(tmp, text);
     renameSync(tmp, path);
   } catch (e) {
     rmSync(tmp, { force: true });
@@ -95,7 +99,11 @@ function acquire(lock) {
     }
     try {
       if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) {
-        rmSync(lock, { recursive: true, force: true });
+        // 名前を変えてから消す。消す前に他の誰かが取り直した新しいロックを消さないため。
+        // rename に失敗したら、他の誰かが先に片付けたので取り直す
+        const stale = `${lock}.stale.${process.pid}.${Math.random().toString(36).slice(2)}`;
+        renameSync(lock, stale);
+        rmSync(stale, { recursive: true, force: true });
         continue;
       }
     } catch {
@@ -149,19 +157,16 @@ function recordTool(activity, event, editsDir, now) {
   if (contents === null) return;
   const seq = Math.max(0, ...activity.edits, ...seqFiles(editsDir)) + 1;
   const { before, after } = contents;
-  const tooLarge =
-    before === TOO_LARGE ||
-    after === TOO_LARGE ||
-    Buffer.byteLength(before ?? "", "utf8") + Buffer.byteLength(after ?? "", "utf8") > MAX_EDIT_BYTES;
+  const base = { seq, at: now, path: contents.path };
+  // 上限は読む側 (readTextFile) が読む JSON の大きさで測る。エスケープで中身より大きくなる
+  let json = null;
+  if (before !== TOO_LARGE && after !== TOO_LARGE) {
+    json = JSON.stringify({ ...base, before, after, too_large: false });
+    if (Buffer.byteLength(json, "utf8") > MAX_EDIT_BYTES) json = null;
+  }
+  json ??= JSON.stringify({ ...base, before: null, after: null, too_large: true });
   mkdirSync(editsDir, { recursive: true });
-  writeJson(join(editsDir, `${seq}.json`), {
-    seq,
-    at: now,
-    path: contents.path,
-    before: tooLarge ? null : before,
-    after: tooLarge ? null : after,
-    too_large: tooLarge,
-  });
+  writeText(join(editsDir, `${seq}.json`), json);
   activity.edits = [seq, ...activity.edits].slice(0, MAX_EDITS);
   const keep = new Set(activity.edits);
   for (const s of seqFiles(editsDir)) if (!keep.has(s)) rmSync(join(editsDir, `${s}.json`), { force: true });

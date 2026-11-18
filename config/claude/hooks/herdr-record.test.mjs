@@ -72,6 +72,17 @@ test("大きな編集は中身を持たない", () => {
   assert.deepEqual([e.before, e.after, e.too_large], [null, null, true]);
 });
 
+test("エスケープで JSON が 900 KiB を超える編集も中身を持たない", () => {
+  const content = '"\n'.repeat(300 * 1024); // 中身は 600 KiB、JSON では 1200 KiB を超える
+  assert.ok(Buffer.byteLength(content) < 900 * 1024);
+  record(post("Write", { file_path: file, content }, {}), env("t14"), 1);
+  const a = readJson("data/activity/t14.json");
+  const path = join(app, `data/edits/t14/${a.edits[0]}.json`);
+  assert.ok(readFileSync(path).length < 900 * 1024);
+  const e = readJson(`data/edits/t14/${a.edits[0]}.json`);
+  assert.deepEqual([e.before, e.after, e.too_large, e.seq], [null, null, true, a.edits[0]]);
+});
+
 test("NotebookEdit は行動だけ記録する", () => {
   record(post("NotebookEdit", { notebook_path: "/r/a.ipynb", new_source: "x" }), env("t8"), 1);
   const a = readJson("data/activity/t8.json");
@@ -157,6 +168,20 @@ test("同時に 10 個走っても、行動が 10 件残り、JSON が壊れな�
   const rs = await Promise.all(Array.from({ length: 10 }, (_, i) => runProcess(post("Read", { file_path: `${file}${i}` }), env("t9"))));
   for (const r of rs) assert.deepEqual([r.code, r.stdout], [0, ""]);
   assert.equal(readJson("data/activity/t9.json").actions.length, 10);
+});
+
+test("古いロックを 10 個が同時に見ても、行動が 10 件残る", async () => {
+  const lock = join(app, "data/activity/.t15.lock");
+  mkdirSync(lock, { recursive: true });
+  const old = (Date.now() - 120_000) / 1000;
+  utimesSync(lock, old, old);
+  const rs = await Promise.all(Array.from({ length: 10 }, (_, i) => runProcess(post("Read", { file_path: `${file}${i}` }), env("t15"))));
+  for (const r of rs) assert.deepEqual([r.code, r.stdout], [0, ""]);
+  assert.equal(readJson("data/activity/t15.json").actions.length, 10);
+  assert.deepEqual(
+    readdirSync(join(app, "data/activity")).filter((f) => f.includes("t15") && f !== "t15.json"),
+    [],
+  );
 });
 
 test("直接実行: 壊れた入力でも標準出力に何も出さず 0 で終わる", async () => {
