@@ -113,7 +113,8 @@ export default class Usage extends View {
     return track.children(parts);
   }
 
-  // 5h ━━━━│━━━ 3% 4h50m。文字は中身の幅のままにし、間隔はどこも 1 文字。帯が残りの幅を埋める
+  // 5h ━━━━│━━━ 3%   4h50m。間隔はどこも 1 文字。使用率は "100%"、残り時間は "4h50m" の幅を取って左に寄せ、
+  // 帯の右端を行ごとに揃える。帯が残りの幅を埋める
   barRow(w, now, t) {
     const v = windowView(w, now);
     return h_flex()
@@ -123,8 +124,8 @@ export default class Usage extends View {
       .gap(cells(1))
       .child(div().flex_none().font_weight(700).text_color(v.barColor).child(String(w.key)))
       .child(h_flex().flex_1().min_w(0).items_center().child(this.bar(v)))
-      .child(div().flex_none().text_color(v.usedColor).child(`${Math.round(v.used)}%`))
-      .when(v.remaining != null, (el) => el.child(div().flex_none().text_color(t.dim).child(v.remaining)));
+      .child(div().flex_none().w(cells(4)).text_color(v.usedColor).child(`${Math.round(v.used)}%`))
+      .child(div().flex_none().w(cells(5)).text_color(t.dim).child(v.remaining ?? ""));
   }
 
   render() {
