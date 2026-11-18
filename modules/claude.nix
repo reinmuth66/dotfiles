@@ -25,16 +25,32 @@ let
       commit = "";
       pr = "";
     };
-    hooks.Stop = [
-      {
-        hooks = [
-          {
-            type = "command";
-            command = "/usr/bin/afplay /System/Library/Sounds/Glass.aiff";
-          }
-        ];
-      }
-    ];
+    hooks = {
+      Stop = [
+        {
+          hooks = [
+            {
+              type = "command";
+              command = "/usr/bin/afplay /System/Library/Sounds/Glass.aiff";
+            }
+          ];
+        }
+      ];
+      # herdr の中では、行動、編集、サブエージェントを herdr-app の data/ に書き出す (外では何もしない)
+      PostToolUse = [
+        {
+          matcher = "*";
+          hooks = [ herdrRecordHook ];
+        }
+      ];
+      SubagentStart = [ { hooks = [ herdrRecordHook ]; } ];
+      SubagentStop = [ { hooks = [ herdrRecordHook ]; } ];
+      SessionStart = [ { hooks = [ herdrRecordHook ]; } ];
+    };
+  };
+  herdrRecordHook = {
+    type = "command";
+    command = "${pkgs.nodejs}/bin/node ${claudeDir}/hooks/herdr-record.mjs";
   };
   settingsFile = (pkgs.formats.json { }).generate "claude-settings.json" settings;
 in
@@ -84,5 +100,7 @@ in
     ".claude/CLAUDE.md".source = config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/CLAUDE.md";
     ".claude/statusline.sh".source =
       config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/statusline.sh";
+    ".claude/hooks/herdr-record.mjs".source =
+      config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/hooks/herdr-record.mjs";
   };
 }
