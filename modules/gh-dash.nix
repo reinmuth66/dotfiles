@@ -48,7 +48,7 @@ in
           command = "herdr-app do tab.new '{\"argv\": [\"gh\", \"issue\", \"create\", \"-R\", \"{{.RepoName}}\"]}'";
         }
       ];
-      # Catppuccin Macchiato (config/herdr-app/shared/ui.js の PALETTE と同じ値)
+      # Catppuccin Macchiato の色。inverted (base) のほかは config/herdr-app/shared/ui.js の PALETTE と同じ値
       theme.colors = {
         text = {
           primary = "#cad3f5";
