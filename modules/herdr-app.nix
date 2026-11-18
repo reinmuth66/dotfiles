@@ -23,6 +23,7 @@ let
     "workspace"
     "tree"
     "preview"
+    "pane-header"
   ];
 in
 {

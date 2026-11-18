@@ -87,7 +87,7 @@
           "border": { "width": 1, "color": "border" },
           "focus": { "width": 1, "color": "accent" },
           "header": {
-            "content": { "mod": "pane" },
+            "content": { "mod": "pane-header" },
             "height": 30,
             "position": "top",
             "reveal": "always"

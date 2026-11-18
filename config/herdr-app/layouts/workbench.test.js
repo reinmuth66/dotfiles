@@ -32,6 +32,10 @@ test("resize-mode が動かすブロックの id がある", () => {
   }
 });
 
+test("枠の見出しは pane-header", () => {
+  assert.equal(byId["agent-area"].content.pane.header.content.mod, "pane-header");
+});
+
 test("帯の中は usage、workspace、tree の 3 つの自分の mod", () => {
   assert.deepEqual(byId.sidebar.children.map((c) => [c.id, c.content?.mod]), [["usage", "usage"], ["workspace", "workspace"], ["tree", "tree"]]);
 });
