@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseStatus, ORDER, STRENGTH, folderState, counts, GIT_STYLE, fileIcon, flatten, treeRoot, openerFor } from "./logic.js";
+import { parseStatus, ORDER, STRENGTH, folderState, counts, GIT_STYLE, fileIcon, flatten, treeRoot, parentIndex } from "./logic.js";
 import { GLYPH, PALETTE } from "./ui.js";
 
 test("parseStatus: 空白と日本語のパス", () => {
@@ -66,9 +66,19 @@ test("treeRoot", () => {
   assert.equal(treeRoot({ space: { machine: null, folder: "" }, repoRoot: null, cwdRepoRoot: "/r/z", home: "/h" }), "/r/z");
   assert.equal(treeRoot({ space: { machine: "laptop", folder: "/r/x" }, repoRoot: null, cwdRepoRoot: "/r/z", home: "/h" }), null);
 });
-test("openerFor", () => {
-  assert.deepEqual(openerFor("/a/b.kicad_pcb"), ["open", "-a", "KiCad", "/a/b.kicad_pcb"]);
-  assert.deepEqual(openerFor("/a/b.STL".toLowerCase()), ["open", "-a", "BambuStudio", "/a/b.stl"]);
-  assert.deepEqual(openerFor("/a/x.FCStd"), ["open", "-a", "FreeCAD", "/a/x.FCStd"]);
-  assert.deepEqual(openerFor("/a/設計 書.docx"), ["open", "/a/設計 書.docx"]);
+test("parentIndex", () => {
+  const rows = [
+    { kind: "root" },
+    { kind: "entry", rel: "a", depth: 0, dir: true },
+    { kind: "entry", rel: "a/b", depth: 1, dir: true },
+    { kind: "entry", rel: "a/b/c", depth: 2 },
+    { kind: "entry", rel: "a/d", depth: 1 },
+    { kind: "entry", rel: "e", depth: 0 },
+  ];
+  assert.equal(parentIndex(rows, 0), null);
+  assert.equal(parentIndex(rows, 1), 0);
+  assert.equal(parentIndex(rows, 3), 2);
+  assert.equal(parentIndex(rows, 4), 1);
+  assert.equal(parentIndex(rows, 5), 0);
+  assert.equal(parentIndex(rows, 9), null);
 });

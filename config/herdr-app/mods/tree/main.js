@@ -23,7 +23,7 @@ import {
 } from "herdr";
 import { GLYPH, METRICS, PALETTE, REMOTE_LABEL, cells, isRemoteAddress, isRemoteSpace } from "./ui.js";
 import { RETRY_MS, repoRoot } from "./data.js";
-import { GIT_STYLE, counts, fileIcon, flatten, folderState, openerFor, parseStatus, treeRoot } from "./logic.js";
+import { GIT_STYLE, counts, fileIcon, flatten, folderState, parentIndex, parseStatus, treeRoot } from "./logic.js";
 import { REFS_ARGS, failureReason, filterBranches, parseRefs, switchPlan } from "./branches.js";
 import { renderPicker } from "./picker.js";
 
@@ -123,6 +123,7 @@ export default class Tree extends View {
     this.icons = null;
     this.rows = [];
     this.cursor = 0;
+    this.pendingG = false; // gg の 1 つ目の g を押した
     this.picker = null; // ブランチを選ぶ窓。{ root, current, all, query, cursor, message, busy }
     this.handle = cx.focus_handle();
     this.scroll = ScrollHandle.new();
@@ -418,26 +419,41 @@ export default class Tree extends View {
     }
     const m = e.modifiers ?? {};
     if (m.control || m.alt || m.platform) return;
+    // yazi と同じ操作: j/k で上下、l で開く (開いたフォルダなら中へ)、h で閉じる (でなければ親へ)、
+    // gg で先頭、G で末尾、. で隠しファイル。
     // カーソルの位置: 0..rows.length-1 は行 (0 は根)、rows.length はブランチの欄 (あるときだけ)
     const last = Math.max(0, this.rows.length - 1 + (this.branch ? 1 : 0));
     const row = this.rows[this.cursor];
-    if (e.key === "j") {
-      this.cursor = Math.min(last, this.cursor + 1);
+    const moveTo = (i) => {
+      this.cursor = Math.max(0, Math.min(last, i));
       this.select(this.rows[this.cursor]);
-    } else if (e.key === "k") {
-      this.cursor = Math.max(0, this.cursor - 1);
-      this.select(this.rows[this.cursor]);
-    } else if (e.key === "l" || e.key === "space") {
-      if (row?.kind === "root") this.toggleRoot();
-      else if (row?.dir) this.toggleFolder(row.rel, cx);
+    };
+    const shiftG = (e.key === "g" && m.shift) || e.key === "G";
+    const pendingG = this.pendingG;
+    this.pendingG = false;
+    if (e.key === "j" || e.key === "down") moveTo(this.cursor + 1);
+    else if (e.key === "k" || e.key === "up") moveTo(this.cursor - 1);
+    else if (e.key === "l" || e.key === "right" || e.key === "enter") {
+      if (!row) {
+        if (e.key === "enter") this.openPicker(cx); // ブランチの欄
+      } else if (row.kind === "root") {
+        if (!this.rootOpen) this.toggleRoot();
+        else if (this.rows.length > 1) moveTo(1);
+      } else if (row.dir) {
+        if (!row.open) this.toggleFolder(row.rel, cx);
+        else if (this.rows[this.cursor + 1]?.depth > row.depth) moveTo(this.cursor + 1);
+      } else this.select(row);
+    } else if (e.key === "h" || e.key === "left") {
+      if (row?.kind === "root") {
+        if (this.rootOpen) this.toggleRoot();
+      } else if (row?.dir && row.open) this.toggleFolder(row.rel, cx);
+      else if (row) moveTo(parentIndex(this.rows, this.cursor) ?? 0);
+    } else if (shiftG) moveTo(this.rows.length - 1);
+    else if (e.key === "g" && !m.shift) {
+      if (pendingG) moveTo(0);
+      else this.pendingG = true;
     } else if (e.key === "b" && !m.shift) {
       this.openPicker(cx);
-    } else if (e.key === "enter") {
-      if (!row) this.openPicker(cx); // ブランチの欄
-      else if (this.root) {
-        const [cmd, ...args] = openerFor(this.absPath(row));
-        exec(cmd, args, { timeout: GIT_TIMEOUT }).catch(() => {});
-      }
     } else if (e.key === ".") {
       this.showHidden = !this.showHidden;
       save("showHidden", this.showHidden);
@@ -583,7 +599,8 @@ export default class Tree extends View {
           .text_color(PALETTE.sky)
           .child(GLYPH.branch),
       )
-      .child(div().flex_1().min_w(0).truncate().text_color(PALETTE.text).child(branch));
+      // starship の git_branch と同じ bold fg:sky
+      .child(div().flex_1().min_w(0).truncate().font_weight(700).text_color(PALETTE.sky).child(branch));
   }
 
   render(cx) {

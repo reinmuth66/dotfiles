@@ -95,16 +95,11 @@ export function treeRoot({ space, repoRoot, cwdRepoRoot = null, home }) {
   return cwdRepoRoot ?? repoRoot ?? (space.folder || home);
 }
 
-const OPENERS = [
-  [["kicad_pcb", "kicad_pro", "kicad_sch"], "KiCad"],
-  [["3mf", "stl", "step", "stp"], "BambuStudio"],
-  [["fcstd"], "FreeCAD"],
-];
-
-// config/yazi/yazi.toml の [opener] と同じ
-export function openerFor(path) {
-  const dot = path.lastIndexOf(".");
-  const ext = dot > path.lastIndexOf("/") ? path.slice(dot + 1).toLowerCase() : "";
-  const hit = OPENERS.find(([exts]) => exts.includes(ext));
-  return hit ? ["open", "-a", hit[1], path] : ["open", path];
+// 親の行の位置。rows は 0 が根、その後に flatten の行 (depth を持つ)。根の親はない (null)
+export function parentIndex(rows, i) {
+  const row = rows[i];
+  if (!row || row.kind === "root") return null;
+  if (row.depth === 0) return 0;
+  for (let j = i - 1; j > 0; j--) if (rows[j].depth === row.depth - 1) return j;
+  return 0;
 }
