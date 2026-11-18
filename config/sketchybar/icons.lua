@@ -48,6 +48,7 @@ local app_icons = {
 	["Google Chrome"] = ":google_chrome:",
 	["Google Drive"] = ":google_drive:",
 	["Grapher"] = ":grapher:",
+	["Herdr"] = ":herdr:",
 	["Home"] = ":home:",
 	["ホーム"] = ":home:",
 	["Image Playground"] = ":image_playground:",
