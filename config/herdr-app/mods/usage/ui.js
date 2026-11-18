@@ -66,8 +66,8 @@ export const PALETTE = {
 };
 
 export const METRICS = {
-  fontSize: 13,
-  cell: 6.9,
+  fontSize: 12,
+  cell: 6.3,
   glyphSize: 16,
   indentCells: 3,
   gapCells: 1,

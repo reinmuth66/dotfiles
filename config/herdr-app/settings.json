@@ -4,7 +4,7 @@
     "enabled": true
   },
   "font": "Moralerspace Neon HW",
-  "font_size": 14.0,
+  "font_size": 12.0,
   "font_ligatures": false,
   "terminal_line_height": 1.0,
   "terminal_cell_width": 1.0,
