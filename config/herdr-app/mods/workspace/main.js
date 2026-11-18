@@ -2,7 +2,21 @@
 // 行の組み立ては logic.js、記号と色と寸法は ui.js にある
 import { View, div, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { agents, checking, exec, home, nextCommand, panes, run, setAgentOrder, setShared, shared, spaces } from "herdr";
+import {
+  agents,
+  checking,
+  exec,
+  home,
+  nextCommand,
+  panes,
+  run,
+  setAgentOrder,
+  setShared,
+  shared,
+  spaces,
+  terminals,
+  theme,
+} from "herdr";
 import {
   GLYPH,
   METRICS,
@@ -19,12 +33,15 @@ import {
   ringArc,
 } from "./ui.js";
 import { repoRoot, watchJsonDir } from "./data.js";
+import { describe, domainTag } from "./domains.js";
 import {
+  activityFor,
   agentOrder,
   agentTime,
   assignNames,
   buildGroups,
   buildStructure,
+  collectSubagents,
   contextFor,
   nestSpaces,
   nextTick,
@@ -99,6 +116,11 @@ export default class Workspace extends View {
       this.sessions = files;
       cx.notify();
     });
+    this.activity = {};
+    this.activityWatch = watchJsonDir(cx, "activity", (files) => {
+      this.activity = files;
+      cx.notify();
+    });
     if (checking()) return;
     cx.spawn(async (cx) => {
       for (;;) {
@@ -112,6 +134,7 @@ export default class Workspace extends View {
 
   close() {
     this.watch?.cancel();
+    this.activityWatch?.cancel();
   }
 
   toggleView() {
@@ -260,21 +283,16 @@ export default class Workspace extends View {
 
   // [段 × 字下げ][記号の枠][間][名前 …][右端]
   // baseline: まとまりの見出し。印を木構造の記号の枠ではなく、帯の全体の記号の列 (glyphCol) に置く
-  row(r, i, { slot, name, right = [], onClick, focused, baseline = false }) {
-    return h_flex()
-      .id(`row-${r.key}`)
+  // second: 2 行目の文 (状態の表示のエージェントの行だけ)。名前の文字の頭に揃え、上を 2px 空ける
+  row(r, i, { slot, name, right = [], onClick, focused, baseline = false, second = null }) {
+    const indent = METRICS.padLeft + r.depth * cells(METRICS.indentCells);
+    const line = h_flex()
       .flex_none()
       .w_full()
       .h(METRICS.row)
-      .pl(METRICS.padLeft + r.depth * cells(METRICS.indentCells))
+      .pl(indent)
       .pr(PAD_RIGHT)
       .items_center()
-      .when(focused && i === this.cursor, (el) => el.bg(PALETTE.surface0))
-      .on_click((_e, cx) => {
-        this.cursor = i;
-        onClick?.(cx);
-        cx.notify();
-      })
       .child(
         div()
           .relative()
@@ -289,6 +307,45 @@ export default class Workspace extends View {
       .when(!baseline, (el) => el.child(div().flex_none().w(cells(METRICS.gapCells))))
       .child(h_flex().flex_1().min_w(0).gap(cells(1)).items_center().children(name))
       .children(right);
+    const nameLeft = indent + (baseline ? METRICS.glyphCol : cells(METRICS.slotCells + METRICS.gapCells));
+    const el = second
+      ? v_flex()
+          .flex_none()
+          .w_full()
+          .child(line)
+          .child(
+            div()
+              .flex_none()
+              .w_full()
+              .pt(2)
+              .pl(nameLeft)
+              .pr(PAD_RIGHT)
+              .child(div().truncate().text_color(theme().dim).child(second)),
+          )
+      : line;
+    return el
+      .id(`row-${r.key}`)
+      .when(focused && i === this.cursor, (el) => el.bg(PALETTE.surface0))
+      .on_click((_e, cx) => {
+        this.cursor = i;
+        onClick?.(cx);
+        cx.notify();
+      });
+  }
+
+  // 分野の札。muted の枠付きの小さな字
+  tag(text) {
+    const color = theme().muted;
+    return div()
+      .flex_none()
+      .mr(cells(1))
+      .px(4)
+      .border_1()
+      .border_color(color)
+      .rounded(3)
+      .text_size(METRICS.fontSize - 2)
+      .text_color(color)
+      .child(text);
   }
 
   glyph(text, color) {
@@ -368,9 +425,19 @@ export default class Workspace extends View {
     }
     if (r.kind === "agent") {
       const name = [div().flex_none().text_color(mark(r.label).color).child(r.label)];
-      if (this.view === "status" && r.spaceName) name.push(div().truncate().text_color(PALETTE.overlay2).child(r.spaceName));
+      let second = null;
+      // 札と 2 行目は状態の表示でだけ出す
+      if (this.view === "status") {
+        if (r.spaceName) name.push(div().truncate().text_color(PALETTE.overlay2).child(r.spaceName));
+        const actions = activityFor(r.address, this.activity, ctx.liveAgents)?.actions;
+        const list = Array.isArray(actions) ? actions.filter((a) => a && typeof a === "object") : [];
+        const tag = domainTag(list);
+        if (tag) name.push(this.tag(tag));
+        second = describe(list[0] ?? null);
+      }
       return this.row(r, i, {
         ...base,
+        second,
         slot: this.agentSlot(r),
         name,
         right: this.rightSide(r, now),
@@ -408,7 +475,8 @@ export default class Workspace extends View {
     this.refreshRepos(spaceList, cx);
     const names = this.updateNames(liveAgents);
     this.updateTimes(liveAgents, spaceList, now);
-    const input = { agents: liveAgents, subagents: {}, names, collapsed: this.collapsed };
+    const subagents = collectSubagents(liveAgents, this.activity, terminals());
+    const input = { agents: liveAgents, subagents, names, collapsed: this.collapsed };
     const rows =
       this.view === "status"
         ? buildGroups(input)
@@ -420,6 +488,7 @@ export default class Workspace extends View {
     const ctx = {
       now,
       cx,
+      liveAgents,
       focused: this.handle.is_focused(),
       panes: panes(),
       spaceById: new Map(spaceList.map((s) => [s.id, s])),

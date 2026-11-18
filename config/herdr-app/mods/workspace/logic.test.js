@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nestSpaces, contextFor, assignNames, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, agentOrder } from "./logic.js";
+import { nestSpaces, contextFor, assignNames, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, agentOrder, collectSubagents, activityFor } from "./logic.js";
 
 const sp = (id, tabs, extra = {}) => ({ id, name: id, folder: `/r/${id}`, status: null, tabs, ...extra });
 const tab = (id, extra = {}) => ({ id, name: id, named: false, status: null, working_since: null, changed_at: null, ...extra });
@@ -117,4 +117,34 @@ test("buildGroups: サブエージェントは depth 2、エージェントの�
   assert.equal(rows[1].spaceName, "dotfiles");
   assert.equal(rows[0].open, true);
   assert.deepEqual(buildGroups({ agents: [], subagents: {}, names: {}, collapsed: new Set() }), []);
+});
+
+test("collectSubagents: 作業中の Claude Code のサブエージェントと hc run の端末", () => {
+  const live = [ag("t1", "tab1", "working"), ag("t2", "tab2"), ag("laptop/t3", "tab3")];
+  const activity = {
+    t1: { subagents: [
+      { id: "a1", type: "Explore", status: "working" },
+      { id: "a2", type: "Plan", status: "done" },
+    ] },
+    t3: { subagents: [{ id: "x", type: "Explore", status: "working" }] }, // 別のコンピューターの t3 と結ばない
+    gone: { subagents: [{ id: "y", type: "Explore", status: "working" }] }, // agents() にない端末
+  };
+  const terms = [
+    { address: "t9", parent: "t1", state: "live", name: "lint", argv: ["npm"] },
+    { address: "t10", parent: "t2", state: "live", argv: ["pytest", "-x"] },
+    { address: "t11", parent: "t2", state: "finished", argv: ["old"] },
+    { address: "t12", parent: "t5", state: "live", argv: ["x"] },
+  ];
+  assert.deepEqual(collectSubagents(live, activity, terms), {
+    t1: [{ id: "a1", type: "Explore" }, { id: "t9", type: "lint" }],
+    t2: [{ id: "t10", type: "pytest" }],
+  });
+  assert.deepEqual(collectSubagents(live, {}, []), {});
+});
+test("activityFor: agents() にない端末と別のコンピューターの端末は引かない", () => {
+  const activity = { t1: { actions: [] }, t3: { actions: [] } };
+  const live = [ag("t1", "a"), ag("laptop/t3", "b")];
+  assert.deepEqual(activityFor("t1", activity, live), { actions: [] });
+  assert.equal(activityFor("laptop/t3", activity, live), null);
+  assert.equal(activityFor("t3", activity, live), null);
 });

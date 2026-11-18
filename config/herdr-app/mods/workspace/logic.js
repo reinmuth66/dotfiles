@@ -37,6 +37,32 @@ export function contextFor(address, sessions) {
   return sessions[address] ?? null;
 }
 
+// data/activity の記録。agents() にない端末 (終わったセッションの残り) と別のコンピューターの端末では引かない
+export function activityFor(address, activity, liveAgents) {
+  if (isRemoteAddress(address)) return null;
+  if (!liveAgents.some((a) => a.address === address)) return null;
+  return activity[address] ?? null;
+}
+
+// エージェントごとのサブエージェント。hook が書いた作業中の Claude Code のサブエージェントと、
+// そのエージェントが hc run で起動して動いている端末 (parent がそのエージェント)
+export function collectSubagents(liveAgents, activity, terminals) {
+  const out = {};
+  for (const agent of liveAgents) {
+    const list = [];
+    const subs = activityFor(agent.address, activity, liveAgents)?.subagents;
+    if (Array.isArray(subs)) {
+      for (const s of subs) if (s?.status === "working" && s.id != null) list.push({ id: String(s.id), type: String(s.type ?? "agent") });
+    }
+    for (const t of terminals) {
+      if (t.parent !== agent.address || t.state !== "live") continue;
+      list.push({ id: t.address, type: t.name ?? t.argv?.[0] ?? t.address });
+    }
+    if (list.length > 0) out[agent.address] = list;
+  }
+  return out;
+}
+
 // 生きている端末の名前は変えず、消えた端末の名前は外す。新しい端末には使われていない名前を前から付ける。
 // 全部使われていたら "Mocha 2"、"Mocha 3" (名簿の順で、使われていない最初のもの)
 export function assignNames(prev, live, roster) {
