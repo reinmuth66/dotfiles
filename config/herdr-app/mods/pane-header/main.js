@@ -5,7 +5,7 @@ import { View, div, PathBuilder } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { home, panes, props, run, shared, theme } from "herdr";
 import { METRICS, PALETTE, isRemoteAddress, mark, ringArc } from "./ui.js";
-import { repoRoot, watchJsonDir } from "./data.js";
+import { repoRootNow, watchJsonDir } from "./data.js";
 import { headerFor, isAgentPane } from "./logic.js";
 
 const FONT = "Moralerspace Neon HW";
@@ -27,7 +27,7 @@ function ringElement(fraction, color) {
 export default class PaneHeader extends View {
   init(_props, cx) {
     this.sessions = {};
-    this.roots = new Map(); // cwd → git のルート (null: git の外)。undefined のあいだは読んでいる
+    this.roots = new Map(); // cwd → git のルート (repoRootNow が使う)
     this.watch = watchJsonDir(cx, "sessions", (files) => {
       this.sessions = files;
       cx.notify();
@@ -39,14 +39,7 @@ export default class PaneHeader extends View {
   }
 
   rootOf(cwd, cx) {
-    if (!cwd) return null;
-    if (this.roots.has(cwd)) return this.roots.get(cwd) ?? null;
-    this.roots.set(cwd, undefined);
-    cx.spawn(async (cx) => {
-      this.roots.set(cwd, await repoRoot(cwd));
-      cx.notify();
-    });
-    return null;
+    return repoRootNow(this.roots, cwd, cx);
   }
 
   // 輪とマークを同じ中心に重ねる

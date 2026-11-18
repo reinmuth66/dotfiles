@@ -7,7 +7,7 @@ import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, Scrollbar, TextView, v_virtual_list } from "gpui-base";
 import { agents, appHome, checking, exec, focused, nextCommand, readTextFile, settings, shared, spaces, theme } from "herdr";
 import { METRICS, PALETTE, REMOTE_LABEL, cells, isRemoteAddress, isRemoteSpace } from "./ui.js";
-import { repoRoot, watchJsonDir } from "./data.js";
+import { RETRY_MS, repoRoot, watchJsonDir } from "./data.js";
 import { diffArgs, parseUnifiedDiff } from "./diff.js";
 import {
   MAX_TEXT_BYTES,
@@ -93,19 +93,23 @@ async function withTmpDir(fn) {
   }
 }
 
-const heads = new Map();
+const heads = new Map(); // 根 → { promise, failedAt }
 
-// HEAD があるか (コミットのないリポジトリでは HEAD との差が取れない)。根ごとに覚える
+// HEAD があるか (コミットのないリポジトリでは HEAD との差が取れない)。あるものは根ごとにずっと覚え、
+// ないもの (または時間切れ) は RETRY_MS だけ覚える (最初のコミットを拾う)
 function hasHead(root) {
-  if (!heads.has(root)) {
-    heads.set(
-      root,
-      exec("git", ["rev-parse", "--verify", "-q", "HEAD"], { cwd: root, timeout: GIT_TIMEOUT })
-        .then((r) => r.code === 0)
-        .catch(() => false),
-    );
-  }
-  return heads.get(root);
+  const hit = heads.get(root);
+  if (hit && (hit.failedAt === null || Date.now() - hit.failedAt < RETRY_MS)) return hit.promise;
+  const entry = { promise: null, failedAt: null };
+  entry.promise = exec("git", ["rev-parse", "--verify", "-q", "HEAD"], { cwd: root, timeout: GIT_TIMEOUT })
+    .then((r) => r.code === 0)
+    .catch(() => false)
+    .then((ok) => {
+      if (!ok) entry.failedAt = Date.now();
+      return ok;
+    });
+  heads.set(root, entry);
+  return entry.promise;
 }
 
 export default class Preview extends View {

@@ -22,7 +22,7 @@ import {
   watchFolder,
 } from "herdr";
 import { GLYPH, METRICS, PALETTE, REMOTE_LABEL, cells, isRemoteAddress, isRemoteSpace } from "./ui.js";
-import { repoRoot } from "./data.js";
+import { RETRY_MS, repoRoot } from "./data.js";
 import { GIT_STYLE, counts, fileIcon, flatten, folderState, openerFor, parseStatus, treeRoot } from "./logic.js";
 import { REFS_ARGS, failureReason, filterBranches, parseRefs, switchPlan } from "./branches.js";
 import { renderPicker } from "./picker.js";
@@ -109,6 +109,7 @@ export default class Tree extends View {
   init(_props, cx) {
     this.showHidden = load("showHidden", false) === true;
     this.spaceKey = null; // 根を決めた space (id とフォルダ)
+    this.noRepoAt = null; // git が見つからなかった時刻 (ms)。見つかったか読んでいるあいだは null
     this.root = null; // 絶対パス。null: 根がない (別のコンピューター、space がない、まだ決めていない)
     this.remote = false;
     this.isRepo = false;
@@ -165,8 +166,11 @@ export default class Tree extends View {
     const cwd = pane?.cwd || null;
     const remote = isRemoteSpace(space) || (pane != null && isRemoteAddress(pane.pane));
     const key = space ? JSON.stringify([space.id, space.folder, space.machine, remote, cwd]) : null;
-    if (key === this.spaceKey) return;
+    // git が見つからなかった根は、RETRY_MS たったら決め直す (後からの git init を拾う)
+    const retry = this.noRepoAt != null && Date.now() - this.noRepoAt >= RETRY_MS;
+    if (key === this.spaceKey && !retry) return;
     this.spaceKey = key;
+    this.noRepoAt = null;
     if (!space || remote) {
       this.setRoot(null, false, Boolean(space), cx);
       return;
@@ -176,6 +180,7 @@ export default class Tree extends View {
       const cwdTop = cwd ? await repoRoot(cwd) : null;
       const top = cwdTop ? null : space.folder ? await repoRoot(space.folder) : null;
       if (this.spaceKey !== key) return;
+      if (!(cwdTop ?? top)) this.noRepoAt = Date.now();
       const root = treeRoot({ space, repoRoot: top, cwdRepoRoot: cwdTop, home: home() });
       this.setRoot(root, Boolean(cwdTop ?? top), false, cx);
       cx.notify();

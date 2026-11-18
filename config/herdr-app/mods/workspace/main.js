@@ -32,7 +32,7 @@ import {
   paneLabel,
   ringArc,
 } from "./ui.js";
-import { repoRoot, watchJsonDir } from "./data.js";
+import { RETRY_MS, repoRootNow, watchJsonDir } from "./data.js";
 import { describe, domainTag } from "./domains.js";
 import {
   activityFor,
@@ -104,7 +104,8 @@ export default class Workspace extends View {
     this.sessions = {};
     this.repos = {};
     this.reposKey = null;
-    this.roots = new Map(); // cwd → git のルート (null: git の外)。undefined のあいだは読んでいる
+    this.reposAt = null; // 最後に読み終えた時刻 (ms)
+    this.roots = new Map(); // cwd → git のルート (repoRootNow が使う)
     this.cursor = 0;
     this.rows = [];
     this.tick = null;
@@ -149,12 +150,15 @@ export default class Workspace extends View {
     save("collapsed", [...this.collapsed]);
   }
 
-  // space ごとの git の場所 (worktree の入れ子に使う)。folder が変わったときだけ読み直す
+  // space ごとの git の場所 (worktree の入れ子に使う)。folder が変わったときに読み直す。
+  // git の外 (または時間切れ) の space があれば、RETRY_MS たったら読み直す (後からの git init を拾う)
   refreshRepos(list, cx) {
     const local = list.filter((s) => !isRemoteSpace(s));
     const key = JSON.stringify(local.map((s) => [s.id, s.folder]));
-    if (key === this.reposKey) return;
+    const missing = this.reposAt != null && local.some((s) => !this.repos[s.id]);
+    if (key === this.reposKey && !(missing && Date.now() - this.reposAt >= RETRY_MS)) return;
     this.reposKey = key;
+    this.reposAt = null; // 読んでいるあいだは読み直さない
     cx.spawn(async (cx) => {
       const repos = {};
       for (const space of local) {
@@ -171,20 +175,15 @@ export default class Workspace extends View {
         }
       }
       if (this.reposKey !== key) return;
+      this.reposAt = Date.now();
+      if (sameJson(repos, this.repos)) return;
       this.repos = repos;
       cx.notify();
     });
   }
 
   rootOf(cwd, cx) {
-    if (!cwd) return null;
-    if (this.roots.has(cwd)) return this.roots.get(cwd) ?? null;
-    this.roots.set(cwd, undefined);
-    cx.spawn(async (cx) => {
-      this.roots.set(cwd, await repoRoot(cwd));
-      cx.notify();
-    });
-    return null;
+    return repoRootNow(this.roots, cwd, cx);
   }
 
   // エージェントのいないタブの名前と記号。名前は枠の見出しと同じ決まり、rename した名前が先
