@@ -72,7 +72,8 @@ test("buildStructure: エージェントが 1 つのタブは畳む", () => {
   const nested = [{ space: sp("s1", [tab("a"), tab("b"), tab("c", { named: true, name: "logs" })]), depth: 0 }];
   const rows = buildStructure({ nested, agents: [ag("t1", "a", "working")], subagents: {}, names: { t1: "Mocha" }, collapsed: new Set() });
   assert.deepEqual(rows.map((r) => [r.kind, r.depth, r.label]), [["space", 0, "s1"], ["agent", 1, "Mocha"], ["tab", 1, null], ["tab", 1, "logs"]]);
-  assert.equal(rows[0].status, "working");
+  assert.equal(rows[0].status, null);
+  assert.equal(rows[1].status, "working");
   assert.deepEqual(rows.map((r) => r.key), ["space:s1", "agent:t1", "tab:b", "tab:c"]);
 });
 test("buildStructure: サブエージェントがいれば展開し、畳める", () => {
@@ -98,9 +99,12 @@ test("buildStructure: エージェントが 2 つのタブは下に並べ、work
     ["space", 0, "s1"], ["tab", 1, null], ["agent", 2, "Mocha"], ["agent", 2, "a"],
     ["space", 1, "s2"], ["agent", 2, "z"],
   ]);
-  assert.equal(rows[0].status, "blocked");
+  // 開いた space は中の行が状態を出すので、space の行には出さない
+  assert.equal(rows[0].status, null);
   assert.equal(rows[1].status, "blocked");
-  assert.equal(rows[4].status, "done");
+  assert.equal(rows[4].status, null);
+  const closed = buildStructure({ nested, agents, subagents: {}, names: {}, collapsed: new Set(["space:s1", "space:s2"]) });
+  assert.deepEqual(closed.map((r) => r.status), ["blocked", "done"]);
 });
 test("buildGroups と agentOrder: 入力待ちが先、Idle は畳める", () => {
   const agents = [ag("t1", "a", "working"), ag("t2", "b", "blocked"), ag("t3", "c", "idle")];

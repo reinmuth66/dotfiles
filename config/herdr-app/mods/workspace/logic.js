@@ -153,7 +153,8 @@ export function buildStructure({ nested, agents, subagents, names, collapsed }) 
       kind: "space",
       depth,
       label: space.name,
-      status: mostUrgent(statuses),
+      // 開いているときは中の行が状態を出すので、畳んだときだけまとめて出す
+      status: open ? null : mostUrgent(statuses),
       spaceId: space.id,
       open,
       hasChildren: space.tabs.length > 0,
