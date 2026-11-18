@@ -4,7 +4,7 @@ import * as fs from "fs/promises";
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import { appHome, checking, exec, focused, home, nextCommand, panes, readTextFile, run, setShared, spaces, theme, watchFolder } from "herdr";
-import { GLYPH, METRICS, PALETTE, REMOTE_LABEL, cells, isRemoteSpace } from "./ui.js";
+import { GLYPH, METRICS, PALETTE, REMOTE_LABEL, cells, isRemoteAddress, isRemoteSpace } from "./ui.js";
 import { repoRoot } from "./data.js";
 import { GIT_STYLE, counts, fileIcon, flatten, folderState, openerFor, parseStatus, treeRoot } from "./logic.js";
 
@@ -40,13 +40,13 @@ function currentSpace() {
   return list.find((s) => s.id === id) ?? list.find((s) => s.active) ?? null;
 }
 
-// 今見ているタブの枠のブランチ。focused() の枠、なければそのタブで focus を持つ枠
-function currentBranch() {
+// 今見ているタブの枠。focused() の枠、なければそのタブの最初の端末の枠。
+// ツリーの根とブランチの欄は、どちらもこの枠の場所で決める
+function currentPane() {
   const f = focused();
   if (!f) return null;
   const all = panes();
-  const pane = (f.pane && all.find((p) => p.pane === f.pane)) || all.find((p) => p.tab === f.tab && p.focused);
-  return pane?.branch ?? null;
+  return (f.pane && all.find((p) => p.pane === f.pane)) || all.find((p) => p.tab === f.tab && p.terminal) || null;
 }
 
 async function readFolder(path) {
@@ -131,21 +131,25 @@ export default class Tree extends View {
     this.context = null;
   }
 
-  // space が変わったら根を決め直す。git のルートは非同期なので、決まるまでは前の根のまま
-  updateRoot(cx) {
+  // space か、今見ている枠の場所が変わったら根を決め直す。git のルートは非同期なので、決まるまでは前の根のまま
+  updateRoot(pane, cx) {
     const space = currentSpace();
-    const key = space ? JSON.stringify([space.id, space.folder, space.machine]) : null;
+    const cwd = pane?.cwd || null;
+    const remote = isRemoteSpace(space) || (pane != null && isRemoteAddress(pane.pane));
+    const key = space ? JSON.stringify([space.id, space.folder, space.machine, remote, cwd]) : null;
     if (key === this.spaceKey) return;
     this.spaceKey = key;
-    if (!space || isRemoteSpace(space)) {
+    if (!space || remote) {
       this.setRoot(null, false, Boolean(space), cx);
       return;
     }
     if (checking()) return;
     cx.spawn(async (cx) => {
-      const top = space.folder ? await repoRoot(space.folder) : null;
+      const cwdTop = cwd ? await repoRoot(cwd) : null;
+      const top = cwdTop ? null : space.folder ? await repoRoot(space.folder) : null;
       if (this.spaceKey !== key) return;
-      this.setRoot(treeRoot({ space, repoRoot: top, home: home() }), Boolean(top), false, cx);
+      const root = treeRoot({ space, repoRoot: top, cwdRepoRoot: cwdTop, home: home() });
+      this.setRoot(root, Boolean(cwdTop ?? top), false, cx);
       cx.notify();
     });
   }
@@ -440,7 +444,8 @@ export default class Tree extends View {
   }
 
   render(cx) {
-    this.updateRoot(cx);
+    const pane = currentPane();
+    this.updateRoot(pane, cx);
     const isFocused = this.handle.is_focused();
     const base = v_flex()
       .id("tree")
@@ -472,7 +477,8 @@ export default class Tree extends View {
       ? flatten({ children: this.children, open: this.open, showHidden: this.showHidden, ignored: this.ignored })
       : [];
     this.rows = [{ kind: "root", name: baseName(this.root) }, ...entries.map((r) => ({ kind: "entry", ...r }))];
-    this.branch = currentBranch();
+    // 根が git のリポジトリで、枠にブランチがあるときだけ出す (ホームのフォルダでは数も欄も出ない)
+    this.branch = this.isRepo ? (pane?.branch ?? null) : null;
     const max = this.rows.length - 1 + (this.branch ? 1 : 0);
     this.cursor = Math.min(this.cursor, max);
     return base

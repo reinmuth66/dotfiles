@@ -61,6 +61,10 @@ test("treeRoot", () => {
   assert.equal(treeRoot({ space: { machine: null, folder: "/r/y" }, repoRoot: null, home: "/h" }), "/r/y");
   assert.equal(treeRoot({ space: { machine: "laptop", folder: "/r/x" }, repoRoot: null, home: "/h" }), null);
   assert.equal(treeRoot({ space: null, repoRoot: null, home: "/h" }), null);
+  // 枠の cwd の git のルートが先
+  assert.equal(treeRoot({ space: { machine: null, folder: "/r/x" }, repoRoot: "/r/x", cwdRepoRoot: "/r/z", home: "/h" }), "/r/z");
+  assert.equal(treeRoot({ space: { machine: null, folder: "" }, repoRoot: null, cwdRepoRoot: "/r/z", home: "/h" }), "/r/z");
+  assert.equal(treeRoot({ space: { machine: "laptop", folder: "/r/x" }, repoRoot: null, cwdRepoRoot: "/r/z", home: "/h" }), null);
 });
 test("openerFor", () => {
   assert.deepEqual(openerFor("/a/b.kicad_pcb"), ["open", "-a", "KiCad", "/a/b.kicad_pcb"]);

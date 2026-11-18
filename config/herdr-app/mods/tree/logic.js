@@ -88,10 +88,11 @@ export function flatten({ children, open, showHidden, ignored }) {
   return rows;
 }
 
-// 別のコンピューターの space と、space がないときは null (フォルダも git も読まない)
-export function treeRoot({ space, repoRoot, home }) {
+// 根は今見ている枠の場所で決める: 枠の cwd の git のルート、space の folder の git のルート、
+// space の folder (空ならホーム) の順。別のコンピューターの space と、space がないときは null
+export function treeRoot({ space, repoRoot, cwdRepoRoot = null, home }) {
   if (!space || isRemoteSpace(space)) return null;
-  return repoRoot ?? (space.folder || home);
+  return cwdRepoRoot ?? repoRoot ?? (space.folder || home);
 }
 
 const OPENERS = [
