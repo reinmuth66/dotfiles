@@ -1,4 +1,10 @@
-{ config, lib, ... }:
+{
+  config,
+  inputs,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
   # herdr アプリの設定フォルダ。herdr 自身も同じフォルダに書く (AGENTS.md、*.d.ts、view.json、
@@ -34,5 +40,11 @@ in
     })
     // lib.genAttrs (map (m: "herdr-app/mods/${m}") mods) (name: {
       source = link (lib.removePrefix "herdr-app/" name);
-    });
+    })
+    // {
+      # ツリーの mod が使うファイルのアイコンの表 (yazi の [icon])。data/ には herdr も書くので、
+      # フォルダではなく、このファイルだけを配る
+      "herdr-app/data/yazi-icons.json".source =
+        inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.yazi-icons;
+    };
 }

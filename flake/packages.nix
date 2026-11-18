@@ -16,6 +16,8 @@
         marp-engine = pkgs.callPackage ../pkgs/marp-engine { };
         # 設定 (~/.marprc.yml) を必ず読み、端末以外から呼んでも止まらない marp コマンド
         marp = pkgs.callPackage ../pkgs/marp { };
+        # yazi の [icon] の表。herdr のツリーの mod がファイルのアイコンに使う
+        yazi-icons = pkgs.callPackage ../pkgs/yazi-icons { };
       }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
         cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
