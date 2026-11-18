@@ -113,28 +113,34 @@ export default class Usage extends View {
     return track.children(parts);
   }
 
+  // 5h ━━━━│━━━  3%  4h50m。幅を固定して、帯の両端を行ごとに揃える
   barRow(w, now, t) {
     const v = windowView(w, now);
-    const right = [
-      ...(v.remaining ? [div().text_color(t.dim).child(v.remaining), div().text_color(t.dim).child("/")] : []),
-      div().font_weight(700).text_color(v.barColor).child(String(w.key)),
-    ];
     return h_flex()
       .flex_none()
       .h(METRICS.row)
       .items_center()
       .gap(cells(1))
+      .child(div().flex_none().w(cells(2)).font_weight(700).text_color(v.barColor).child(String(w.key)))
       .child(h_flex().flex_1().min_w(0).items_center().child(this.bar(v)))
       .child(
         div()
           .flex_none()
-          .w(cells(6))
+          .w(cells(4))
           .flex()
           .justify_end()
           .text_color(v.usedColor)
-          .child(`${v.used.toFixed(1)}%`),
+          .child(`${Math.round(v.used)}%`),
       )
-      .child(h_flex().flex_none().min_w(cells(9)).justify_end().children(right));
+      .child(
+        div()
+          .flex_none()
+          .w(cells(5))
+          .flex()
+          .justify_end()
+          .text_color(t.dim)
+          .child(v.remaining ?? ""),
+      );
   }
 
   render() {
