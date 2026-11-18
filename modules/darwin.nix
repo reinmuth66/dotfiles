@@ -51,6 +51,14 @@
       echo "restoring Google Japanese Input icon..." >&2
       /bin/cp ${../assets/hiragana_mono.tiff} "$icon"
     fi
+
+    # カーソル近くに出る入力ソースと Caps Lock の表示 (CursorUIViewService) を消す。
+    # 文書化されていない UIKit のフラグで、カーソルの幅やアニメーションも元に戻る。反映には再起動が要る。
+    # この行を消しても元には戻らない。戻すときは次を実行して再起動する:
+    #   sudo defaults delete /Library/Preferences/FeatureFlags/Domain/UIKit.plist redesigned_text_cursor
+    /bin/mkdir -p /Library/Preferences/FeatureFlags/Domain
+    /usr/bin/defaults write /Library/Preferences/FeatureFlags/Domain/UIKit.plist \
+      redesigned_text_cursor -dict-add Enabled -bool NO
   '';
 
   nixpkgs.config.allowUnfreePredicate =
