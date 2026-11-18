@@ -16,6 +16,7 @@
     ./ripgrep.nix
     ./atuin.nix
     ./gh.nix
+    ./gh-dash.nix
     ./starship.nix
     ./zed.nix
     ./wezterm.nix
