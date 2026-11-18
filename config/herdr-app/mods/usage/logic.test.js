@@ -32,10 +32,17 @@ test("windowView: 超過と色", () => {
   assert.equal(v.overColor, PALETTE.peach); // 95.2 - 86.7 = 8.5 ポイント
   assert.equal(windowView({ ...w, key: "7d", used_percentage: 50, duration: 604800, resets_at: 10_000 + 3 * 86400 + 4 * 3600 }, 10_000).remaining, "3d04h");
 });
-test("windowView: リセットの時刻を過ぎた値", () => { // Review Focus 4
-  const v = windowView({ key: "5h", used_percentage: 95, resets_at: 100, duration: 18000 }, 200);
-  assert.equal(v.reset, true);
-  assert.equal(v.remaining, null);
+test("windowView: リセットの時刻を過ぎたら次の窓を推定する", () => {
+  const w = { key: "5h", used_percentage: 95, resets_at: 100, duration: 18000 };
+  const v = windowView(w, 200);
+  assert.equal(v.used, 0);
+  assert.equal(v.over, 0);
+  assert.equal(v.overColor, null);
+  assert.equal(v.remaining, "4h58m"); // 残り 17900 秒
+  assert.ok(Math.abs(v.elapsed - 100 / 18000) < 1e-9);
+  assert.equal(windowView(w, 100).remaining, "5h00m"); // ちょうどの時刻
+  assert.equal(windowView(w, 100 + 3 * 18000 + 60).remaining, "4h59m"); // 窓を 3 回以上進める
+  assert.equal("reset" in v, false);
 });
 test("windowView: 区切りごとの色、超過なし、赤の超過、h の形", () => {
   const base = { used_percentage: 10, resets_at: 10_000 + 2 * 3600 + 5 * 60, duration: 18000 };
@@ -44,7 +51,6 @@ test("windowView: 区切りごとの色、超過なし、赤の超過、h の形
   assert.equal(v.usedColor, PALETTE.sky);
   assert.equal(v.over, 0);
   assert.equal(v.overColor, null);
-  assert.equal(v.reset, false);
   assert.equal(v.barColor, PALETTE.sky);
   assert.equal(windowView({ ...base, key: "7d" }, 10_000).usedColor, PALETTE.mauve);
   assert.equal(windowView({ ...base, key: "7d" }, 10_000).barColor, PALETTE.mauve);
@@ -59,6 +65,5 @@ test("windowView: 経過は 0 から 1、値がないときは null", () => {
   const none = windowView({ key: "5h", used_percentage: 5, resets_at: null, duration: 18000 }, 10_000);
   assert.equal(none.elapsed, null);
   assert.equal(none.remaining, null);
-  assert.equal(none.reset, false);
   assert.equal(none.over, 0);
 });

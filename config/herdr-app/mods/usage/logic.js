@@ -31,20 +31,21 @@ function formatCountdown(secs) {
 
 const BASE_COLOR = { "5h": "sky", "7d": "mauve" };
 
-// 1 本の帯の値。used は使用率 (%)、elapsed と over は 0 から 1 の割合
+// 1 本の帯の値。used は使用率 (%)、elapsed と over は 0 から 1 の割合。
+// リセットの時刻を過ぎていたら、statusline が書き直すまで次の窓 (使用率 0) を推定して出す
 export function windowView(w, nowSec) {
-  const used = Number(w.used_percentage) || 0;
   const known = w.resets_at != null && w.duration > 0;
-  const reset = known && nowSec >= w.resets_at;
-  const elapsed = known ? Math.min(1, Math.max(0, 1 - (w.resets_at - nowSec) / w.duration)) : null;
+  const passed = known && nowSec >= w.resets_at;
+  const resetsAt = passed ? w.resets_at + w.duration * (Math.floor((nowSec - w.resets_at) / w.duration) + 1) : w.resets_at;
+  const used = passed ? 0 : Number(w.used_percentage) || 0;
+  const elapsed = known ? Math.min(1, Math.max(0, 1 - (resetsAt - nowSec) / w.duration)) : null;
   const over = elapsed == null ? 0 : Math.max(0, used / 100 - elapsed);
   const barColor = PALETTE[BASE_COLOR[w.key] ?? "sky"];
   return {
     used,
     elapsed,
     over,
-    reset,
-    remaining: known && !reset ? formatCountdown(Math.floor(w.resets_at - nowSec)) : null,
+    remaining: known ? formatCountdown(Math.floor(resetsAt - nowSec)) : null,
     barColor, // 帯の使用分の色。90% 以上でも区切りの色のまま
     usedColor: used >= 90 ? PALETTE.red : barColor,
     overColor: over > 0 ? (over < 0.1 ? PALETTE.peach : PALETTE.red) : null,

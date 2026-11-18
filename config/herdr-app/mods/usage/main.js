@@ -98,7 +98,7 @@ export default class Usage extends View {
     const fill = (left, width, color) =>
       div().absolute().top(0).left(pct(left)).w(pct(width)).h_full().rounded(BAR_HEIGHT / 2).bg(color);
     const parts = [fill(0, v.used / 100, v.barColor)];
-    if (v.elapsed != null && !v.reset) {
+    if (v.elapsed != null) {
       if (v.overColor) parts.push(fill(v.elapsed, v.over, v.overColor));
       parts.push(
         div()
@@ -115,18 +115,16 @@ export default class Usage extends View {
 
   barRow(w, now, t) {
     const v = windowView(w, now);
-    const right = v.reset
-      ? [div().text_color(t.dim).child("リセット済み")]
-      : [
-          ...(v.remaining ? [div().text_color(t.dim).child(v.remaining), div().text_color(t.dim).child("/")] : []),
-          div().font_weight(700).text_color(PALETTE.text).child(String(w.key)),
-        ];
+    const right = [
+      ...(v.remaining ? [div().text_color(t.dim).child(v.remaining), div().text_color(t.dim).child("/")] : []),
+      div().font_weight(700).text_color(v.barColor).child(String(w.key)),
+    ];
     return h_flex()
       .flex_none()
       .h(METRICS.row)
       .items_center()
       .gap(cells(1))
-      .child(h_flex().flex_1().min_w(0).items_center().when(v.reset, (el) => el.opacity(0.4)).child(this.bar(v)))
+      .child(h_flex().flex_1().min_w(0).items_center().child(this.bar(v)))
       .child(
         div()
           .flex_none()
@@ -134,7 +132,6 @@ export default class Usage extends View {
           .flex()
           .justify_end()
           .text_color(v.usedColor)
-          .when(v.reset, (el) => el.opacity(0.4))
           .child(`${v.used.toFixed(1)}%`),
       )
       .child(h_flex().flex_none().min_w(cells(9)).justify_end().children(right));
