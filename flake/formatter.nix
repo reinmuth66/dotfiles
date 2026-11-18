@@ -127,10 +127,12 @@
               touch "$out"
             '';
 
-        # herdr アプリの設定と mod の、herdr に依存しない部分 (logic.js、keys.json) の試験
+        # herdr アプリの設定と mod の、herdr に依存しない部分 (logic.js、keys.json) の試験。
+        # 試験のない main.js なども、構文だけは node --check で確かめる (import は解決しない)
         herdr-mods = pkgs.runCommand "herdr-mods-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
           cp -r ${../config/herdr-app} herdr-app
           chmod -R u+w herdr-app
+          find herdr-app -name '*.js' ! -name '*.test.js' -print0 | sort -z | xargs -0 -n 1 node --check
           tests=$(find herdr-app -name '*.test.js' | sort)
           if [ -z "$tests" ]; then
             echo "herdr-mods: 試験のファイルがない" >&2
