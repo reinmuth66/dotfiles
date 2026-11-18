@@ -38,9 +38,9 @@ test("assignNames: 全部使われていたら番号付きの名前を名簿の�
 });
 test("trackAgentTimes と agentTime", () => {
   let recs = trackAgentTimes({}, [{ address: "t1", status: "working" }], 1000, { t1: { since: 0 } });
-  assert.equal(agentTime(recs.t1, 61_000), "1m01s");
+  assert.equal(agentTime(recs.t1, 61_000), "1m");
   recs = trackAgentTimes(recs, [{ address: "t1", status: "done" }], 192_000, {});
-  assert.equal(agentTime(recs.t1, 999_999), "3m12s"); // かかった時間 = 192_000 - since (fallback の 0)
+  assert.equal(agentTime(recs.t1, 999_999), "3m"); // かかった時間 = 192_000 - since (fallback の 0)
   recs = trackAgentTimes(recs, [{ address: "t1", status: "idle" }], 200_000, {});
   assert.equal(agentTime(recs.t1, 300_000), null);
   assert.deepEqual(trackAgentTimes(recs, [], 0, {}), {});
@@ -49,7 +49,7 @@ test("trackAgentTimes: 同じ状態なら since を変えず、blocked は経過
   let recs = trackAgentTimes({}, [{ address: "t1", status: "blocked" }], 5000, { t1: { since: 2000 } });
   recs = trackAgentTimes(recs, [{ address: "t1", status: "blocked" }], 9000, {});
   assert.equal(recs.t1.since, 2000);
-  assert.equal(agentTime(recs.t1, 12_000), "10s");
+  assert.equal(agentTime(recs.t1, 12_000), "0m");
   recs = trackAgentTimes(recs, [{ address: "t1", status: "working" }], 13_000, {});
   assert.deepEqual(recs.t1, { status: "working", since: 13_000, workedMs: null });
   recs = trackAgentTimes(recs, [{ address: "t1", status: "done" }], 20_000, {});
@@ -63,7 +63,7 @@ test("trackAgentTimes: 同じ状態なら since を変えず、blocked は経過
 });
 test("nextTick", () => {
   assert.equal(nextTick({ t1: { status: "idle", since: 0 } }, 5000), null);
-  assert.equal(nextTick({ t1: { status: "working", since: 0 } }, 5_400), 1000);
+  assert.equal(nextTick({ t1: { status: "working", since: 0 } }, 5_400), 54_600); // 1 分未満でも次の分まで
   assert.equal(nextTick({ t1: { status: "working", since: 0 } }, 12 * 60_000 + 30_000), 30_000); // 分の表示になったら次の分まで
   assert.equal(nextTick({ t1: { status: "working", since: 0 }, t2: { status: "blocked", since: 0 } }, 12 * 60_000 + 30_000 - 0), 30_000);
   assert.equal(nextTick({ t1: { status: "working", since: 0 }, t2: { status: "blocked", since: 45_000 } }, 12 * 60_000 + 30_000), 15_000);

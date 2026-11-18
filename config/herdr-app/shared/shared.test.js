@@ -38,9 +38,11 @@ test("contextColor と formatTokens", () => {
   assert.equal(tokensToCompact({ used: 190000, size: 200000 }), 0);
 });
 test("formatDuration", () => {
-  assert.equal(formatDuration(42_000), "42s");
-  assert.equal(formatDuration(192_000), "3m12s");
+  assert.equal(formatDuration(42_000), "0m");
+  assert.equal(formatDuration(192_000), "3m");
   assert.equal(formatDuration(12 * 60_000 + 5_000), "12m");
+  assert.equal(formatDuration(60 * 60_000 - 1000), "59m");
+  assert.equal(formatDuration(60 * 60_000), "1h00m");
   assert.equal(formatDuration(125 * 60_000), "2h05m");
 });
 test("ringArc", () => {

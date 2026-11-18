@@ -127,12 +127,10 @@ export function formatTokens(n) {
   return `${(Math.floor(n / 100) / 10).toFixed(1)}K`;
 }
 
+// 秒は出さない (0m、12m、1h05m)
 export function formatDuration(ms) {
-  const total = Math.floor(ms / 1000);
+  const minutes = Math.floor(ms / 60_000);
   const pad = (n) => String(n).padStart(2, "0");
-  if (total < 60) return `${total}s`;
-  const minutes = Math.floor(total / 60);
-  if (minutes < 10) return `${minutes}m${pad(total % 60)}s`;
   if (minutes < 60) return `${minutes}m`;
   return `${Math.floor(minutes / 60)}h${pad(minutes % 60)}m`;
 }

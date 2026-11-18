@@ -109,14 +109,13 @@ export function agentTime(rec, now) {
   return null;
 }
 
-// 出している時間の文字が次に変わるまでの ms。10 分未満は秒、それ以上は分の単位。最小 1000
+// 出している時間の文字 (分の単位) が次に変わるまでの ms。最小 1000
 export function nextTick(recs, now) {
   let best = null;
   for (const rec of Object.values(recs)) {
     if (rec.status !== "working" && rec.status !== "blocked") continue;
     const elapsed = Math.max(0, now - rec.since);
-    const unit = elapsed < 600_000 ? 1000 : 60_000;
-    const wait = Math.max(1000, unit - (elapsed % unit));
+    const wait = Math.max(1000, 60_000 - (elapsed % 60_000));
     if (best === null || wait < best) best = wait;
   }
   return best;
