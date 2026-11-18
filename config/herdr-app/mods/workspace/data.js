@@ -32,14 +32,25 @@ export function watchJsonDir(cx, subdir, onChange) {
   let pending = null;
   cx.spawn(async (cx) => {
     if (checking()) {
-      onChange(await readJsonDir(dir));
+      const files = await readJsonDir(dir);
+      if (!stopped) onChange(files);
       return;
     }
     while (!stopped) {
-      onChange(await readJsonDir(dir));
-      if (stopped) break;
+      // 先に見張りを始めてから読む。読んでから見張ると、その間の書き込みを取りこぼす
+      let failed = false;
       try {
         pending = watchFolder(dir);
+        pending.catch(() => {}); // 読んでいる間に失敗しても、未処理の拒否にしない
+      } catch {
+        pending = null;
+        failed = true; // フォルダがまだない
+      }
+      const files = await readJsonDir(dir);
+      if (stopped) break;
+      onChange(files);
+      try {
+        if (failed) throw new Error("no watch");
         const changed = await pending;
         // フォルダがなくて即座に返るときに、空回りしない
         if (!stopped && changed.length === 0) await cx.sleep(2000);

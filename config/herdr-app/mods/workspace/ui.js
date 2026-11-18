@@ -161,7 +161,7 @@ const baseName = (path) => path.replace(/\/+$/, "").split("/").pop() || path;
 
 // 枠の見出しの、エージェント以外の 3 行 (プログラム、リポジトリの中のシェル、外のシェル)
 export function paneLabel({ processName, shell, cwd, repoRoot, home }) {
-  if (!shell) return { icon: PROCESS_ICONS[processName] ?? GLYPH.terminal, text: processName };
+  if (!shell) return { icon: (Object.hasOwn(PROCESS_ICONS, processName) ? PROCESS_ICONS[processName] : GLYPH.terminal), text: processName };
   const icon = GLYPH.shell;
   if (!cwd) return { icon, text: processName };
   const trim = (p) => (p.length > 1 ? p.replace(/\/+$/, "") : p);
