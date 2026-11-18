@@ -1,17 +1,37 @@
 // 帯のツリー。今の space のリポジトリ (なければフォルダ) を根に、開いたフォルダを字下げで並べ、
-// git の状態の印と、一番下に今見ているタブのブランチを出す。判断は logic.js、記号と色と寸法は ui.js にある
+// git の状態の印と、一番下に今見ているタブのブランチを出す。判断は logic.js、記号と色と寸法は ui.js にある。
+// ブランチの欄から開く、ブランチを選ぶ窓の判断は branches.js、描画は picker.js
 import * as fs from "fs/promises";
 import { View, div } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
-import { appHome, checking, exec, focused, home, nextCommand, panes, readTextFile, run, setShared, spaces, theme, watchFolder } from "herdr";
+import {
+  agents,
+  appHome,
+  checking,
+  exec,
+  focused,
+  home,
+  nextCommand,
+  panes,
+  readTextFile,
+  run,
+  setShared,
+  shared,
+  spaces,
+  theme,
+  watchFolder,
+} from "herdr";
 import { GLYPH, METRICS, PALETTE, REMOTE_LABEL, cells, isRemoteAddress, isRemoteSpace } from "./ui.js";
 import { repoRoot } from "./data.js";
 import { GIT_STYLE, counts, fileIcon, flatten, folderState, openerFor, parseStatus, treeRoot } from "./logic.js";
+import { REFS_ARGS, failureReason, filterBranches, parseRefs, switchPlan } from "./branches.js";
+import { renderPicker } from "./picker.js";
 
 const FONT = "Moralerspace Neon HW";
 const PAD_RIGHT = 10;
 const PER_FOLDER = 500; // 同梱の files と同じ
 const GIT_TIMEOUT = 5000;
+const SWITCH_TIMEOUT = 15000;
 const HOME_POLL = 10000;
 
 function load(key, fallback) {
@@ -102,6 +122,7 @@ export default class Tree extends View {
     this.icons = null;
     this.rows = [];
     this.cursor = 0;
+    this.picker = null; // ブランチを選ぶ窓。{ root, current, all, query, cursor, message, busy }
     this.handle = cx.focus_handle();
     this.scroll = ScrollHandle.new();
     cx.spawn(async (cx) => {
@@ -166,6 +187,7 @@ export default class Tree extends View {
     if (root === this.root && isRepo === this.isRepo) return;
     if (this.root) this.saved.set(this.root, { open: this.open, rootOpen: this.rootOpen });
     this.stopContext();
+    this.picker = null; // 窓は前の根のリポジトリのもの
     this.root = root;
     this.isRepo = isRepo;
     const saved = root ? this.saved.get(root) : null;
@@ -284,7 +306,105 @@ export default class Tree extends View {
     return false;
   }
 
+  // ブランチの欄が出ているときだけ開ける。対象は欄が出している場所 (ツリーの根のリポジトリ)
+  openPicker(cx) {
+    if (!this.branch || !this.root || checking()) return;
+    const picker = { root: this.root, current: this.branch, all: [], query: "", cursor: 0, message: null, busy: false };
+    this.picker = picker;
+    cx.spawn(async (cx) => {
+      try {
+        const r = await exec("git", REFS_ARGS, { cwd: picker.root, timeout: GIT_TIMEOUT });
+        if (this.picker !== picker) return;
+        if (r.code === 0) picker.all = parseRefs(r.stdout, picker.current, picker.root);
+        else picker.message = failureReason(r.stderr);
+      } catch (err) {
+        if (this.picker === picker) picker.message = String(err?.message ?? err);
+      }
+      cx.notify();
+    });
+  }
+
+  pickerRows() {
+    return this.picker ? filterBranches(this.picker.all, this.picker.query) : [];
+  }
+
+  // 同じリポジトリにいるエージェント。名前は agents の mod が付けたもの、なければタブの名前
+  agentStates() {
+    const names = shared("agent-names") ?? {};
+    const all = panes();
+    return agents().map((a) => ({
+      name: names[a.address] ?? a.tab_name,
+      status: a.status,
+      cwd: all.find((p) => p.pane === a.pane)?.cwd ?? null,
+    }));
+  }
+
+  choose(cx) {
+    const picker = this.picker;
+    const branch = this.pickerRows()[picker.cursor];
+    if (!branch || picker.busy) return;
+    const plan = switchPlan({
+      branch,
+      agents: this.agentStates(),
+      root: picker.root,
+      spaces: spaces().map((s) => ({ id: s.id, folder: s.folder })),
+    });
+    if (plan.action === "none") this.picker = null;
+    else if (plan.action === "refuse") picker.message = plan.reason;
+    else if (plan.action === "space") {
+      this.picker = null;
+      run("space.select", { id: plan.id });
+    } else {
+      picker.busy = true;
+      picker.message = null;
+      cx.spawn(async (cx) => {
+        try {
+          const r = await exec("git", plan.args, { cwd: picker.root, timeout: SWITCH_TIMEOUT });
+          if (r.code === 0) {
+            if (this.picker === picker) this.picker = null;
+            this.reload(cx);
+          } else picker.message = failureReason(r.stderr);
+        } catch (err) {
+          picker.message = String(err?.message ?? err);
+        } finally {
+          picker.busy = false;
+        }
+        cx.notify();
+      });
+    }
+  }
+
+  // 窓が開いている間のキー。ツリーの操作には渡さない
+  pickerKey(e, cx) {
+    const picker = this.picker;
+    const m = e.modifiers ?? {};
+    if (m.control || m.alt || m.platform) return; // アプリのキー (SHIFT|CTRL など) は通す
+    const n = this.pickerRows().length;
+    const typed = e.key_char || null;
+    if (e.key === "escape") this.picker = null;
+    else if (e.key === "enter") this.choose(cx);
+    else if (e.key === "backspace") {
+      if (picker.query) {
+        picker.query = [...picker.query].slice(0, -1).join("");
+        picker.cursor = 0;
+      }
+    } else if (e.key === "down" || (e.key === "j" && !picker.query && typed === "j")) {
+      picker.cursor = Math.min(Math.max(0, n - 1), picker.cursor + 1);
+    } else if (e.key === "up" || (e.key === "k" && !picker.query && typed === "k")) {
+      picker.cursor = Math.max(0, picker.cursor - 1);
+    } else if (typed) {
+      picker.query += typed;
+      picker.cursor = 0;
+    }
+    cx.stop_propagation();
+    cx.notify();
+  }
+
   key(e, cx) {
+    if (this.picker) {
+      this.pickerKey(e, cx);
+      return;
+    }
     const m = e.modifiers ?? {};
     if (m.control || m.alt || m.platform) return;
     // カーソルの位置: 0..rows.length-1 は行 (0 は根)、rows.length はブランチの欄 (あるときだけ)
@@ -299,9 +419,11 @@ export default class Tree extends View {
     } else if (e.key === "l" || e.key === "space") {
       if (row?.kind === "root") this.toggleRoot();
       else if (row?.dir) this.toggleFolder(row.rel, cx);
+    } else if (e.key === "b" && !m.shift) {
+      this.openPicker(cx);
     } else if (e.key === "enter") {
-      // ブランチの欄での Enter は、ブランチを選ぶ窓 (後の作業) のために空けておく
-      if (row && this.root) {
+      if (!row) this.openPicker(cx); // ブランチの欄
+      else if (this.root) {
         const [cmd, ...args] = openerFor(this.absPath(row));
         exec(cmd, args, { timeout: GIT_TIMEOUT }).catch(() => {});
       }
@@ -463,11 +585,13 @@ export default class Tree extends View {
       .font_family(FONT)
       .text_size(METRICS.fontSize)
       .text_color(PALETTE.text)
+      .relative()
       .track_focus(this.handle)
       .on_key_down((e, cx) => this.key(e, cx));
     if (this.remote) {
       this.rows = [];
       this.branch = null;
+      this.picker = null;
       return base.child(
         h_flex()
           .flex_none()
@@ -481,6 +605,7 @@ export default class Tree extends View {
     if (!this.root) {
       this.rows = [];
       this.branch = null;
+      this.picker = null;
       return base;
     }
     const entries = this.rootOpen
@@ -491,6 +616,7 @@ export default class Tree extends View {
     this.branch = this.isRepo ? (pane?.branch ?? null) : null;
     const max = this.rows.length - 1 + (this.branch ? 1 : 0);
     this.cursor = Math.min(this.cursor, max);
+    if (!this.branch) this.picker = null; // 欄が消えたら窓も閉じる
     return base
       .child(
         v_flex()
@@ -501,6 +627,20 @@ export default class Tree extends View {
           .track_scroll(this.scroll)
           .children(this.rows.map((r, i) => (r.kind === "root" ? this.renderRoot(r, isFocused) : this.renderEntry(r, i, isFocused)))),
       )
-      .children(this.branch ? [this.renderBranch(this.branch, isFocused)] : []);
+      .children(this.branch ? [this.renderBranch(this.branch, isFocused)] : [])
+      .children(this.picker ? [this.renderPickerWindow()] : []);
+  }
+
+  // ブランチの欄のすぐ上に重ねる。幅は帯の幅から左右の余白を引いたもの (left と right で決める)
+  renderPickerWindow() {
+    const rows = this.pickerRows();
+    this.picker.cursor = Math.max(0, Math.min(this.picker.cursor, rows.length - 1));
+    const { query, cursor, message } = this.picker;
+    return div()
+      .absolute()
+      .left(METRICS.padLeft)
+      .right(METRICS.padLeft)
+      .bottom(METRICS.row)
+      .child(renderPicker({ query, rows, cursor, message, width: null }));
   }
 }
