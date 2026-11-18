@@ -41,6 +41,12 @@ test("switchPlan", () => {
   assert.deepEqual(switchPlan({ ...base, agents: [{ name: "Latte", status: "blocked", cwd: "/r" }], branch: b["feature/a"] }), { action: "refuse", reason: "Latte が入力待ちです" });
   assert.deepEqual(switchPlan({ ...base, agents: [{ name: "Pecan", status: "working", cwd: "/rr" }, { name: "X", status: "working", cwd: null }], branch: b["feature/a"] }), { action: "git", args: ["switch", "feature/a"] });
 });
+test("switchPlan: - で始まる手元のブランチは git の引数にしない", () => {
+  const branch = { name: "--orphan=x", kind: "local", remote: null, current: false, worktree: null };
+  assert.deepEqual(switchPlan({ branch, agents: [], root: "/r", spaces: [] }), { action: "refuse", reason: "--orphan=x は切り替えられません" });
+  const remote = { name: "-x", kind: "remote", remote: "origin", current: false, worktree: null };
+  assert.deepEqual(switchPlan({ branch: remote, agents: [], root: "/r", spaces: [] }), { action: "git", args: ["switch", "--track", "origin/-x"] });
+});
 test("failureReason", () => {
   const stderr = "error: Your local changes to the following files would be overwritten by checkout:\n\ta.nix\nAborting\n";
   assert.equal(failureReason(stderr), "Your local changes to the following files would be overwritten by checkout:");

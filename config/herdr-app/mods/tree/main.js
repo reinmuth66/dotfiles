@@ -332,7 +332,10 @@ export default class Tree extends View {
   agentStates() {
     const names = shared("agent-names") ?? {};
     const all = panes();
-    return agents().map((a) => ({
+    // 別のコンピューターのエージェントは、同じパスでも別のリポジトリ
+    return agents()
+      .filter((a) => !isRemoteAddress(a.address))
+      .map((a) => ({
       name: names[a.address] ?? a.tab_name,
       status: a.status,
       cwd: all.find((p) => p.pane === a.pane)?.cwd ?? null,
@@ -347,7 +350,10 @@ export default class Tree extends View {
       branch,
       agents: this.agentStates(),
       root: picker.root,
-      spaces: spaces().map((s) => ({ id: s.id, folder: s.folder })),
+      // worktree の space は、このコンピューターのものだけ
+      spaces: spaces()
+        .filter((s) => !isRemoteSpace(s))
+        .map((s) => ({ id: s.id, folder: s.folder })),
     });
     if (plan.action === "none") this.picker = null;
     else if (plan.action === "refuse") picker.message = plan.reason;

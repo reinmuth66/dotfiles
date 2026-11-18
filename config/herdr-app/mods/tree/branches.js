@@ -69,6 +69,8 @@ export function switchPlan({ branch, agents, root, spaces }) {
     return { action: "refuse", reason: `${baseName(branch.worktree)} の worktree で使われています` };
   }
   if (branch.kind === "remote") return { action: "git", args: ["switch", "--track", `${branch.remote}/${branch.name}`] };
+  // - で始まる名前は git の引数として読まれる (--orphan=x など)。リモートのものは <remote>/ が前に付くので安全
+  if (branch.name.startsWith("-")) return { action: "refuse", reason: `${branch.name} は切り替えられません` };
   return { action: "git", args: ["switch", branch.name] };
 }
 
