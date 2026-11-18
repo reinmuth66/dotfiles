@@ -5,7 +5,7 @@
 import * as fs from "fs/promises";
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, Scrollbar, TextView, v_virtual_list } from "gpui-base";
-import { agents, appHome, checking, exec, focused, nextCommand, readTextFile, settings, shared, spaces, theme } from "herdr";
+import { agents, appHome, checking, exec, focused, nextCommand, readTextFile, settings, shared, spaces, theme, watchFolder } from "herdr";
 import { METRICS, PALETTE, REMOTE_LABEL, cells, isRemoteAddress, isRemoteSpace } from "./ui.js";
 import { RETRY_MS, repoRoot, watchJsonDir } from "./data.js";
 import { diffArgs, parseUnifiedDiff } from "./diff.js";
@@ -44,6 +44,7 @@ const STAT_TIMEOUT = 5000;
 const COPY_TIMEOUT = 5000;
 const THUMB_TIMEOUT = 15000;
 const GIT_TIMEOUT = 10000;
+const PIN_POLL_MS = 10000; // 固定したファイルを見張れないときに読み直す間隔
 const DIFF_ROW = 20;
 const TERMINAL_ID = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
@@ -130,6 +131,8 @@ export default class Preview extends View {
     this.view = null; // { kind, meta, ... }
     this.code = null; // EditorState
     this.token = 0;
+    this.pinWatch = null; // 固定したファイルの見張り。{ path, stopped, pending }
+    this.pinRev = 0; // 固定したファイルが変わった回数。鍵に入れて読み直させる
     this.activity = {};
     this.sessions = {};
     this.activityWatch = watchJsonDir(cx, "activity", (files) => {
@@ -154,6 +157,7 @@ export default class Preview extends View {
   close() {
     this.activityWatch?.cancel();
     this.sessionsWatch?.cancel();
+    this.stopPinWatch();
     this.code?.release();
     this.code = null;
   }
@@ -193,7 +197,8 @@ export default class Preview extends View {
     this.seenTop[tab] = this.edits[0] ?? null;
 
     if (s.mode === "follow") {
-      const seq = this.edits[s.historyIndex] ?? null;
+      this.stopPinWatch();
+      const seq =this.edits[s.historyIndex] ?? null;
       const meta = { mode: "follow", view: s.view, path: null, index: s.historyIndex, count: this.edits.length };
       const key = `follow\0${this.agent}\0${seq}\0${s.view}\0${s.historyIndex}\0${this.edits.length}`;
       if (key === this.key) return;
@@ -205,11 +210,54 @@ export default class Preview extends View {
       this.load(() => this.buildEdit(this.agent, seq, s.view, meta), cx);
       return;
     }
+    this.watchPinned(s.pinned, cx);
     const meta = { mode: "pinned", view: s.view, path: s.pinned, index: 0, count: 0 };
-    const key = `pinned\0${s.pinned}\0${s.view}\0${this.pinAt[tab] ?? ""}`;
+    const key = `pinned\0${s.pinned}\0${s.view}\0${this.pinAt[tab] ?? ""}\0${this.pinRev}`;
     if (key === this.key) return;
     this.key = key;
     this.load(() => (s.view === "diff" ? this.buildHeadDiff(s.pinned, meta) : this.buildFull(s.pinned, meta)), cx);
+  }
+
+  // 固定したファイルのフォルダを見張り、そのファイルが変わったら pinRev を進めて読み直す。
+  // 同じファイルのあいだは見張り続け、別のファイル、追従、別のコンピューター、close() で止める
+  watchPinned(path, cx) {
+    if (this.pinWatch?.path === path) return;
+    this.stopPinWatch();
+    if (checking()) return;
+    const w = { path, stopped: false, pending: null };
+    this.pinWatch = w;
+    const folder = dirName(path);
+    const name = baseName(path);
+    cx.spawn(async (cx) => {
+      while (!w.stopped) {
+        let changed;
+        try {
+          w.pending = watchFolder(folder);
+          changed = await w.pending;
+        } catch {
+          // 見張れない (見張りの数の上限など)。時間で読み直す (全体表示は mtime が同じなら作り直さない)
+          if (!w.stopped) await cx.sleep(PIN_POLL_MS);
+          changed = [path];
+        }
+        if (w.stopped) break;
+        if (changed.length === 0) {
+          await cx.sleep(PIN_POLL_MS); // フォルダが消えて即座に返るときに、空回りしない
+          continue;
+        }
+        // フォルダそのもの (全部を読み直す合図) か、同じ名前のファイル (/private などの別名も拾う)
+        if (changed.some((p) => p === folder || p === path || baseName(p) === name)) {
+          this.pinRev++;
+          cx.notify();
+        }
+      }
+    });
+  }
+
+  stopPinWatch() {
+    if (!this.pinWatch) return;
+    this.pinWatch.stopped = true;
+    this.pinWatch.pending?.cancel();
+    this.pinWatch = null;
   }
 
   setCode(state) {
@@ -487,9 +535,13 @@ export default class Preview extends View {
       .track_focus(this.handle);
     const tab = focused()?.tab ?? null;
     if (isRemoteSpace(currentSpace()) || (tab && isRemoteAddress(tab))) {
+      this.stopPinWatch();
       return base.child(h_flex().flex_none().h(METRICS.row).pl(METRICS.padLeft).items_center().text_color(theme().dim).child(REMOTE_LABEL));
     }
-    if (!tab) return base;
+    if (!tab) {
+      this.stopPinWatch();
+      return base;
+    }
     this.sync(tab, cx);
     const header = this.renderHeader();
     return base.children(header ? [header] : []).child(this.renderBody());
