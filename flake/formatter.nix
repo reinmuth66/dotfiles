@@ -141,6 +141,30 @@
           touch "$out"
         '';
 
+        # Claude Code のスクリプト (statusline.sh、hook) の試験
+        claude-scripts =
+          pkgs.runCommand "claude-scripts-check"
+            {
+              nativeBuildInputs = [
+                pkgs.nodejs
+                pkgs.jq
+                pkgs.bash
+                pkgs.coreutils
+              ];
+            }
+            ''
+              cp -r ${../config/claude} claude
+              chmod -R u+w claude
+              tests=$(find claude -name '*.test.mjs' | sort)
+              if [ -z "$tests" ]; then
+                echo "claude-scripts: 試験のファイルがない" >&2
+                exit 1
+              fi
+              # shellcheck disable=SC2086
+              node --test $tests
+              touch "$out"
+            '';
+
         # marp コマンドが、関数を通らない呼び方 (timeout 越し、標準入力が端末でない) でも、設定を読んで止まらずに変換する
         marp-command =
           pkgs.runCommand "marp-command-check"

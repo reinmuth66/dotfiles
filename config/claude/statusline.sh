@@ -123,6 +123,60 @@ build_rate_str() {
 # 入力JSON読み取り
 input=$(cat)
 
+# herdr の中 (HC_TERMINAL_ID がある) では、描かずに herdr の mod 用の JSON を書き出す
+# HC_TERMINAL_ID はファイル名に使うので、決まった形に合うときだけ書く (合わなければ何も書かず、何も出さない)
+valid_terminal_id() {
+  local LC_ALL=C
+  [[ $1 =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]]
+}
+
+# 一時ファイルに書いてから mv で置き換える (読む側が書きかけを見ない)
+write_atomic() {
+  local file=$1 content=$2 tmpf
+  tmpf=$(mktemp "$(dirname "$file")/.XXXXXX") || return 1
+  if printf '%s\n' "$content" >"$tmpf" && mv -f "$tmpf" "$file"; then
+    return 0
+  fi
+  rm -f "$tmpf"
+  return 1
+}
+
+if [ -n "${HC_TERMINAL_ID+x}" ]; then
+  if valid_terminal_id "$HC_TERMINAL_ID"; then
+    data_dir="${HERDR_APP_HOME:-$HOME/.config/herdr-app}/data"
+    if mkdir -p "$data_dir/limits" "$data_dir/sessions"; then
+      session_json=$(printf '%s' "$input" | jq -c --arg terminal "$HC_TERMINAL_ID" '{
+        terminal: $terminal,
+        session_id: (.session_id // null),
+        cwd: (.cwd // null),
+        model: (.model.display_name // null),
+        effort: (.effort.level // null),
+        context: (if .context_window.current_usage == null then null else {
+          used: ((.context_window.current_usage.input_tokens // 0)
+            + (.context_window.current_usage.cache_creation_input_tokens // 0)
+            + (.context_window.current_usage.cache_read_input_tokens // 0)),
+          size: .context_window.context_window_size
+        } end),
+        updated_at: (now | floor)
+      }' 2>/dev/null)
+      [ -n "$session_json" ] && write_atomic "$data_dir/sessions/$HC_TERMINAL_ID.json" "$session_json"
+
+      limits_json=$(printf '%s' "$input" | jq -c '
+        [
+          { key: "5h", duration: 18000, w: .rate_limits.five_hour },
+          { key: "7d", duration: 604800, w: .rate_limits.seven_day }
+        ]
+        | map(select(.w.used_percentage != null)
+            | { key, used_percentage: .w.used_percentage, resets_at: (.w.resets_at // null), duration })
+        | select(length > 0)
+        | { agent: "claude-code", name: "Claude Code", updated_at: (now | floor), windows: . }
+      ' 2>/dev/null)
+      [ -n "$limits_json" ] && write_atomic "$data_dir/limits/claude-code.json" "$limits_json"
+    fi
+  fi
+  exit 0
+fi
+
 # モデル名取得
 model=$(echo "$input" | jq -r '.model.display_name')
 
