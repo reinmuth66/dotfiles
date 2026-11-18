@@ -91,6 +91,8 @@ export default class Workspace extends View {
     this.cursor = 0;
     this.rows = [];
     this.tick = null;
+    this.tickAt = null; // 予約した描き直しの時刻 (ms)
+    this.seenAgents = false; // 一度でも agents() が空でなかったか
     this.handle = cx.focus_handle();
     this.scroll = ScrollHandle.new();
     this.watch = watchJsonDir(cx, "sessions", (files) => {
@@ -185,7 +187,7 @@ export default class Workspace extends View {
   updateNames(liveAgents) {
     const prev = shared("agent-names") ?? {};
     // 起動の直後は agents() が空のことがある。そのときに名前を全部捨てない
-    if (liveAgents.length === 0) return prev;
+    if (!this.seenAgents) return prev;
     const names = assignNames(
       prev,
       liveAgents.map((a) => a.address),
@@ -196,7 +198,7 @@ export default class Workspace extends View {
   }
 
   updateTimes(liveAgents, spaceList, now) {
-    if (liveAgents.length === 0 && Object.keys(this.times).length > 0) return; // 起動の直後
+    if (!this.seenAgents) return; // 起動の直後
     const tabs = new Map(spaceList.flatMap((s) => s.tabs.map((t) => [t.id, t])));
     const fallback = {};
     for (const a of liveAgents) {
@@ -211,13 +213,26 @@ export default class Workspace extends View {
     }
   }
 
-  // 時間の文字が変わるときに 1 回だけ描き直す。予約があれば作り直さない
-  schedule(now, cx) {
-    if (this.tick || checking()) return;
-    const wait = nextTick(this.times, now);
-    if (wait == null) return;
+  // 時間の文字が次に変わるときに 1 回だけ描き直す。今いるエージェントの記録だけを見る。
+  // 予約があっても、それより早く変わる文字ができたら (新しく作業を始めたなど) 予約し直す
+  schedule(liveAgents, now, cx) {
+    if (checking()) return;
+    const live = {};
+    for (const a of liveAgents) if (this.times[a.address]) live[a.address] = this.times[a.address];
+    const wait = nextTick(live, now);
+    if (wait == null) {
+      this.tick?.cancel();
+      this.tick = null;
+      this.tickAt = null;
+      return;
+    }
+    const at = now + wait;
+    if (this.tick && this.tickAt <= at) return;
+    this.tick?.cancel();
+    this.tickAt = at;
     this.tick = cx.timer.after(wait, (cx) => {
       this.tick = null;
+      this.tickAt = null;
       cx.notify();
     });
   }
@@ -244,7 +259,8 @@ export default class Workspace extends View {
   }
 
   // [段 × 字下げ][記号の枠][間][名前 …][右端]
-  row(r, i, { slot, name, right = [], onClick, focused }) {
+  // baseline: まとまりの見出し。印を木構造の記号の枠ではなく、帯の全体の記号の列 (glyphCol) に置く
+  row(r, i, { slot, name, right = [], onClick, focused, baseline = false }) {
     return h_flex()
       .id(`row-${r.key}`)
       .flex_none()
@@ -263,14 +279,14 @@ export default class Workspace extends View {
         div()
           .relative()
           .flex_none()
-          .w(cells(METRICS.slotCells))
+          .w(baseline ? METRICS.glyphCol : cells(METRICS.slotCells))
           .h_full()
           .flex()
           .items_center()
-          .justify_center()
+          .when(!baseline, (el) => el.justify_center())
           .children(slot),
       )
-      .child(div().flex_none().w(cells(METRICS.gapCells)))
+      .when(!baseline, (el) => el.child(div().flex_none().w(cells(METRICS.gapCells))))
       .child(h_flex().flex_1().min_w(0).gap(cells(1)).items_center().children(name))
       .children(right);
   }
@@ -373,6 +389,7 @@ export default class Workspace extends View {
     // まとまりの見出し: 一番左の列に印、名前、右端に数 (畳んだときは数の前に矢印)
     return this.row(r, i, {
       ...base,
+      baseline: true,
       slot: [statusGlyph(r.status)],
       name: [div().truncate().font_weight(700).text_color(PALETTE.text).child(r.label)],
       right: [
@@ -386,6 +403,7 @@ export default class Workspace extends View {
   render(cx) {
     const now = Date.now();
     const liveAgents = agents();
+    if (liveAgents.length > 0) this.seenAgents = true;
     const spaceList = spaces();
     this.refreshRepos(spaceList, cx);
     const names = this.updateNames(liveAgents);
@@ -398,7 +416,7 @@ export default class Workspace extends View {
     this.rows = rows;
     this.cursor = Math.min(this.cursor, Math.max(0, rows.length - 1));
     setAgentOrder(agentOrder(rows));
-    this.schedule(now, cx);
+    this.schedule(liveAgents, now, cx);
     const ctx = {
       now,
       cx,
