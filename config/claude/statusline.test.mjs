@@ -54,6 +54,18 @@ test("herdr の中では書き出して、何も表示しない", () => {
   );
 });
 
+test("リセット後に 5h の値が来なくても、5h を使用率 0 で残す", () => {
+  run({ ...fixture, rate_limits: { seven_day: fixture.rate_limits.seven_day } }, "t5h");
+  const l = readJson("app/data/limits/claude-code.json");
+  assert.deepEqual(
+    l.windows.map((w) => [w.key, w.used_percentage, w.resets_at, w.duration]),
+    [
+      ["5h", 0, null, 18000],
+      ["7d", 93, 1763900000, 604800],
+    ],
+  );
+});
+
 test("effort と current_usage がなければ null", () => {
   run({ ...fixture, effort: undefined, context_window: { context_window_size: 200000, current_usage: null } }, "t2");
   const s = readJson("app/data/sessions/t2.json");
@@ -68,7 +80,7 @@ test("形に合わない HC_TERMINAL_ID では何も書かない", () => {
     assert.equal(r.stdout, "");
   }
   assert.deepEqual(
-    listFiles("app/data/sessions").filter((f) => !["t1.json", "t2.json"].includes(f)),
+    listFiles("app/data/sessions").filter((f) => !["t1.json", "t2.json", "t5h.json"].includes(f)),
     [],
   );
   assert.deepEqual(listFiles("app/data"), ["limits", "sessions"]);

@@ -161,12 +161,14 @@ if [ -n "${HC_TERMINAL_ID+x}" ]; then
       }' 2>/dev/null)
       [ -n "$session_json" ] && write_atomic "$data_dir/sessions/$HC_TERMINAL_ID.json" "$session_json"
 
+      # 5h の窓はリセット後、次に使うまで値が来ない。ほかの窓が来ていれば、5h は使用率 0 で残す
       limits_json=$(printf '%s' "$input" | jq -c '
         [
           { key: "5h", duration: 18000, w: .rate_limits.five_hour },
           { key: "7d", duration: 604800, w: .rate_limits.seven_day }
         ]
-        | map(select(.w.used_percentage != null)
+        | if any(.[]; .w.used_percentage != null) then . else [] end
+        | map(if .w.used_percentage != null then . else .w = { used_percentage: 0 } end
             | { key, used_percentage: .w.used_percentage, resets_at: (.w.resets_at // null), duration })
         | select(length > 0)
         | { agent: "claude-code", name: "Claude Code", updated_at: (now | floor), windows: . }
