@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import {
   LANGUAGE,
   MAX_TEXT_BYTES,
+  agentTerminalFor,
+  editTexts,
+  editsFor,
   extOf,
+  headerText,
+  pathspecFor,
+  stripCR,
+  withEdits,
   fileKind,
   follow,
   formatSize,
@@ -101,4 +108,72 @@ test("タブの状態", () => {
   assert.equal(moveHistory(s, 5, 3).historyIndex, 2);
   assert.equal(moveHistory(s, -1, 3).historyIndex, 0);
   assert.equal(moveHistory(s, 1, 0).historyIndex, 0);
+});
+
+test("agentTerminalFor: 今のタブのエージェント。複数なら focused().terminal、なければ最初", () => {
+  const list = [
+    { address: "t1", tab: "a" },
+    { address: "t2", tab: "b" },
+    { address: "t3", tab: "b" },
+  ];
+  assert.equal(agentTerminalFor(list, { tab: "a", terminal: null }), "t1");
+  assert.equal(agentTerminalFor(list, { tab: "b", terminal: "t3" }), "t3");
+  assert.equal(agentTerminalFor(list, { tab: "b", terminal: "t9" }), "t2");
+  assert.equal(agentTerminalFor(list, { tab: "c", terminal: "t1" }), null);
+  assert.equal(agentTerminalFor(list, null), null);
+});
+
+test("editsFor: セッションが違う activity と、別のコンピューターの端末は使わない", () => {
+  const activity = { t1: { session_id: "s1", edits: [3, "x", 2] } };
+  assert.deepEqual(editsFor("t1", activity, { t1: { session_id: "s1" } }), [3, 2]);
+  assert.deepEqual(editsFor("t1", activity, {}), [3, 2]);
+  assert.deepEqual(editsFor("t1", activity, { t1: { session_id: "s2" } }), []);
+  assert.deepEqual(editsFor("t2", activity, {}), []);
+  assert.deepEqual(editsFor("laptop/t1", { "laptop/t1": activity.t1 }, {}), []);
+  assert.deepEqual(editsFor(null, activity, {}), []);
+});
+
+test("withEdits: 新しい編集が来たら履歴の位置を 0 に戻し、範囲の外なら詰める", () => {
+  const s = { ...initialTabState(), historyIndex: 2 };
+  assert.equal(withEdits(s, 5, [6, 5, 4]).historyIndex, 0);
+  assert.equal(withEdits(s, 6, [6, 5, 4]).historyIndex, 2);
+  assert.equal(withEdits(s, 6, [6, 5]).historyIndex, 1);
+  assert.equal(withEdits(s, 6, []).historyIndex, 0);
+  const same = withEdits(s, 6, [6, 5, 4]);
+  assert.equal(same, s); // 変わらなければ同じもの
+});
+
+test("editTexts: before が null なら空、too_large なら null", () => {
+  assert.deepEqual(editTexts({ before: null, after: "x", too_large: false }), { before: "", after: "x" });
+  assert.deepEqual(editTexts({ before: "a", after: "b", too_large: false }), { before: "a", after: "b" });
+  assert.equal(editTexts({ before: null, after: null, too_large: true }), null);
+  assert.equal(editTexts(null), null);
+});
+
+test("headerText: 追従中は履歴の位置を出す", () => {
+  assert.deepEqual(headerText({ mode: "follow", view: "diff", path: "/r/a.md", index: 0, count: 3 }), {
+    mode: "追従",
+    name: "a.md",
+    view: "差分",
+    position: "1/3",
+  });
+  assert.deepEqual(headerText({ mode: "pinned", view: "full", path: "/r/b.nix", index: 0, count: 3 }), {
+    mode: "固定",
+    name: "b.nix",
+    view: "全体",
+    position: null,
+  });
+  assert.equal(headerText({ mode: "follow", view: "diff", path: null, index: 0, count: 0 }).position, null);
+});
+
+test("pathspecFor: リポジトリの中なら根からの相対、外なら絶対", () => {
+  assert.equal(pathspecFor("/r/sub dir/a.md", "/r"), "sub dir/a.md");
+  assert.equal(pathspecFor("/x/a.md", "/r"), "/x/a.md");
+  assert.equal(pathspecFor("/rr/a.md", "/r"), "/rr/a.md");
+});
+
+test("stripCR は行末の \\r だけを消す", () => {
+  assert.equal(stripCR("a\r"), "a");
+  assert.equal(stripCR("a\rb"), "a\rb");
+  assert.equal(stripCR("a"), "a");
 });

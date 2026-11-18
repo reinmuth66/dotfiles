@@ -26,6 +26,10 @@ const expected = {
   "ctrl-shift-n": "pane.swap:right",
   "ctrl-shift-v": "workspace.toggle-view",
   "ctrl-shift-u": "usage.cycle-mode",
+  "ctrl-shift-z": "preview.toggle-view",
+  "ctrl-shift-r": "preview.follow",
+  "ctrl-shift-up": "preview.history-prev",
+  "ctrl-shift-down": "preview.history-next",
 };
 
 const expectedObjects = {
@@ -55,10 +59,9 @@ test("ctrl-shift + 1 文字のキーは、決めた一覧のものだけ", () =>
   const actual = Object.keys(global)
     .filter((key) => /^ctrl-shift-.$/.test(key))
     .sort();
-  const allowed = [
-    ...Object.keys(expected),
-    ...Object.keys(expectedObjects),
-  ].sort();
+  const allowed = [...Object.keys(expected), ...Object.keys(expectedObjects)]
+    .filter((key) => /^ctrl-shift-.$/.test(key))
+    .sort();
   assert.deepEqual(actual, allowed);
 });
 
