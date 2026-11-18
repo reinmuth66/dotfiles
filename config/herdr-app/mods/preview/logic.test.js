@@ -21,6 +21,8 @@ import {
   pin,
   previewCachePath,
   pruneTargets,
+  thumbnailCommand,
+  thumbnailOutput,
   toggleView,
   tooLargeMessage,
 } from "./logic.js";
@@ -74,6 +76,70 @@ test("imagePlan: heic と tiff は PNG に直し、文書は縮小画像、ほ�
   assert.deepEqual(imagePlan("/r/a.tiff"), { method: "convert", ext: "png" });
   assert.deepEqual(imagePlan("/r/仕様 書.docx"), { method: "thumbnail", ext: "png" });
   assert.equal(imagePlan("/r/a.md"), null);
+});
+test("imagePlan: 縮小画像を作れるモデルは model、作れないものは null", () => {
+  assert.deepEqual(imagePlan("/r/a.3mf"), { method: "model", ext: "png" });
+  assert.deepEqual(imagePlan("/r/a.FCStd"), { method: "model", ext: "png" });
+  assert.deepEqual(imagePlan("/r/a.kicad_pcb"), { method: "model", ext: "svg" });
+  assert.deepEqual(imagePlan("/r/a.kicad_sch"), { method: "model", ext: "svg" });
+  assert.equal(imagePlan("/r/a.stl"), null);
+  assert.equal(imagePlan("/r/a.step"), null);
+  assert.equal(imagePlan("/r/a.kicad_pro"), null);
+});
+const KICAD = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli";
+test("thumbnailCommand: 3MF は Metadata/thumbnail.png、なければ Metadata/plate_1.png をシェルでファイルに書く", () => {
+  assert.deepEqual(thumbnailCommand("/r/x.3mf", "/o/t.png"), {
+    cmd: "sh",
+    args: [
+      "-c",
+      'unzip -p "$1" Metadata/thumbnail.png > "$2" 2>/dev/null || unzip -p "$1" Metadata/plate_1.png > "$2"',
+      "sh",
+      "/r/x.3mf",
+      "/o/t.png",
+    ],
+    timeout: 5000,
+  });
+});
+test("thumbnailCommand: FreeCAD は thumbnails/Thumbnail.png", () => {
+  assert.deepEqual(thumbnailCommand("/r/x.FCStd", "/o/t.png"), {
+    cmd: "sh",
+    args: ["-c", 'unzip -p "$1" thumbnails/Thumbnail.png > "$2"', "sh", "/r/x.FCStd", "/o/t.png"],
+    timeout: 5000,
+  });
+});
+test("thumbnailCommand: KiCad の基板は層を指定して 1 枚の SVG に書く", () => {
+  assert.deepEqual(thumbnailCommand("/r/x.kicad_pcb", "/o/t.svg"), {
+    cmd: KICAD,
+    args: [
+      "pcb",
+      "export",
+      "svg",
+      "--mode-single",
+      "--layers",
+      "F.Cu,B.Cu,F.SilkS,Edge.Cuts",
+      "--exclude-drawing-sheet",
+      "--fit-page-to-board",
+      "--output",
+      "/o/t.svg",
+      "/r/x.kicad_pcb",
+    ],
+    timeout: 15000,
+  });
+});
+test("thumbnailCommand: KiCad の回路図はフォルダに書き、ファイル名は元の名前", () => {
+  assert.deepEqual(thumbnailCommand("/r/x.kicad_sch", "/o/t.svg"), {
+    cmd: KICAD,
+    args: ["sch", "export", "svg", "--output", "/o", "/r/x.kicad_sch"],
+    timeout: 15000,
+  });
+  assert.equal(thumbnailOutput("/r/my board.kicad_sch", "/o/t.svg"), "/o/my board.svg");
+  assert.equal(thumbnailOutput("/r/x.kicad_pcb", "/o/t.svg"), "/o/t.svg");
+  assert.equal(thumbnailOutput("/r/x.3mf", "/o/t.png"), "/o/t.png");
+});
+test("thumbnailCommand: f3d が入らない STL と STEP、ほかの種類は null", () => {
+  for (const ext of ["stl", "step", "stp", "kicad_pro", "png", "md"]) {
+    assert.equal(thumbnailCommand(`/r/x.${ext}`, "/o"), null);
+  }
 });
 test("上限と文言", () => {
   assert.equal(MAX_TEXT_BYTES, 1024 * 1024);

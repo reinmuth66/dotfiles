@@ -1,7 +1,7 @@
 // プレビュー。今のタブのエージェント (Claude Code) の編集に追従して差分を出し、ツリーで選ぶと
 // そのファイルに固定して全体を出す。状態 (追従か固定か、差分か全体か、履歴の位置) はタブごとに持つ。
 // 全体は、Markdown は整形、コードは色付き、画像はアプリのフォルダへの写し、文書は qlmanage の縮小画像、
-// それ以外は種類と大きさだけ。判断は logic.js、差分の読み取りは diff.js にある
+// 3MF、FreeCAD、KiCad は中の縮小画像か kicad-cli の SVG、それ以外は種類と大きさだけ。判断は logic.js、差分の読み取りは diff.js にある
 import * as fs from "fs/promises";
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, Scrollbar, TextView, v_virtual_list } from "gpui-base";
@@ -28,6 +28,8 @@ import {
   previewCachePath,
   pruneTargets,
   stripCR,
+  thumbnailCommand,
+  thumbnailOutput,
   toggleView,
   tooLargeMessage,
   withEdits,
@@ -333,7 +335,7 @@ export default class Preview extends View {
     return info(stat, null);
   }
 
-  // 一時フォルダで写し (cp)、PNG への変換 (sips)、縮小画像 (qlmanage) を作ってから、mv で写しの場所へ置く。
+  // 一時フォルダで写し (cp)、PNG への変換 (sips)、縮小画像 (qlmanage、モデル) を作ってから、mv で写しの場所へ置く。
   // 途中で失敗しても写しの場所には書きかけが残らない
   async makeImage(method, path, dest) {
     const ok = await withTmpDir(async (tmpDir) => {
@@ -346,6 +348,14 @@ export default class Preview extends View {
         made = `${tmpDir}/convert.png`;
         const r = await exec("sips", ["-s", "format", "png", path, "--out", made], { timeout: THUMB_TIMEOUT }).catch(() => null);
         if (r?.code !== 0) return false;
+      } else if (method === "model") {
+        // 3MF と FreeCAD は zip の中の縮小画像、KiCad は kicad-cli の SVG。KiCad がなければ exec が失敗する
+        const out = `${tmpDir}/model.${extOf(dest)}`;
+        const c = thumbnailCommand(path, out);
+        if (!c) return false;
+        const r = await exec(c.cmd, c.args, { timeout: c.timeout }).catch(() => null);
+        if (r?.code !== 0) return false;
+        made = thumbnailOutput(path, out);
       } else {
         // qlmanage は <名前>.png を書く
         const r = await exec("qlmanage", ["-t", "-s", "800", "-o", tmpDir, path], { timeout: THUMB_TIMEOUT }).catch(() => null);

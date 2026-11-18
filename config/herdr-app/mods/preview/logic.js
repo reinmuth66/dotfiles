@@ -59,11 +59,65 @@ export function fileKind(path) {
 // GPUI が読めない画像 (HEIC、TIFF) は sips で PNG に直す
 const CONVERT = new Set(["heic", "tiff"]);
 
+const KICAD_CLI = "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli";
+const dirOf = (path) => String(path).replace(/\/[^/]*$/, "") || "/";
+// zip の中の縮小画像を取り出す。画像は文字ではないので exec の標準出力では受けず、シェルでファイルに書く
+const unzipTo = (script, path, out) => ({ cmd: "sh", args: ["-c", script, "sh", path, out], timeout: 5000 });
+
+// モデルの縮小画像を out に作るコマンド。STL と STEP は f3d が nixpkgs の darwin で作れないので扱わない (null)。
+// 3MF は Bambu Studio などが Metadata/thumbnail.png を書かず plate_1.png だけを書くので、そちらも見る。
+// KiCad の基板は層の指定が要る。回路図は --output にフォルダを取り、<元の名前>.svg を書く (thumbnailOutput)
+export function thumbnailCommand(path, out) {
+  switch (extOf(path)) {
+    case "3mf":
+      return unzipTo(
+        'unzip -p "$1" Metadata/thumbnail.png > "$2" 2>/dev/null || unzip -p "$1" Metadata/plate_1.png > "$2"',
+        path,
+        out,
+      );
+    case "fcstd":
+      return unzipTo('unzip -p "$1" thumbnails/Thumbnail.png > "$2"', path, out);
+    case "kicad_pcb":
+      return {
+        cmd: KICAD_CLI,
+        args: [
+          "pcb",
+          "export",
+          "svg",
+          "--mode-single",
+          "--layers",
+          "F.Cu,B.Cu,F.SilkS,Edge.Cuts",
+          "--exclude-drawing-sheet",
+          "--fit-page-to-board",
+          "--output",
+          out,
+          path,
+        ],
+        timeout: 15000,
+      };
+    case "kicad_sch":
+      return { cmd: KICAD_CLI, args: ["sch", "export", "svg", "--output", dirOf(out), path], timeout: 15000 };
+    default:
+      return null;
+  }
+}
+
+// thumbnailCommand が実際に書くファイル
+export function thumbnailOutput(path, out) {
+  if (extOf(path) !== "kicad_sch") return out;
+  const name = baseName(path);
+  return `${dirOf(out)}/${name.slice(0, name.lastIndexOf("."))}.svg`;
+}
+
 // 画像として出すファイルの作り方と、写しの拡張子。画像として出さないものは null
 export function imagePlan(path) {
   const kind = fileKind(path);
   const ext = extOf(path);
   if (kind === "document") return { method: "thumbnail", ext: "png" };
+  if (kind === "model") {
+    if (!thumbnailCommand(path, "")) return null;
+    return { method: "model", ext: ext.startsWith("kicad_") ? "svg" : "png" };
+  }
   if (kind !== "image") return null;
   return CONVERT.has(ext) ? { method: "convert", ext: "png" } : { method: "copy", ext };
 }
