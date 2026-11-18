@@ -7,6 +7,7 @@ import {
   fileKind,
   follow,
   formatSize,
+  imagePlan,
   initialTabState,
   languageOf,
   moveHistory,
@@ -58,6 +59,14 @@ test("previewCachePath は同じ入力で同じ、mtime が変われば別", () 
   assert.equal(p, previewCachePath("/h/.config/herdr-app", "/r/a.png", 1, "png"));
   assert.notEqual(p, previewCachePath("/h/.config/herdr-app", "/r/a.png", 2, "png"));
   assert.notEqual(p, previewCachePath("/h/.config/herdr-app", "/r/b.png", 1, "png"));
+});
+test("imagePlan: heic と tiff は PNG に直し、文書は縮小画像、ほかの画像はそのまま写す", () => {
+  assert.deepEqual(imagePlan("/r/a.png"), { method: "copy", ext: "png" });
+  assert.deepEqual(imagePlan("/r/a.JPG"), { method: "copy", ext: "jpg" });
+  assert.deepEqual(imagePlan("/r/a.HEIC"), { method: "convert", ext: "png" });
+  assert.deepEqual(imagePlan("/r/a.tiff"), { method: "convert", ext: "png" });
+  assert.deepEqual(imagePlan("/r/仕様 書.docx"), { method: "thumbnail", ext: "png" });
+  assert.equal(imagePlan("/r/a.md"), null);
 });
 test("上限と文言", () => {
   assert.equal(MAX_TEXT_BYTES, 1024 * 1024);

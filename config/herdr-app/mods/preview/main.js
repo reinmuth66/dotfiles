@@ -6,7 +6,7 @@ import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, TextView } from "gpui-base";
 import { appHome, checking, exec, focused, nextCommand, readTextFile, settings, shared, spaces, theme } from "herdr";
 import { METRICS, PALETTE, REMOTE_LABEL, isRemoteSpace } from "./ui.js";
-import { MAX_TEXT_BYTES, extOf, fileKind, formatSize, languageOf, previewCachePath, pruneTargets } from "./logic.js";
+import { MAX_TEXT_BYTES, extOf, fileKind, formatSize, imagePlan, languageOf, previewCachePath, pruneTargets } from "./logic.js";
 
 const FONT = "Moralerspace Neon HW";
 const FILE_ICON = "\u{f0214}";
@@ -62,8 +62,7 @@ export default class Preview extends View {
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
-        if (c === "focus") this.handle.focus();
-        cx.notify();
+        if (c === "focus") this.handle.focus();        cx.notify();
       }
     });
   }
@@ -141,14 +140,14 @@ export default class Preview extends View {
         });
         return { kind: "code", state };
       }
-      if (kind === "image" || kind === "document") {
+      const plan = imagePlan(path);
+      if (plan) {
         const home = appHome();
         const dir = `${home}/data/preview`;
-        const dest = previewCachePath(home, path, stat.mtimeMs, kind === "image" ? ext : "png");
+        const dest = previewCachePath(home, path, stat.mtimeMs, plan.ext);
         if (!(await fs.exists(dest))) {
           await fs.mkdir(dir, { recursive: true });
-          const made = kind === "image" ? await this.copyImage(path, dest) : await this.thumbnail(path, dest, home);
-          if (!made) return info(stat, null);
+          if (!(await this.makeImage(plan.method, path, dest, home))) return info(stat, null);
           await pruneCache(dir);
         }
         return { kind: "image", rel: dest.slice(home.length + 1) };
@@ -159,21 +158,37 @@ export default class Preview extends View {
     return info(stat, null);
   }
 
-  async copyImage(path, dest) {
-    const r = await exec("cp", [path, dest], { timeout: COPY_TIMEOUT }).catch(() => null);
-    return r?.code === 0;
-  }
-
-  // qlmanage は <名前>.png を tmpDir に書く。それを写しの場所へ移す
-  async thumbnail(path, dest, home) {
-    const tmpDir = `${home}/data/preview-tmp`;
-    await fs.mkdir(tmpDir, { recursive: true });
-    const r = await exec("qlmanage", ["-t", "-s", "800", "-o", tmpDir, path], { timeout: THUMB_TIMEOUT }).catch(() => null);
-    if (r?.code !== 0) return false;
-    const made = `${tmpDir}/${baseName(path)}.png`;
-    if (!(await fs.exists(made))) return false;
-    const mv = await exec("mv", ["-f", made, dest], { timeout: COPY_TIMEOUT }).catch(() => null);
-    return mv?.code === 0;
+  // 読み込みごとに data/preview-tmp/ の下へ自分だけの一時フォルダを作り、そこで写し (cp)、
+  // PNG への変換 (sips)、縮小画像 (qlmanage) を作ってから、mv で写しの場所へ置く。
+  // 途中で失敗しても写しの場所には書きかけが残らない。一時フォルダは成否によらず消す
+  async makeImage(method, path, dest, home) {
+    const base = `${home}/data/preview-tmp`;
+    await fs.mkdir(base, { recursive: true });
+    const mk = await exec("mktemp", ["-d", `${base}/load.XXXXXX`], { timeout: COPY_TIMEOUT }).catch(() => null);
+    const tmpDir = mk?.code === 0 ? mk.stdout.trim() : null;
+    if (!tmpDir) return false;
+    try {
+      let made = null;
+      if (method === "copy") {
+        made = `${tmpDir}/copy`;
+        const r = await exec("cp", [path, made], { timeout: COPY_TIMEOUT }).catch(() => null);
+        if (r?.code !== 0) return false;
+      } else if (method === "convert") {
+        made = `${tmpDir}/convert.png`;
+        const r = await exec("sips", ["-s", "format", "png", path, "--out", made], { timeout: THUMB_TIMEOUT }).catch(() => null);
+        if (r?.code !== 0) return false;
+      } else {
+        // qlmanage は <名前>.png を書く
+        const r = await exec("qlmanage", ["-t", "-s", "800", "-o", tmpDir, path], { timeout: THUMB_TIMEOUT }).catch(() => null);
+        if (r?.code !== 0) return false;
+        made = `${tmpDir}/${baseName(path)}.png`;
+      }
+      if (!(await fs.exists(made))) return false;
+      const mv = await exec("mv", ["-f", made, dest], { timeout: COPY_TIMEOUT }).catch(() => null);
+      return mv?.code === 0;
+    } finally {
+      await exec("rm", ["-rf", tmpDir], { timeout: COPY_TIMEOUT }).catch(() => {});
+    }
   }
 
   renderHeader() {

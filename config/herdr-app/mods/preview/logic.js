@@ -55,7 +55,19 @@ export function fileKind(path) {
   return "other";
 }
 
-export const languageOf = (path) => LANGUAGE[extOf(path)] ?? "text";
+// GPUI が読めない画像 (HEIC、TIFF) は sips で PNG に直す
+const CONVERT = new Set(["heic", "tiff"]);
+
+// 画像として出すファイルの作り方と、写しの拡張子。画像として出さないものは null
+export function imagePlan(path) {
+  const kind = fileKind(path);
+  const ext = extOf(path);
+  if (kind === "document") return { method: "thumbnail", ext: "png" };
+  if (kind !== "image") return null;
+  return CONVERT.has(ext) ? { method: "convert", ext: "png" } : { method: "copy", ext };
+}
+
+export const languageOf =(path) => LANGUAGE[extOf(path)] ?? "text";
 
 // FNV-1a (32 ビット) を 2 回、別の種で回して 16 桁の 16 進にする
 function fnv1a(text, seed) {
