@@ -57,7 +57,8 @@ export function describe(action) {
     case "read":
       return path ? `${baseName(path)} を読む` : null;
     case "bash": {
-      const command = commandOf(action).trim();
+      // 改行を含むコマンドで行の高さが変わらないよう、空白をまとめて 1 行にする
+      const command = commandOf(action).replace(/\s+/g, " ").trim();
       return command ? `${[...command].slice(0, COMMAND_MAX).join("")} を実行` : null;
     }
     case "web":

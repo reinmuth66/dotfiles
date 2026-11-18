@@ -148,3 +148,25 @@ test("activityFor: agents() にない端末と別のコンピューターの端�
   assert.equal(activityFor("laptop/t3", activity, live), null);
   assert.equal(activityFor("t3", activity, live), null);
 });
+test("activityFor: セッションが変わった記録は使わない (Review Focus 4)", () => {
+  const live = [ag("t1", "a")];
+  const activity = { t1: { session_id: "old", actions: [] } };
+  assert.equal(activityFor("t1", activity, live, { t1: { session_id: "new" } }), null);
+  assert.deepEqual(activityFor("t1", activity, live, { t1: { session_id: "old" } }), activity.t1);
+  assert.deepEqual(activityFor("t1", activity, live, {}), activity.t1); // セッションが分からなければ使う
+  assert.deepEqual(activityFor("t1", { t1: { actions: [] } }, live, { t1: { session_id: "new" } }), { actions: [] });
+});
+test("collectSubagents: 親が待機か完了なら hook のサブエージェントは出さない、hc run の端末は出す", () => {
+  const subs = { subagents: [{ id: "a1", type: "Explore", status: "working" }] };
+  const terms = [{ address: "t9", parent: "t2", state: "live", argv: ["npm"] }];
+  const live = [ag("t1", "a", "idle"), ag("t2", "b", "done"), ag("t3", "c", "blocked")];
+  assert.deepEqual(collectSubagents(live, { t1: subs, t2: subs, t3: subs }, terms), {
+    t2: [{ id: "t9", type: "npm" }],
+    t3: [{ id: "a1", type: "Explore" }],
+  });
+});
+test("collectSubagents: セッションが変わった記録のサブエージェントは出さない", () => {
+  const live = [ag("t1", "a", "working")];
+  const activity = { t1: { session_id: "old", subagents: [{ id: "a1", type: "Explore", status: "working" }] } };
+  assert.deepEqual(collectSubagents(live, activity, [], { t1: { session_id: "new" } }), {});
+});

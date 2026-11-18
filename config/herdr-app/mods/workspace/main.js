@@ -429,7 +429,7 @@ export default class Workspace extends View {
       // 札と 2 行目は状態の表示でだけ出す
       if (this.view === "status") {
         if (r.spaceName) name.push(div().truncate().text_color(PALETTE.overlay2).child(r.spaceName));
-        const actions = activityFor(r.address, this.activity, ctx.liveAgents)?.actions;
+        const actions = activityFor(r.address, this.activity, ctx.liveAgents, this.sessions)?.actions;
         const list = Array.isArray(actions) ? actions.filter((a) => a && typeof a === "object") : [];
         const tag = domainTag(list);
         if (tag) name.push(this.tag(tag));
@@ -475,7 +475,7 @@ export default class Workspace extends View {
     this.refreshRepos(spaceList, cx);
     const names = this.updateNames(liveAgents);
     this.updateTimes(liveAgents, spaceList, now);
-    const subagents = collectSubagents(liveAgents, this.activity, terminals());
+    const subagents = collectSubagents(liveAgents, this.activity, terminals(), this.sessions);
     const input = { agents: liveAgents, subagents, names, collapsed: this.collapsed };
     const rows =
       this.view === "status"

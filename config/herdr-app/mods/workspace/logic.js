@@ -37,20 +37,26 @@ export function contextFor(address, sessions) {
   return sessions[address] ?? null;
 }
 
-// data/activity の記録。agents() にない端末 (終わったセッションの残り) と別のコンピューターの端末では引かない
-export function activityFor(address, activity, liveAgents) {
+// data/activity の記録。agents() にない端末 (終わったセッションの残り) と別のコンピューターの端末では引かない。
+// data/sessions の session_id と食い違う記録 (--resume や同じ端末の別のセッションの残り) も使わない
+export function activityFor(address, activity, liveAgents, sessions = {}) {
   if (isRemoteAddress(address)) return null;
   if (!liveAgents.some((a) => a.address === address)) return null;
-  return activity[address] ?? null;
+  const rec = activity[address] ?? null;
+  const current = sessions[address]?.session_id;
+  if (rec?.session_id && current && rec.session_id !== current) return null;
+  return rec;
 }
 
 // エージェントごとのサブエージェント。hook が書いた作業中の Claude Code のサブエージェントと、
-// そのエージェントが hc run で起動して動いている端末 (parent がそのエージェント)
-export function collectSubagents(liveAgents, activity, terminals) {
+// そのエージェントが hc run で起動して動いている端末 (parent がそのエージェント)。
+// hook のサブエージェントは、Esc で止めると終わりが記録されないので、親が待機か完了なら出さない
+export function collectSubagents(liveAgents, activity, terminals, sessions = {}) {
   const out = {};
   for (const agent of liveAgents) {
     const list = [];
-    const subs = activityFor(agent.address, activity, liveAgents)?.subagents;
+    const ended = agent.status === "idle" || agent.status === "done";
+    const subs = ended ? null : activityFor(agent.address, activity, liveAgents, sessions)?.subagents;
     if (Array.isArray(subs)) {
       for (const s of subs) if (s?.status === "working" && s.id != null) list.push({ id: String(s.id), type: String(s.type ?? "agent") });
     }

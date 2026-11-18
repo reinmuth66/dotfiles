@@ -48,3 +48,7 @@ test("describe: そのほかの種類", () => {
   assert.equal(describe(a("edit")), null);
   assert.equal(describe(a("bash")), null);
 });
+test("describe: 複数行のコマンドは 1 行にしてから切り詰める", () => {
+  assert.equal(describe(a("bash", null, "cd /r &&\n  nix   flake\tcheck\n")), "cd /r && nix flake check を実行");
+  assert.equal(describe(a("bash", null, `${"y".repeat(30)}\n\n${"z".repeat(30)}`)), `${"y".repeat(30)} ${"z".repeat(9)} を実行`);
+});
