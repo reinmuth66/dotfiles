@@ -31,3 +31,7 @@ test("resize-mode が動かすブロックの id がある", () => {
     assert.ok(byId[id], `${id} がない`);
   }
 });
+
+test("帯の中は usage、workspace、tree の 3 つの自分の mod", () => {
+  assert.deepEqual(byId.sidebar.children.map((c) => [c.id, c.content?.mod]), [["usage", "usage"], ["workspace", "workspace"], ["tree", "tree"]]);
+});

@@ -24,6 +24,7 @@ const expected = {
   "ctrl-shift-h": "resize-mode.start",
   "ctrl-shift-b": "resize-mode.cycle-sidebar",
   "ctrl-shift-n": "pane.swap:right",
+  "ctrl-shift-v": "workspace.toggle-view",
 };
 
 const expectedObjects = {

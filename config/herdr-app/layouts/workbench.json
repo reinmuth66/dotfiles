@@ -43,32 +43,17 @@
         },
         {
           "id": "workspace",
-          "type": "column",
+          "type": "block",
           "size": { "weight": 1 },
           "min": 90,
-          "children": [
-            {
-              "id": "workspace-spaces",
-              "type": "block",
-              "size": { "weight": 1 },
-              "min": 60,
-              "content": { "mod": "spaces" }
-            },
-            {
-              "id": "workspace-agents",
-              "type": "block",
-              "size": { "weight": 1 },
-              "min": 60,
-              "content": { "mod": "agents" }
-            }
-          ]
+          "content": { "mod": "workspace" }
         },
         {
           "id": "tree",
           "type": "block",
           "size": { "weight": 1 },
           "min": 90,
-          "content": { "mod": "files" }
+          "content": { "mod": "tree" }
         }
       ]
     },
