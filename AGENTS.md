@@ -64,4 +64,9 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
 - `claude.nix`: Claude Code 本体は `nix-claude-code` input の overlay (`darwin.nix`) で入れる。`update-claude-code.yaml` が、この input だけを毎日更新して PR を作る。MCP サーバーは `programs.claude-code.mcpServers` で宣言する
   - `settings.json` は丸ごと置き換えず、activation で jq マージする。Nix に書いたキーが勝ち、`enabledPlugins` や `permissions.allow` など Claude Code が書き込むものは残る。`hooks` だけは Nix の内容で置き換える
   - `CLAUDE.md` と `statusline.sh` は `mkOutOfStoreSymlink` で dotfiles を直接指すので、編集は switch なしで反映される
+- `herdr-app.nix`: herdr アプリの設定と自前の mod (`config/herdr-app/`)
+  - mod は自分のフォルダの外を `import` できない。共通の部品は `config/herdr-app/shared/` の正本を、使う mod のフォルダへ `cp` で同じ中身に写す。`shared/shared.test.js` が一致を確かめる
+  - Claude Code から mod へは `~/.config/herdr-app/data/` で渡す。`config/claude/statusline.sh` が `limits/` と `sessions/`、`config/claude/hooks/herdr-record.mjs` が `activity/` と `edits/` を書き、mod が `watchJsonDir` で読む。どちらも herdr の外 (`HC_TERMINAL_ID` がない) では何も書かない
+  - mod のフォルダは dotfiles への out-of-store のリンク。中のファイルの編集はレイアウトを読み直せば効く (`layout.switch` で別のレイアウトへ移ってから戻す)。新しい mod や新しくリンクするファイルは switch が要る
+- `gh-dash.nix`: Issue の一覧で `C` が `herdr-issue-task` (Issue を herdr の新しいタブの Claude Code に渡す)、`N` が herdr の新しいタブで `gh issue create` を開く。組み込みの `C` (checkout) は上書きしている
 - `agent-skills.nix`: ユーザー全体の skill を agent-skills-nix で `~/.claude/skills` に配る。取得元は flake input ではなく `config/agent-skills/registry/sources/*.nix` で固定し、`nix run .#skills-sources-lock -- --manifest-dir config/agent-skills/registry/sources --lock-file config/agent-skills/registry/sources.lock.json` で更新する (`update-agent-skills.yaml` が週次で実行)。hooks や agents を含むプラグイン (superpowers など) は `/plugin` で管理する
