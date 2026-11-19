@@ -26,6 +26,7 @@
     ./zmk-battery-center.nix
     ./mole.nix
     ./ax.nix
+    ./omnigraph.nix
     ./czg.nix
     ./marp.nix
     ./pdf-cli.nix
