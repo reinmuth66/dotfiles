@@ -130,6 +130,28 @@
         "type": "github"
       }
     },
+    "fenix": {
+      "inputs": {
+        "nixpkgs": [
+          "omnigraph",
+          "nixpkgs"
+        ],
+        "rust-analyzer-src": "rust-analyzer-src"
+      },
+      "locked": {
+        "lastModified": 1793018157,
+        "narHash": "sha256-kArfwGR+jBZHzYf2+4Bp9SIfYikKlM8GfxlvO/TV1Oo=",
+        "owner": "nix-community",
+        "repo": "fenix",
+        "rev": "39ed929ecdac73f1d4f6adeb416399f1eb052ab4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "fenix",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -250,6 +272,31 @@
         "type": "github"
       }
     },
+    "naersk": {
+      "inputs": {
+        "fenix": [
+          "omnigraph",
+          "fenix"
+        ],
+        "nixpkgs": [
+          "omnigraph",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1792096940,
+        "narHash": "sha256-75jRkpI2iya4fd/FPOyE9+BuiAp/2sV/hYtwrj6IyME=",
+        "owner": "nix-community",
+        "repo": "naersk",
+        "rev": "5c7912af5141e323ff0bd25c95bd6d3b889b8c53",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "naersk",
+        "type": "github"
+      }
+    },
     "nix-claude-code": {
       "inputs": {
         "nixpkgs": [
@@ -322,6 +369,29 @@
         "type": "github"
       }
     },
+    "omnigraph": {
+      "inputs": {
+        "fenix": "fenix",
+        "naersk": "naersk",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1794206096,
+        "narHash": "sha256-fDjXKhh/jAXST0SGoPsGkFDIZtpGF9NxCxGd7H4snBA=",
+        "owner": "ModernRelay",
+        "repo": "omnigraph",
+        "rev": "373834b4c1c4b29cf0ddd64bee9565f98c60cc26",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ModernRelay",
+        "ref": "v0.15.0",
+        "repo": "omnigraph",
+        "type": "github"
+      }
+    },
     "pdf-cli": {
       "flake": false,
       "locked": {
@@ -354,12 +424,30 @@
         "nix-darwin": "nix-darwin",
         "nixpkgs": "nixpkgs",
         "nixpkgs-spotify": "nixpkgs-spotify",
+        "omnigraph": "omnigraph",
         "pdf-cli": "pdf-cli",
         "spicetify-nix": "spicetify-nix",
         "treefmt-nix": "treefmt-nix_2",
         "yazi-flavors": "yazi-flavors",
         "yazi-plugins": "yazi-plugins",
         "zeno-zsh": "zeno-zsh"
+      }
+    },
+    "rust-analyzer-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792691653,
+        "narHash": "sha256-3/DMV3Lpmthk6OV2b7bJSJ5Okouyvl755YZENyLwllo=",
+        "owner": "rust-lang",
+        "repo": "rust-analyzer",
+        "rev": "0c4d74686b21f2b3bd8872b6d3cf36ad2e740d49",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rust-lang",
+        "ref": "nightly",
+        "repo": "rust-analyzer",
+        "type": "github"
       }
     },
     "spicetify-nix": {
