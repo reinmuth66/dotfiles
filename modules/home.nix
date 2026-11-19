@@ -29,6 +29,7 @@
     ./mole.nix
     ./ax.nix
     ./omnigraph.nix
+    ./ollama.nix
     ./czg.nix
     ./marp.nix
     ./pdf-cli.nix
