@@ -63,6 +63,7 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
 - `czg.nix`: conventional commit の TUI。`importNpmLock` で `pkgs/czg/` から作る
 - `claude.nix`: Claude Code 本体は `nix-claude-code` input の overlay (`darwin.nix`) で入れる。`update-claude-code.yaml` が、この input だけを毎日更新して PR を作る。MCP サーバーは `programs.claude-code.mcpServers` で宣言する
   - `settings.json` は丸ごと置き換えず、activation で jq マージする。Nix に書いたキーが勝ち、`enabledPlugins` や `permissions.allow` など Claude Code が書き込むものは残る。`hooks` だけは Nix の内容で置き換える
+  - 自前の mod は `config/claude/mods/<名前>/` に置く。`~/.claude/mods/<名前>` へ `mkOutOfStoreSymlink` で配り、`settings.env.CLAUDE_CODE_PLUGIN_DIRS` に書いて常に読み込ませる (新しい mod は switch が要る)。Claude Code が mod のフォルダに書く `.claude-plugin/types/` は `.gitignore` 済み。`hide-tools` は herdr の中 (`HC_TERMINAL_ID` がある) だけ、会話の中のツールの行を消す (ctrl+o で出る)
   - `CLAUDE.md` と `statusline.sh` は `mkOutOfStoreSymlink` で dotfiles を直接指すので、編集は switch なしで反映される
 - `herdr-app.nix`: herdr アプリの設定と自前の mod (`config/herdr-app/`)
   - mod は自分のフォルダの外を `import` できない。共通の部品は `config/herdr-app/shared/` の正本を、使う mod のフォルダへ `cp` で同じ中身に写す。`shared/shared.test.js` が一致を確かめる

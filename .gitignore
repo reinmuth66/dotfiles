@@ -12,3 +12,6 @@ result-*
 # herdr アプリが mod のフォルダに書くファイル
 config/herdr-app/mods/*/jsconfig.json
 config/herdr-app/mods/*/*.d.ts
+
+# Claude Code が mod のフォルダに書く型の定義
+config/claude/mods/*/.claude-plugin/types/

@@ -16,6 +16,8 @@ let
     "$schema" = "https://json.schemastore.org/claude-code-settings.json";
     model = "opus";
     permissions.defaultMode = "default";
+    # 自前の mod (config/claude/mods/) を常に読み込ませる。複数は区切り文字 (:) でつなぐ
+    env.CLAUDE_CODE_PLUGIN_DIRS = "${claudeDir}/mods/hide-tools";
     statusLine = {
       type = "command";
       command = "~/.claude/statusline.sh";
@@ -102,5 +104,8 @@ in
       config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/statusline.sh";
     ".claude/hooks/herdr-record.mjs".source =
       config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/hooks/herdr-record.mjs";
+    # mod は CLAUDE_CODE_PLUGIN_DIRS (上の settings.env) で読み込ませる
+    ".claude/mods/hide-tools".source =
+      config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/mods/hide-tools";
   };
 }
