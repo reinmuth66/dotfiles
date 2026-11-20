@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createHistory, filePathOf, summary } from "./history.js";
+import { createHistory, expandedLayout, filePathOf, initialHistoryState, moveIndex, summary, toEdge, withCount } from "./history.js";
 
 const use = (id, name, input, extra = {}) =>
   JSON.stringify({ type: "assistant", isSidechain: false, ...extra, message: { content: [{ type: "tool_use", id, name, input }] } });
@@ -55,4 +55,24 @@ test("結果がない Edit はパスだけ。そのほかの道具の要点", ()
 test("何も変わらなければ偽を返す", () => {
   const h = createHistory();
   assert.equal(h.add(["{broken", JSON.stringify({ type: "summary" })]), false);
+});
+test("一覧の移動と自動のスクロール", () => {
+  let s = initialHistoryState(3);
+  assert.deepEqual(s, { mode: "list", index: 2, follow: true });
+  s = moveIndex(s, -1, 3);
+  assert.equal(s.follow, false);
+  assert.equal(withCount(s, 4).index, 1);
+  s = toEdge(s, "last", 4);
+  assert.equal(withCount(s, 5).index, 4);
+  assert.equal(moveIndex(s, 5, 5).index, 4);
+  assert.equal(toEdge(s, "first", 5).index, 0);
+});
+test("展開の上下の端", () => {
+  assert.deepEqual(expandedLayout(0, 5, 100, 20), { before: null, after: [1] });
+  assert.deepEqual(expandedLayout(4, 5, 100, 20), { before: 3, after: [] });
+  assert.deepEqual(expandedLayout(1, 10, 3, 8), { before: 0, after: [2, 3, 4, 5] });
+});
+test("履歴が 0 件", () => {
+  assert.deepEqual(initialHistoryState(0), { mode: "list", index: 0, follow: true });
+  assert.deepEqual(expandedLayout(0, 0, 0, 10), { before: null, after: [] });
 });

@@ -114,3 +114,41 @@ export function filePathOf(entry) {
   const p = entry.input?.file_path;
   return typeof p === "string" && p ? p : null;
 }
+
+// 作業履歴の一覧と展開の状態。follow はカーソルが一番下にあって、履歴が増えると追いかけること
+function lastIndex(count) {
+  return Math.max(0, count - 1);
+}
+
+export function initialHistoryState(count) {
+  return { mode: "list", index: lastIndex(count), follow: true };
+}
+
+function at(s, index, count) {
+  const i = Math.min(Math.max(0, index), lastIndex(count));
+  return { ...s, index: i, follow: i === lastIndex(count) };
+}
+
+// 端で止める
+export function moveIndex(s, delta, count) {
+  return at(s, s.index + delta, count);
+}
+
+export function toEdge(s, edge, count) {
+  return at(s, edge === "first" ? 0 : lastIndex(count), count);
+}
+
+// 履歴が増えたとき。follow なら一番下へ付いていく
+export function withCount(s, count) {
+  return s.follow ? { ...s, index: lastIndex(count) } : s;
+}
+
+// 展開モードで、本文の上の端と下の端に出す履歴の番号。
+// after は本文を出したあとの空きの行数だけ後ろの履歴を足す (最低 1 行)
+export function expandedLayout(index, count, bodyRows, viewRows) {
+  const before = index > 0 ? index - 1 : null;
+  const free = Math.max(1, viewRows - bodyRows - (before === null ? 0 : 1));
+  const after = [];
+  for (let i = index + 1; i < count && after.length < free; i++) after.push(i);
+  return { before, after };
+}
