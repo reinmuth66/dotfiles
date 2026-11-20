@@ -25,6 +25,18 @@ const ARCHIVE = new Set(["zip", "tar", "gz", "tgz", "bz2", "xz", "zst", "7z", "r
 // readTextFile の上限 (1 MiB)。超えるファイルは「大きすぎて表示できません」と大きさを出す
 export const MAX_TEXT_BYTES = 1024 * 1024;
 
+// 文字として読むファイルの読み方。上限を超えるとき、CSV と TSV は先頭だけ ("head")、ほかは読まない ("too-large")
+export function readPlan(kind, size) {
+  if (size <= MAX_TEXT_BYTES) return "full";
+  return kind === "csv" ? "head" : "too-large";
+}
+
+// 先頭だけ読んだ文字列から、途中で切れた最後の行を落とす。改行がなければそのまま
+export function cutToLastLine(text) {
+  const i = text.lastIndexOf("\n");
+  return i < 0 ? text : text.slice(0, i + 1);
+}
+
 const baseName = (path) => String(path).split("/").pop() ?? "";
 
 // 小文字の拡張子。拡張子のない名前と、. で始まるだけの名前 (.zshrc) は ""

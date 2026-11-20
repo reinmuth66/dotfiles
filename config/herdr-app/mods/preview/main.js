@@ -14,12 +14,14 @@ import {
   fileKind,
   formatJson,
   formatSize,
+  cutToLastLine,
   imagePlan,
   initialTabState,
   isCacheFile,
   languageOf,
   previewCachePath,
   pruneTargets,
+  readPlan,
   readmeName,
   separatorOf,
   thumbnailCommand,
@@ -278,14 +280,15 @@ export default class Preview extends View {
   }
 
   // 文字列を表示にする。NUL を含めば種類と大きさだけ
-  textView(path, text, size) {
+  // cut は、大きなファイルの先頭だけを読んだとき真 (表の下に注記を出す)
+  textView(path, text, size, cut = false) {
     if (text.includes("\0")) return { kind: "info", ext: extOf(path), size, note: null, path };
     switch (fileKind(path)) {
       case "markdown":
         return { kind: "markdown", text, path, truncated: false };
       case "csv": {
         const { markdown, truncated } = toMarkdownTable(parseDelimited(text, separatorOf(path)), TABLE_MAX_ROWS);
-        return { kind: "markdown", text: markdown, path, truncated };
+        return { kind: "markdown", text: markdown, path, truncated: truncated || cut };
       }
       case "json":
         return this.codeView(path, "json", formatJson(text));
@@ -306,7 +309,14 @@ export default class Preview extends View {
     const keyed = (view) => ({ ...view, fullKey: key });
     try {
       if (kind === "markdown" || kind === "csv" || kind === "json" || kind === "code") {
-        if (stat.size > MAX_TEXT_BYTES) return info(stat, "大きすぎて表示できません");
+        const plan = readPlan(kind, stat.size);
+        if (plan === "too-large") return info(stat, "大きすぎて表示できません");
+        if (plan === "head") {
+          // 大きな CSV と TSV は先頭だけ読み、途中で切れた最後の行は落とす
+          const r = await exec("head", ["-c", String(MAX_TEXT_BYTES), path], { timeout: COPY_TIMEOUT }).catch(() => null);
+          if (r?.code !== 0) return info(stat, "読めません");
+          return keyed(this.textView(path, cutToLastLine(r.stdout), stat.size, true));
+        }
         const text = await readTextFile(path);
         if (text == null) return info(stat, "読めません");
         return keyed(this.textView(path, text, stat.size));
@@ -398,7 +408,8 @@ export default class Preview extends View {
     const v = this.view;
     const t = theme();
     const note = (text) => div().p(METRICS.padLeft).text_color(t.dim).child(text);
-    if (!v) return note("読み込み中");
+    // タブを切り替えた直後など、見出しのファイルと出ている表示が違う間は、前のファイルを出さない
+    if (!v || (v.path ?? null) !== this.filePath()) return note("読み込み中");
     if (v.kind === "note") return note(v.text);
     if (v.kind === "markdown") return this.renderMarkdown(v);
     if (v.kind === "code" && this.code) return Editor.new(this.code).flex_1().min_h(0);

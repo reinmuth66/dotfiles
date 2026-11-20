@@ -4,6 +4,7 @@ import {
   LANGUAGE,
   MAX_TEXT_BYTES,
   agentTerminalFor,
+  cutToLastLine,
   extOf,
   fileKind,
   formatJson,
@@ -15,6 +16,7 @@ import {
   separatorOf,
   previewCachePath,
   pruneTargets,
+  readPlan,
   readmeName,
   thumbnailCommand,
   thumbnailOutput,
@@ -161,6 +163,18 @@ test("thumbnailCommand: f3d が入らない STL と STEP、ほかの種類は nu
 });
 test("上限と文言", () => {
   assert.equal(MAX_TEXT_BYTES, 1024 * 1024);
+});
+test("readPlan: 上限を超えても CSV と TSV は先頭だけ読む", () => {
+  assert.equal(readPlan("code", MAX_TEXT_BYTES), "full");
+  assert.equal(readPlan("csv", MAX_TEXT_BYTES), "full");
+  assert.equal(readPlan("csv", MAX_TEXT_BYTES + 1), "head");
+  for (const kind of ["code", "json", "markdown"]) assert.equal(readPlan(kind, MAX_TEXT_BYTES + 1), "too-large");
+});
+test("cutToLastLine: 途中で切れた最後の行を落とす", () => {
+  assert.equal(cutToLastLine("a,b\n1,2\n3,"), "a,b\n1,2\n");
+  assert.equal(cutToLastLine("a,b\n"), "a,b\n");
+  assert.equal(cutToLastLine("abc"), "abc");
+  assert.equal(cutToLastLine(""), "");
 });
 test("formatSize", () => {
   assert.equal(formatSize(512), "512 B");
