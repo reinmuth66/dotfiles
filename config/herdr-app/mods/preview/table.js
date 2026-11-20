@@ -43,7 +43,8 @@ const cell = (s) => s.replace(/\|/g, "\\|").replace(/\r\n|\r|\n/g, " ");
 // 1 行目を見出しにした Markdown の表にする。列の数は全部の行の最大に揃え、足りないセルは空。
 // 見出しを除いて maxRows 行を超えたら切り、truncated を真にする
 export function toMarkdownTable(rows, maxRows) {
-  const width = Math.max(0, ...rows.map((r) => r.length));
+  // 展開 (...) すると行が多いファイルで呼び出しの上限を超えるので、reduce で数える
+  const width = rows.reduce((m, r) => Math.max(m, r.length), 0);
   if (width === 0) return { markdown: "", truncated: false };
   const line = (r) => `| ${Array.from({ length: width }, (_, i) => cell(r[i] ?? "")).join(" | ")} |\n`;
   const [head, ...body] = rows;

@@ -27,6 +27,13 @@ test("maxRows を超えたら切る", () => {
   assert.equal(truncated, true);
 });
 
+test("行が非常に多くても落ちない", () => {
+  const rows = Array.from({ length: 200000 }, () => ["a", "b"]);
+  const { markdown, truncated } = toMarkdownTable(rows, 300);
+  assert.equal(truncated, true);
+  assert.equal(markdown.trim().split("\n").length, 302);
+});
+
 test("空の CSV", () => {
   assert.deepEqual(toMarkdownTable([], 300), { markdown: "", truncated: false });
   assert.equal(TABLE_MAX_ROWS, 300);
