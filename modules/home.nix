@@ -47,9 +47,11 @@
 
   home.packages = with pkgs; [
     colima
+    csvlens
     docker
     dust
     ffmpeg
+    fx
     ghq
     imagemagick
     moralerspace-hw
