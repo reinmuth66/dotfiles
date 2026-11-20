@@ -17,6 +17,7 @@ import {
   isRemoteSpace,
   isRemoteAddress,
 } from "./ui.js";
+import { openArgv } from "./open.js";
 
 test("GLYPH と STATUS の番号は glyphnames.json の値", () => {
   assert.equal(GLYPH.spaceClosed.codePointAt(0), 0xf003c);
@@ -73,12 +74,27 @@ test("別のコンピューターの判断", () => {
   assert.equal(isRemoteAddress("laptop/t1"), true);
 });
 // mod は自分のフォルダの外を import できないので、正本を写して使う。写しがずれていないこと
-test("ui.js と data.js の写しは正本と同じ", () => {
-  for (const name of ["ui.js", "data.js"]) {
+test("ui.js、data.js、open.js の写しは正本と同じ", () => {
+  for (const name of ["ui.js", "data.js", "open.js"]) {
     const original = readFileSync(new URL(`./${name}`, import.meta.url), "utf8");
     for (const mod of readdirSync(new URL("../mods/", import.meta.url))) {
       const copy = new URL(`../mods/${mod}/${name}`, import.meta.url);
       if (existsSync(copy)) assert.equal(readFileSync(copy, "utf8"), original, `mods/${mod}/${name}`);
     }
   }
+});
+test("open.js は preview と tree に写してある", () => {
+  for (const mod of ["preview", "tree"]) {
+    assert.ok(existsSync(new URL(`../mods/${mod}/open.js`, import.meta.url)), `mods/${mod}/open.js`);
+  }
+});
+test("openArgv", () => {
+  assert.deepEqual(openArgv("/a/b.nix", "edit"), ["nvim", "/a/b.nix"]);
+  assert.deepEqual(openArgv("/a/b.csv", "tool"), ["csvlens", "/a/b.csv"]);
+  assert.deepEqual(openArgv("/a/b.tsv", "tool"), ["csvlens", "/a/b.tsv"]);
+  assert.deepEqual(openArgv("/a/b.json", "tool"), ["fx", "/a/b.json"]);
+  assert.deepEqual(openArgv("/a/b.yaml", "tool"), ["nvim", "/a/b.yaml"]);
+  assert.deepEqual(openArgv("/a/B.CSV", "tool"), ["csvlens", "/a/B.CSV"]);
+  assert.deepEqual(openArgv("/a/b.csv", "edit"), ["nvim", "/a/b.csv"]);
+  assert.deepEqual(openArgv("/a/Makefile", "tool"), ["nvim", "/a/Makefile"]);
 });

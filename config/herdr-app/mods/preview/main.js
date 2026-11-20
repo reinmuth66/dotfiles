@@ -5,8 +5,27 @@
 import * as fs from "fs/promises";
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex, Editor, EditorState, TextView } from "gpui-base";
-import { appHome, checking, exec, focused, nextCommand, readTextFile, settings, shared, spaces, theme, watchFolder } from "herdr";
+import {
+  appHome,
+  checking,
+  exec,
+  focused,
+  hc,
+  home,
+  nextCommand,
+  notify,
+  openOverlay,
+  readTextFile,
+  run,
+  settings,
+  shared,
+  spaces,
+  terminals,
+  theme,
+  watchFolder,
+} from "herdr";
 import { METRICS, PALETTE, REMOTE_LABEL, isRemoteAddress, isRemoteSpace } from "./ui.js";
+import { openArgv } from "./open.js";
 import {
   MAX_TEXT_BYTES,
   PREVIEW_CACHE_DIR,
@@ -36,6 +55,11 @@ const STAT_TIMEOUT = 5000;
 const COPY_TIMEOUT = 5000;
 const THUMB_TIMEOUT = 15000;
 const FILE_POLL_MS = 10000; // 出しているファイルを見張れないときに読み直す間隔
+const OPEN_KEY = "preview-open"; // 開いたツールの窓の key。開き直すと同じ場所で置き換わる
+const OPEN_POLL_MS = 300; // 開いたツールが終わったかを見る間隔
+const OPEN_FOCUS_DELAY_MS = 150; // 窓が描かれてからフォーカスを移す
+const OPEN_START_TIMEOUT_MS = 5000; // terminals() に現れるのを待つ上限
+const OPEN_FALLBACK = { width: 0.5, height: 0.9 }; // preview の場所がまだ分からないとき (真ん中に出る)
 
 // Markdown の外枠。GitHub に寄せた値 (見て直してよい)
 const MARKDOWN = { font: "Hiragino Sans", size: 14, line: 14 * 1.5, maxWidth: 880, padX: 16, padY: 12 };
@@ -105,6 +129,9 @@ export default class Preview extends View {
     this.token = 0;
     this.fileWatch = null; // 出しているファイルの見張り。{ path, stopped, pending }
     this.fileRev = 0; // 出しているファイルが変わった回数。鍵に入れて読み直させる
+    this.openSeenAt = shared("preview-open")?.at ?? null; // 起動の前の頼みは開かない
+    this.area = null; // preview の窓の中の位置と大きさ { x, y, width, height }。ポインタが通ったときに覚える
+    this.opening = null; // 開いているツールのターミナルのアドレス (開き始めは "")。同時に 1 つだけ
     if (checking()) return;
     cx.spawn(async (cx) => {
       for (;;) {
@@ -132,6 +159,73 @@ export default class Preview extends View {
     const tab = focused()?.tab;
     if (!tab || isRemoteAddress(tab)) return null;
     return this.stateOf(tab).file;
+  }
+
+  // argv を cwd で動かすターミナルを、preview の場所に重ねた窓 (openOverlay の window) で開き、フォーカスを移す。
+  // 窓はターミナルが終わると herdr が閉じる。終わったら back (preview、または "<mod>.focus" を受ける mod の名前) へ
+  // フォーカスを戻す。Esc はターミナルに取られるので、閉じるのは TUI の q (nvim は :q) に任せる。
+  // preview の mod が作り直されても (レイアウトの切り替え)、ターミナルは止めない (直している途中を消さない)
+  openInPreview(argv, cwd, cx, back = "preview") {
+    if (checking() || this.opening != null) return;
+    this.opening = "";
+    const area = this.area;
+    cx.spawn(async (cx) => {
+      try {
+        const r = await hc(["run", "--bg", "--json", "--no-parent", "--rm", "--cwd", cwd, "--", ...argv]);
+        const term = r.code === 0 ? JSON.parse(r.stdout).address : null;
+        if (!term) {
+          notify({ title: `${argv[0]} を開けません`, body: r.stderr.trim(), level: "error" });
+          return;
+        }
+        this.opening = term;
+        const place = area ? { at: { x: area.x, y: area.y }, width: area.width, height: area.height } : OPEN_FALLBACK;
+        openOverlay({ kind: "window", key: OPEN_KEY, ...place, layout: { type: "block", content: { terminal: term } } });
+        await cx.sleep(OPEN_FOCUS_DELAY_MS);
+        run("pane.focus", { terminal: term });
+        const live = () => terminals().some((t) => t.address === term && t.state !== "finished");
+        // terminals() に現れるまで待ってから、消える (--rm) か終わるまで待つ
+        for (let waited = 0; !live() && waited < OPEN_START_TIMEOUT_MS; waited += OPEN_POLL_MS) await cx.sleep(OPEN_POLL_MS);
+        while (live()) await cx.sleep(OPEN_POLL_MS);
+        if (back === "preview") this.handle.focus();
+        else run(`${back}.focus`);
+      } catch (err) {
+        notify({ title: `${argv[0]} を開けません`, body: String(err?.message ?? err), level: "error" });
+      } finally {
+        this.opening = null;
+        cx.notify();
+      }
+    });
+  }
+
+  // tree からの頼み (shared("preview-open") = { argv, cwd, at })。新しいものだけを開く
+  takeOpenRequest(cx) {
+    const req = shared("preview-open");
+    if (!req?.at || req.at === this.openSeenAt) return;
+    this.openSeenAt = req.at;
+    if (Array.isArray(req.argv) && req.argv.length > 0) this.openInPreview(req.argv, req.cwd ?? home(), cx, "tree");
+  }
+
+  // ファイルの表示のキー: o / Enter は nvim、O は専用のツール (無ければ nvim)
+  fileKey(e, cx) {
+    const m = e.modifiers ?? {};
+    if (m.control || m.alt || m.platform) return;
+    const path = this.filePath();
+    if (!path) return;
+    const tool = (e.key === "o" && m.shift) || e.key === "O";
+    if (!tool && e.key !== "o" && e.key !== "enter") return;
+    this.openInPreview(openArgv(path, tool ? "tool" : "edit"), dirName(path), cx);
+    cx.stop_propagation();
+  }
+
+  // ポインタが preview の上を通るたびに、preview の窓の中の位置と大きさを覚える (開く窓をここに重ねる)
+  trackArea(e) {
+    if (!e.local_position || !e.bounds) return;
+    this.area = {
+      x: e.position.x - e.local_position.x,
+      y: e.position.y - e.local_position.y,
+      width: e.bounds.width,
+      height: e.bounds.height,
+    };
   }
 
   // tree-selection を受け取り、今のタブで出すファイルを決める。そのうえで出すものを読む
@@ -442,12 +536,18 @@ export default class Preview extends View {
       .font_family(FONT)
       .text_size(METRICS.fontSize)
       .text_color(PALETTE.text)
-      .track_focus(this.handle);
+      .track_focus(this.handle)
+      // Editor や TextView にフォーカスがあっても、止められなければキーはここまで上がってくる
+      .on_key_down((e, cx) => this.fileKey(e, cx))
+      .on_mouse_move((e) => this.trackArea(e));
     const tab = focused()?.tab ?? null;
     if (isRemoteSpace(currentSpace()) || (tab && isRemoteAddress(tab))) {
+      // 別のコンピューターのファイルは、このコンピューターのツールでは開かない
+      this.openSeenAt = shared("preview-open")?.at ?? null;
       this.stopFileWatch();
       return base.child(h_flex().flex_none().h(METRICS.row).pl(METRICS.padLeft).items_center().text_color(theme().dim).child(REMOTE_LABEL));
     }
+    this.takeOpenRequest(cx);
     if (!tab) {
       this.stopFileWatch();
       return base;

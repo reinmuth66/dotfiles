@@ -26,6 +26,7 @@ import { RETRY_MS, repoRoot } from "./data.js";
 import { GIT_STYLE, counts, fileIcon, flatten, folderState, parentIndex, parseStatus, treeRoot } from "./logic.js";
 import { REFS_ARGS, failureReason, filterBranches, parseRefs, switchPlan } from "./branches.js";
 import { renderPicker } from "./picker.js";
+import { openArgv } from "./open.js";
 
 const FONT = "Moralerspace Neon HW";
 const PAD_RIGHT = 10;
@@ -310,6 +311,13 @@ export default class Tree extends View {
     });
   }
 
+  // ファイルの行を開くよう preview に頼む (開くのは preview だけが行う)。フォルダと根の行では何もしない
+  requestOpen(row, how) {
+    if (!row || row.kind !== "entry" || row.dir) return;
+    const path = this.absPath(row);
+    setShared("preview-open", { argv: openArgv(path, how), cwd: this.root, at: Date.now() });
+  }
+
   isIgnored(rel) {
     if (this.ignored.size === 0) return false;
     const parts = rel.split("/");
@@ -434,9 +442,14 @@ export default class Tree extends View {
       this.select(this.rows[this.cursor]);
     };
     const shiftG = (e.key === "g" && m.shift) || e.key === "G";
+    const shiftO = (e.key === "o" && m.shift) || e.key === "O";
     const pendingG = this.pendingG;
     this.pendingG = false;
-    if (e.key === "j" || e.key === "down") moveTo(this.cursor + 1);
+    // o とファイルの行の Enter は nvim、O は専用のツール (無ければ nvim) で、preview の場所に開く
+    if (shiftO) this.requestOpen(row, "tool");
+    else if (e.key === "o") this.requestOpen(row, "edit");
+    else if (e.key === "enter" && row?.kind === "entry" && !row.dir) this.requestOpen(row, "edit");
+    else if (e.key === "j" || e.key === "down") moveTo(this.cursor + 1);
     else if (e.key === "k" || e.key === "up") moveTo(this.cursor - 1);
     else if (e.key === "l" || e.key === "right" || e.key === "enter") {
       if (!row) {
