@@ -27,6 +27,7 @@ const expected = {
   "ctrl-shift-v": "workspace.toggle-view",
   "ctrl-shift-u": "usage.cycle-mode",
   "ctrl-shift-z": "preview.toggle-view",
+  "ctrl-shift-o": "layout.toggle:preview-area",
   "ctrl-shift-up": "preview.history-prev",
   "ctrl-shift-down": "preview.history-next",
 };
