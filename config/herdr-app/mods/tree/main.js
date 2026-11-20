@@ -301,8 +301,13 @@ export default class Tree extends View {
   }
 
   select(row) {
-    if (!row || row.kind !== "entry" || row.dir) return;
-    setShared("tree-selection", { tab: focused()?.tab ?? null, path: this.absPath(row), at: Date.now() });
+    if (!row || row.kind !== "entry") return;
+    setShared("tree-selection", {
+      tab: focused()?.tab ?? null,
+      path: this.absPath(row),
+      dir: Boolean(row.dir),
+      at: Date.now(),
+    });
   }
 
   isIgnored(rel) {

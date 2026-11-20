@@ -13,6 +13,7 @@ import {
   withEdits,
   fileKind,
   follow,
+  formatJson,
   formatSize,
   imagePlan,
   isCacheFile,
@@ -23,6 +24,7 @@ import {
   pin,
   previewCachePath,
   pruneTargets,
+  readmeName,
   thumbnailCommand,
   thumbnailOutput,
   toggleView,
@@ -284,4 +286,14 @@ test("stripCR は行末の \\r だけを消す", () => {
   assert.equal(stripCR("a\r"), "a");
   assert.equal(stripCR("a\rb"), "a\rb");
   assert.equal(stripCR("a"), "a");
+});
+test("formatJson", () => {
+  assert.equal(formatJson('{"a":1,"b":[2]}'), '{\n  "a": 1,\n  "b": [\n    2\n  ]\n}');
+  assert.equal(formatJson("{broken"), "{broken");
+});
+test("readmeName", () => {
+  assert.equal(readmeName(["a.nix", "README.md"]), "README.md");
+  assert.equal(readmeName(["Readme.MD"]), "Readme.MD");
+  assert.equal(readmeName(["README", "README.md"]), "README.md");
+  assert.equal(readmeName(["a.txt"]), null);
 });

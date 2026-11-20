@@ -226,5 +226,24 @@ export function pathspecFor(path, root) {
   return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
 }
 
+// JSON は 2 字下げで整形する。読めなければ (壊れた JSON、jsonc) 元の文字のまま
+export function formatJson(text) {
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
+}
+
+// フォルダの README の名前。この順で最初に見つかったもの (大文字と小文字は区別しない)。返すのは names の中の元の綴り
+const README_NAMES = ["readme.md", "readme.markdown", "readme"];
+export function readmeName(names) {
+  for (const want of README_NAMES) {
+    const found = names.find((n) => n.toLowerCase() === want);
+    if (found) return found;
+  }
+  return null;
+}
+
 // CRLF のファイルの差分では行の本文の末尾に \r が残る
 export const stripCR = (text) => (text.endsWith("\r") ? text.slice(0, -1) : text);
