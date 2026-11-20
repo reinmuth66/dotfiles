@@ -1,6 +1,4 @@
-// プレビューの判断。ファイルの種類、色付けの言語、縮小画像の置き場所、タブごとの状態、編集の追従。herdr には依存しない。
-import { isRemoteAddress } from "./ui.js";
-
+// プレビューの判断。ファイルの種類、色付けの言語、縮小画像の置き場所、タブごとの状態。herdr には依存しない。
 // EditorState の language に渡す名前のうち、拡張子と名前が違うもの (herdr の files の mod の表に nix を足した)。
 // 表にない拡張子は拡張子そのものを渡す (languageOf)
 export const LANGUAGE = {
@@ -26,7 +24,6 @@ const ARCHIVE = new Set(["zip", "tar", "gz", "tgz", "bz2", "xz", "zst", "7z", "r
 
 // readTextFile の上限 (1 MiB)。超えるファイルは「大きすぎて表示できません」と大きさを出す
 export const MAX_TEXT_BYTES = 1024 * 1024;
-export const tooLargeMessage = "大きすぎて差分を出せません";
 
 const baseName = (path) => String(path).split("/").pop() ?? "";
 
@@ -169,15 +166,8 @@ export function pruneTargets(entries, max) {
     .map((e) => e.name);
 }
 
-// タブごとの状態。追従中は差分、固定すると全体が既定
-export const initialTabState = () => ({ mode: "follow", pinned: null, view: "diff", historyIndex: 0 });
-export const pin = (state, path) => ({ ...state, mode: "pinned", pinned: path, view: "full" });
-export const follow = (state) => ({ ...state, mode: "follow", view: "diff", historyIndex: 0 });
-export const toggleView = (state) => ({ ...state, view: state.view === "diff" ? "full" : "diff" });
-export function moveHistory(state, delta, length) {
-  const last = Math.max(0, length - 1);
-  return { ...state, historyIndex: Math.min(last, Math.max(0, state.historyIndex + delta)) };
-}
+// タブごとの状態。view は今のところ "file" だけ (作業履歴の "history" は後で加わる)。file は出しているファイル
+export const initialTabState = () => ({ view: "file", file: null });
 
 // 今のタブのエージェントの端末。複数なら focused().terminal と同じもの、なければ最初のもの
 export function agentTerminalFor(agents, focused) {
@@ -185,45 +175,6 @@ export function agentTerminalFor(agents, focused) {
   const inTab = agents.filter((a) => a.tab === focused.tab);
   if (inTab.length === 0) return null;
   return (inTab.find((a) => a.address === focused.terminal) ?? inTab[0]).address;
-}
-
-// その端末の編集の seq (新しい順)。別のコンピューターの端末と、セッションが変わった古い activity は使わない
-export function editsFor(address, activity, sessions) {
-  if (!address || isRemoteAddress(address)) return [];
-  const rec = activity[address];
-  if (!rec) return [];
-  const current = sessions[address]?.session_id;
-  if (rec.session_id && current && rec.session_id !== current) return [];
-  return Array.isArray(rec.edits) ? rec.edits.filter((n) => Number.isInteger(n)) : [];
-}
-
-// 編集の一覧が変わったときの状態。先頭 (いちばん新しい編集) が前と違えば、履歴の位置を 0 に戻す
-export function withEdits(state, prevTop, edits) {
-  const top = edits[0] ?? null;
-  let index = top !== prevTop ? 0 : state.historyIndex;
-  index = Math.min(index, Math.max(0, edits.length - 1));
-  return index === state.historyIndex ? state : { ...state, historyIndex: index };
-}
-
-// 編集の記録の前後。Edit で元のファイルがないとき before は null なので空として扱う。大きすぎる記録は null
-export function editTexts(record) {
-  if (!record || record.too_large) return null;
-  return { before: record.before ?? "", after: record.after ?? "" };
-}
-
-// 見出しの文言。追従中だけ履歴の位置 (1 から数える) を出す
-export function headerText({ mode, view, path, index, count }) {
-  return {
-    mode: mode === "follow" ? "追従" : "固定",
-    name: path ? baseName(path) : "",
-    view: view === "diff" ? "差分" : "全体",
-    position: mode === "follow" && count > 0 ? `${index + 1}/${count}` : null,
-  };
-}
-
-// git diff の pathspec。リポジトリの中なら根からの相対パス
-export function pathspecFor(path, root) {
-  return path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
 }
 
 // JSON は 2 字下げで整形する。読めなければ (壊れた JSON、jsonc) 元の文字のまま
@@ -244,6 +195,3 @@ export function readmeName(names) {
   }
   return null;
 }
-
-// CRLF のファイルの差分では行の本文の末尾に \r が残る
-export const stripCR = (text) => (text.endsWith("\r") ? text.slice(0, -1) : text);

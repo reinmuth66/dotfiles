@@ -4,15 +4,8 @@ import {
   LANGUAGE,
   MAX_TEXT_BYTES,
   agentTerminalFor,
-  editTexts,
-  editsFor,
   extOf,
-  headerText,
-  pathspecFor,
-  stripCR,
-  withEdits,
   fileKind,
-  follow,
   formatJson,
   formatSize,
   imagePlan,
@@ -20,15 +13,11 @@ import {
   initialTabState,
   languageOf,
   separatorOf,
-  moveHistory,
-  pin,
   previewCachePath,
   pruneTargets,
   readmeName,
   thumbnailCommand,
   thumbnailOutput,
-  toggleView,
-  tooLargeMessage,
 } from "./logic.js";
 
 test("fileKind", () => {
@@ -172,7 +161,6 @@ test("thumbnailCommand: f3d が入らない STL と STEP、ほかの種類は nu
 });
 test("上限と文言", () => {
   assert.equal(MAX_TEXT_BYTES, 1024 * 1024);
-  assert.equal(tooLargeMessage, "大きすぎて差分を出せません");
 });
 test("formatSize", () => {
   assert.equal(formatSize(512), "512 B");
@@ -205,19 +193,9 @@ test("pruneTargets は自分が作った写しだけを数え、ほかのファ�
   assert.deepEqual(pruneTargets(entries, 1), ["0000000000000000.png"]);
   assert.equal(isCacheFile("store.json"), false);
 });
-test("タブの状態", () => {
-  let s = initialTabState();
-  assert.deepEqual(s, { mode: "follow", pinned: null, view: "diff", historyIndex: 0 });
-  s = pin(s, "/r/a.md");
-  assert.deepEqual([s.mode, s.pinned, s.view], ["pinned", "/r/a.md", "full"]);
-  s = toggleView(s);
-  assert.equal(s.view, "diff");
-  assert.equal(toggleView(s).view, "full");
-  s = follow(s);
-  assert.deepEqual([s.mode, s.view, s.historyIndex], ["follow", "diff", 0]);
-  assert.equal(moveHistory(s, 5, 3).historyIndex, 2);
-  assert.equal(moveHistory(s, -1, 3).historyIndex, 0);
-  assert.equal(moveHistory(s, 1, 0).historyIndex, 0);
+test("タブの状態は、ファイルの表示でファイルなしから始まる", () => {
+  assert.deepEqual(initialTabState(), { view: "file", file: null });
+  assert.notEqual(initialTabState(), initialTabState());
 });
 
 test("agentTerminalFor: 今のタブのエージェント。複数なら focused().terminal、なければ最初", () => {
@@ -231,61 +209,6 @@ test("agentTerminalFor: 今のタブのエージェント。複数なら focused
   assert.equal(agentTerminalFor(list, { tab: "b", terminal: "t9" }), "t2");
   assert.equal(agentTerminalFor(list, { tab: "c", terminal: "t1" }), null);
   assert.equal(agentTerminalFor(list, null), null);
-});
-
-test("editsFor: セッションが違う activity と、別のコンピューターの端末は使わない", () => {
-  const activity = { t1: { session_id: "s1", edits: [3, "x", 2] } };
-  assert.deepEqual(editsFor("t1", activity, { t1: { session_id: "s1" } }), [3, 2]);
-  assert.deepEqual(editsFor("t1", activity, {}), [3, 2]);
-  assert.deepEqual(editsFor("t1", activity, { t1: { session_id: "s2" } }), []);
-  assert.deepEqual(editsFor("t2", activity, {}), []);
-  assert.deepEqual(editsFor("laptop/t1", { "laptop/t1": activity.t1 }, {}), []);
-  assert.deepEqual(editsFor(null, activity, {}), []);
-});
-
-test("withEdits: 新しい編集が来たら履歴の位置を 0 に戻し、範囲の外なら詰める", () => {
-  const s = { ...initialTabState(), historyIndex: 2 };
-  assert.equal(withEdits(s, 5, [6, 5, 4]).historyIndex, 0);
-  assert.equal(withEdits(s, 6, [6, 5, 4]).historyIndex, 2);
-  assert.equal(withEdits(s, 6, [6, 5]).historyIndex, 1);
-  assert.equal(withEdits(s, 6, []).historyIndex, 0);
-  const same = withEdits(s, 6, [6, 5, 4]);
-  assert.equal(same, s); // 変わらなければ同じもの
-});
-
-test("editTexts: before が null なら空、too_large なら null", () => {
-  assert.deepEqual(editTexts({ before: null, after: "x", too_large: false }), { before: "", after: "x" });
-  assert.deepEqual(editTexts({ before: "a", after: "b", too_large: false }), { before: "a", after: "b" });
-  assert.equal(editTexts({ before: null, after: null, too_large: true }), null);
-  assert.equal(editTexts(null), null);
-});
-
-test("headerText: 追従中は履歴の位置を出す", () => {
-  assert.deepEqual(headerText({ mode: "follow", view: "diff", path: "/r/a.md", index: 0, count: 3 }), {
-    mode: "追従",
-    name: "a.md",
-    view: "差分",
-    position: "1/3",
-  });
-  assert.deepEqual(headerText({ mode: "pinned", view: "full", path: "/r/b.nix", index: 0, count: 3 }), {
-    mode: "固定",
-    name: "b.nix",
-    view: "全体",
-    position: null,
-  });
-  assert.equal(headerText({ mode: "follow", view: "diff", path: null, index: 0, count: 0 }).position, null);
-});
-
-test("pathspecFor: リポジトリの中なら根からの相対、外なら絶対", () => {
-  assert.equal(pathspecFor("/r/sub dir/a.md", "/r"), "sub dir/a.md");
-  assert.equal(pathspecFor("/x/a.md", "/r"), "/x/a.md");
-  assert.equal(pathspecFor("/rr/a.md", "/r"), "/rr/a.md");
-});
-
-test("stripCR は行末の \\r だけを消す", () => {
-  assert.equal(stripCR("a\r"), "a");
-  assert.equal(stripCR("a\rb"), "a\rb");
-  assert.equal(stripCR("a"), "a");
 });
 test("formatJson", () => {
   assert.equal(formatJson('{"a":1,"b":[2]}'), '{\n  "a": 1,\n  "b": [\n    2\n  ]\n}');
