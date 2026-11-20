@@ -1,37 +1,28 @@
 // プレビューの判断。ファイルの種類、色付けの言語、縮小画像の置き場所、タブごとの状態、編集の追従。herdr には依存しない。
 import { isRemoteAddress } from "./ui.js";
 
-// EditorState の language に渡す名前。表にない拡張子は "text"
+// EditorState の language に渡す名前のうち、拡張子と名前が違うもの (herdr の files の mod の表に nix を足した)。
+// 表にない拡張子は拡張子そのものを渡す (languageOf)
 export const LANGUAGE = {
-  nix: "nix",
-  js: "js",
   ts: "js",
   tsx: "js",
-  mjs: "js",
-  cjs: "js",
+  mts: "js",
+  cts: "js",
   jsx: "js",
-  json: "json",
-  toml: "toml",
-  yaml: "yaml",
-  yml: "yaml",
-  lua: "lua",
-  bash: "bash",
-  sh: "bash",
-  zsh: "bash",
-  css: "css",
-  html: "html",
-  md: "markdown",
-  markdown: "markdown",
-  rs: "rust",
-  py: "python",
-  go: "go",
+  mjs: "js",
+  toml: "yaml",
+  jsonc: "json",
+  svelte: "html",
+  vue: "html",
+  nix: "ruby",
 };
 
 const MARKDOWN = new Set(["md", "markdown"]);
+const CSV = new Set(["csv", "tsv"]);
 const IMAGE = new Set(["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "tiff", "heic"]);
 const DOCUMENT = new Set(["pdf", "docx", "doc", "xlsx", "xls", "pptx", "ppt", "pages", "numbers", "key"]);
 const MODEL = new Set(["stl", "3mf", "step", "stp", "fcstd", "kicad_pcb", "kicad_sch", "kicad_pro"]);
-const TEXT = new Set(["txt", "json", "toml", "yaml", "yml", "lua", "sh", "nix", "js", "ts", "css", "html"]);
+const ARCHIVE = new Set(["zip", "tar", "gz", "tgz", "bz2", "xz", "zst", "7z", "rar", "dmg", "iso"]);
 
 // readTextFile の上限 (1 MiB)。超えるファイルは「大きすぎて表示できません」と大きさを出す
 export const MAX_TEXT_BYTES = 1024 * 1024;
@@ -49,12 +40,18 @@ export function extOf(path) {
 export function fileKind(path) {
   const ext = extOf(path);
   if (MARKDOWN.has(ext)) return "markdown";
+  if (CSV.has(ext)) return "csv";
+  if (ext === "json") return "json";
   if (IMAGE.has(ext)) return "image";
   if (DOCUMENT.has(ext)) return "document";
   if (MODEL.has(ext)) return "model";
-  if (ext === "" || ext in LANGUAGE || TEXT.has(ext)) return "code";
-  return "other";
+  if (ARCHIVE.has(ext)) return "other";
+  // 色付けされない拡張子も Editor で出す。バイナリは読んだあとの NUL で見分ける (main.js)
+  return "code";
 }
+
+// 区切り文字。tsv はタブ、ほかは ,
+export const separatorOf = (path) => (extOf(path) === "tsv" ? "\t" : ",");
 
 // GPUI が読めない画像 (HEIC、TIFF) は sips で PNG に直す
 const CONVERT = new Set(["heic", "tiff"]);
@@ -122,7 +119,10 @@ export function imagePlan(path) {
   return CONVERT.has(ext) ? { method: "convert", ext: "png" } : { method: "copy", ext };
 }
 
-export const languageOf =(path) => LANGUAGE[extOf(path)] ?? "text";
+export function languageOf(path) {
+  const ext = extOf(path);
+  return LANGUAGE[ext] ?? (ext || "text");
+}
 
 // FNV-1a (32 ビット) を 2 回、別の種で回して 16 桁の 16 進にする
 function fnv1a(text, seed) {

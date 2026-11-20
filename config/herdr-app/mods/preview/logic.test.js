@@ -18,6 +18,7 @@ import {
   isCacheFile,
   initialTabState,
   languageOf,
+  separatorOf,
   moveHistory,
   pin,
   previewCachePath,
@@ -47,15 +48,39 @@ test("fileKind: 表の言語、拡張子のない名前、決めた拡張子は 
   assert.equal(fileKind("/r/a.HEIC"), "image");
   assert.equal(fileKind("/r/a.key"), "document");
 });
-test("LANGUAGE と languageOf", () => {
-  assert.equal(LANGUAGE.nix, "nix");
-  assert.equal(LANGUAGE.tsx, "js");
-  assert.equal(LANGUAGE.cjs, "js");
-  assert.equal(LANGUAGE.zsh, "bash");
-  assert.equal(LANGUAGE.py, "python");
-  assert.equal(languageOf("/r/a.ts"), "js");
-  assert.equal(languageOf("/r/Makefile"), "text");
-  assert.equal(languageOf("/r/a.txt"), "text");
+test("languageOf は herdr の files の mod の表に nix を足したもの", () => {
+  assert.equal(languageOf("/a/b.ts"), "js");
+  assert.equal(languageOf("/a/b.tsx"), "js");
+  assert.equal(languageOf("/a/b.mts"), "js");
+  assert.equal(languageOf("/a/b.toml"), "yaml");
+  assert.equal(languageOf("/a/b.jsonc"), "json");
+  assert.equal(languageOf("/a/b.vue"), "html");
+  assert.equal(languageOf("/a/b.nix"), "ruby");
+  assert.equal(languageOf("/a/b.py"), "py");
+  assert.equal(languageOf("/a/b.dtsi"), "dtsi");
+  assert.equal(languageOf("/a/Makefile"), "text");
+});
+test("LANGUAGE は表の値だけを持つ", () => {
+  assert.equal(LANGUAGE.nix, "ruby");
+  assert.equal(LANGUAGE.cts, "js");
+  assert.equal(LANGUAGE.svelte, "html");
+  assert.equal(LANGUAGE.py, undefined);
+});
+test("fileKind は csv、tsv、json を分ける", () => {
+  assert.equal(fileKind("/a/b.csv"), "csv");
+  assert.equal(fileKind("/a/b.tsv"), "csv");
+  assert.equal(fileKind("/a/b.json"), "json");
+  assert.equal(fileKind("/a/b.md"), "markdown");
+  assert.equal(fileKind("/a/b.nix"), "code");
+  assert.equal(fileKind("/a/b.dtsi"), "code");
+  assert.equal(separatorOf("/a/b.tsv"), "\t");
+  assert.equal(separatorOf("/a/b.csv"), ",");
+});
+test("fileKind: 画像、文書、モデル、圧縮ファイル以外の拡張子は code", () => {
+  assert.equal(fileKind("/a/b.zip"), "other");
+  assert.equal(fileKind("/a/b.tar"), "other");
+  assert.equal(fileKind("/a/b.gz"), "other");
+  assert.equal(fileKind("/a/b.unknownext"), "code");
 });
 test("extOf", () => {
   assert.equal(extOf("/r/x.PNG"), "png");
