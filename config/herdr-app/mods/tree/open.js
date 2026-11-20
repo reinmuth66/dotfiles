@@ -15,3 +15,18 @@ export function openArgv(path, how) {
   const tool = how === "tool" ? TOOLS[extOf(path)] : null;
   return [tool ?? "nvim", path];
 }
+
+// ツールを動かすフォルダ。リポジトリの根が分かればそこ、無ければファイルのフォルダ (tree と preview で同じにする)
+export function openCwd(path, root) {
+  return root || String(path).replace(/\/[^/]*$/, "") || "/";
+}
+
+// preview が開いたツールのターミナルに付ける印 (hc run --label)。preview の mod が作り直されても見つけられる
+export const OPEN_LABEL = "herdr-preview=open";
+
+// terminals() から、preview が開いて、まだ動いているターミナルを探す。
+// 動いている herdr で見た形: state は "live"、--rm で起こしたものは終わると一覧から消える
+export function openTerminalOf(list) {
+  const [key, value] = OPEN_LABEL.split("=");
+  return list.find((t) => t.state === "live" && t.labels?.[key] === value) ?? null;
+}

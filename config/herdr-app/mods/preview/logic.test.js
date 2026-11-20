@@ -20,6 +20,7 @@ import {
   readmeName,
   thumbnailCommand,
   thumbnailOutput,
+  openPlace,
 } from "./logic.js";
 
 test("fileKind", () => {
@@ -233,4 +234,21 @@ test("readmeName", () => {
   assert.equal(readmeName(["Readme.MD"]), "Readme.MD");
   assert.equal(readmeName(["README", "README.md"]), "README.md");
   assert.equal(readmeName(["a.txt"]), null);
+});
+
+test("openPlace: 覚えた場所、無ければレイアウトの preview-area の場所、それも無ければ真ん中", () => {
+  const area = { x: 241, y: 0, width: 480, height: 900 };
+  assert.deepEqual(openPlace(area, null), { at: { x: 241, y: 0 }, width: 480, height: 900 });
+  const layout = {
+    type: "row",
+    divider: { width: 1 },
+    children: [
+      { id: "sidebar", size: { px: 240 } },
+      { id: "preview-area", size: { px: 480 } },
+      { id: "agent-area" },
+    ],
+  };
+  assert.deepEqual(openPlace(null, layout), { at: { x: 241, y: 0 }, width: 480, height: 1 });
+  assert.deepEqual(openPlace(null, { type: "row", children: [] }), { width: 0.5, height: 0.9 });
+  assert.deepEqual(openPlace(null, null), { width: 0.5, height: 0.9 });
 });

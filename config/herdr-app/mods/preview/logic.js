@@ -207,3 +207,24 @@ export function readmeName(names) {
   }
   return null;
 }
+
+// 開いたツールの窓 (openOverlay の popup) の場所と大きさ。
+// area (ポインタが preview を通ったときに覚えた、窓の中の位置と大きさ) があればそれ。無ければレイアウトの
+// 一番上の段から preview-area の左端 (前の兄弟の px と区切りの幅の和) と幅を出し、高さは窓いっぱい (1)。
+// それも分からなければ真ん中に出す
+const OPEN_FALLBACK = { width: 0.5, height: 0.9 };
+export function openPlace(area, layout) {
+  if (area) return { at: { x: area.x, y: area.y }, width: area.width, height: area.height };
+  const children = layout?.children ?? [];
+  const i = children.findIndex((c) => c.id === "preview-area");
+  const width = children[i]?.size?.px;
+  if (i < 0 || !width) return OPEN_FALLBACK;
+  const divider = layout.divider?.width ?? 0;
+  let x = 0;
+  for (const c of children.slice(0, i)) {
+    if (c.hidden) continue;
+    if (!c.size?.px) return OPEN_FALLBACK;
+    x += c.size.px + divider;
+  }
+  return { at: { x, y: 0 }, width, height: 1 };
+}

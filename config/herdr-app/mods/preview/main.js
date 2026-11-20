@@ -12,6 +12,7 @@ import {
   focused,
   hc,
   home,
+  layout,
   nextCommand,
   notify,
   openOverlay,
@@ -25,7 +26,8 @@ import {
   watchFolder,
 } from "herdr";
 import { METRICS, PALETTE, REMOTE_LABEL, isRemoteAddress, isRemoteSpace } from "./ui.js";
-import { openArgv } from "./open.js";
+import { repoRoot } from "./data.js";
+import { openArgv, openCwd, openTerminalOf, OPEN_LABEL } from "./open.js";
 import {
   MAX_TEXT_BYTES,
   PREVIEW_CACHE_DIR,
@@ -38,6 +40,7 @@ import {
   initialTabState,
   isCacheFile,
   languageOf,
+  openPlace,
   previewCachePath,
   pruneTargets,
   readPlan,
@@ -55,11 +58,8 @@ const STAT_TIMEOUT = 5000;
 const COPY_TIMEOUT = 5000;
 const THUMB_TIMEOUT = 15000;
 const FILE_POLL_MS = 10000; // 出しているファイルを見張れないときに読み直す間隔
-const OPEN_KEY = "preview-open"; // 開いたツールの窓の key。開き直すと同じ場所で置き換わる
 const OPEN_POLL_MS = 300; // 開いたツールが終わったかを見る間隔
-const OPEN_FOCUS_DELAY_MS = 150; // 窓が描かれてからフォーカスを移す
-const OPEN_START_TIMEOUT_MS = 5000; // terminals() に現れるのを待つ上限
-const OPEN_FALLBACK = { width: 0.5, height: 0.9 }; // preview の場所がまだ分からないとき (真ん中に出る)
+const OPEN_START_TIMEOUT_MS = 5000; // 開いたツールが terminals() に出るのを待つ上限
 
 // Markdown の外枠。GitHub に寄せた値 (見て直してよい)
 const MARKDOWN = { font: "Hiragino Sans", size: 14, line: 14 * 1.5, maxWidth: 880, padX: 16, padY: 12 };
@@ -131,7 +131,9 @@ export default class Preview extends View {
     this.fileRev = 0; // 出しているファイルが変わった回数。鍵に入れて読み直させる
     this.openSeenAt = shared("preview-open")?.at ?? null; // 起動の前の頼みは開かない
     this.area = null; // preview の窓の中の位置と大きさ { x, y, width, height }。ポインタが通ったときに覚える
-    this.opening = null; // 開いているツールのターミナルのアドレス (開き始めは "")。同時に 1 つだけ
+    this.starting = false; // hc run の返事を待っている間
+    this.watching = null; // 終わるのを見張っている、開いたツールのターミナル
+    this.openBack = "preview"; // 開いたツールが終わったら、フォーカスを戻す先
     if (checking()) return;
     cx.spawn(async (cx) => {
       for (;;) {
@@ -161,39 +163,62 @@ export default class Preview extends View {
     return this.stateOf(tab).file;
   }
 
-  // argv を cwd で動かすターミナルを、preview の場所に重ねた窓 (openOverlay の window) で開き、フォーカスを移す。
-  // 窓はターミナルが終わると herdr が閉じる。終わったら back (preview、または "<mod>.focus" を受ける mod の名前) へ
-  // フォーカスを戻す。Esc はターミナルに取られるので、閉じるのは TUI の q (nvim は :q) に任せる。
-  // preview の mod が作り直されても (レイアウトの切り替え)、ターミナルは止めない (直している途中を消さない)
+  // argv を cwd (文字列か、それを返す Promise) で動かすターミナルを、preview の場所に重ねた popup で開く。
+  // popup はキーボードを取り (window は取らない)、Esc もターミナルに渡す。modal なので横をクリックしても閉じない。
+  // ターミナルが終わると herdr が閉じるので、閉じるのは TUI の q (nvim は :q) に任せる。終わったら back
+  // (preview、または "<mod>.focus" を受ける mod の名前) へフォーカスを戻す。
+  // 前に開いたものがまだ動いていれば (レイアウトの切り替えで popup だけ閉じたときなど)、新しく起こさずにそれを出し直す。
+  // 止めはしない (直している途中を消さない)
   openInPreview(argv, cwd, cx, back = "preview") {
-    if (checking() || this.opening != null) return;
-    this.opening = "";
-    const area = this.area;
+    if (checking()) return;
+    const running = openTerminalOf(terminals());
+    if (running) {
+      this.showOpen(running.address, back, cx);
+      if (JSON.stringify(running.argv) !== JSON.stringify(argv)) {
+        notify({
+          title: "前に開いたものがまだ動いています",
+          body: `${(running.argv ?? []).join(" ")} を閉じてから開き直してください`,
+          level: "warning",
+        });
+      }
+      return;
+    }
+    if (this.starting) return; // hc run の返事を待つ間 (数十ミリ秒) の押し直し
+    this.starting = true;
     cx.spawn(async (cx) => {
       try {
-        const r = await hc(["run", "--bg", "--json", "--no-parent", "--rm", "--cwd", cwd, "--", ...argv]);
+        const dir = await cwd;
+        const r = await hc(["run", "--bg", "--json", "--no-parent", "--rm", "--label", OPEN_LABEL, "--cwd", dir, "--", ...argv]);
         const term = r.code === 0 ? JSON.parse(r.stdout).address : null;
         if (!term) {
           notify({ title: `${argv[0]} を開けません`, body: r.stderr.trim(), level: "error" });
           return;
         }
-        this.opening = term;
-        const place = area ? { at: { x: area.x, y: area.y }, width: area.width, height: area.height } : OPEN_FALLBACK;
-        openOverlay({ kind: "window", key: OPEN_KEY, ...place, layout: { type: "block", content: { terminal: term } } });
-        await cx.sleep(OPEN_FOCUS_DELAY_MS);
-        run("pane.focus", { terminal: term });
-        const live = () => terminals().some((t) => t.address === term && t.state !== "finished");
-        // terminals() に現れるまで待ってから、消える (--rm) か終わるまで待つ
-        for (let waited = 0; !live() && waited < OPEN_START_TIMEOUT_MS; waited += OPEN_POLL_MS) await cx.sleep(OPEN_POLL_MS);
-        while (live()) await cx.sleep(OPEN_POLL_MS);
-        if (back === "preview") this.handle.focus();
-        else run(`${back}.focus`);
+        this.showOpen(term, back, cx);
       } catch (err) {
         notify({ title: `${argv[0]} を開けません`, body: String(err?.message ?? err), level: "error" });
       } finally {
-        this.opening = null;
-        cx.notify();
+        this.starting = false;
       }
+    });
+  }
+
+  // term を popup で preview の場所に出し、終わるまで見張る (terminals() の state が "live" でなくなるか、--rm で消えるまで)
+  showOpen(term, back, cx) {
+    openOverlay({ kind: "popup", modal: true, ...openPlace(this.area, layout()), layout: { type: "block", content: { terminal: term } } });
+    this.openBack = back;
+    if (this.watching === term) return;
+    this.watching = term;
+    cx.spawn(async (cx) => {
+      const live = () => terminals().some((t) => t.address === term && t.state === "live");
+      // hc run が返った直後は、まだ terminals() に出ていない (動いている herdr で見た)。出るまで待ってから、消えるまで待つ
+      for (let waited = 0; !live() && waited < OPEN_START_TIMEOUT_MS; waited += OPEN_POLL_MS) await cx.sleep(OPEN_POLL_MS);
+      while (live()) await cx.sleep(OPEN_POLL_MS);
+      if (this.watching !== term) return;
+      this.watching = null;
+      if (this.openBack === "preview") this.handle.focus();
+      else run(`${this.openBack}.focus`);
+      cx.notify();
     });
   }
 
@@ -213,7 +238,8 @@ export default class Preview extends View {
     if (!path) return;
     const tool = (e.key === "o" && m.shift) || e.key === "O";
     if (!tool && e.key !== "o" && e.key !== "enter") return;
-    this.openInPreview(openArgv(path, tool ? "tool" : "edit"), dirName(path), cx);
+    const cwd = repoRoot(dirName(path)).then((root) => openCwd(path, root));
+    this.openInPreview(openArgv(path, tool ? "tool" : "edit"), cwd, cx);
     cx.stop_propagation();
   }
 

@@ -17,7 +17,7 @@ import {
   isRemoteSpace,
   isRemoteAddress,
 } from "./ui.js";
-import { openArgv } from "./open.js";
+import { OPEN_LABEL, openArgv, openCwd, openTerminalOf } from "./open.js";
 
 test("GLYPH と STATUS の番号は glyphnames.json の値", () => {
   assert.equal(GLYPH.spaceClosed.codePointAt(0), 0xf003c);
@@ -97,4 +97,18 @@ test("openArgv", () => {
   assert.deepEqual(openArgv("/a/B.CSV", "tool"), ["csvlens", "/a/B.CSV"]);
   assert.deepEqual(openArgv("/a/b.csv", "edit"), ["nvim", "/a/b.csv"]);
   assert.deepEqual(openArgv("/a/Makefile", "tool"), ["nvim", "/a/Makefile"]);
+});
+test("openCwd: リポジトリの根、無ければファイルのフォルダ", () => {
+  assert.equal(openCwd("/r/a/b.nix", "/r"), "/r");
+  assert.equal(openCwd("/r/a/b.nix", null), "/r/a");
+  assert.equal(openCwd("/b.nix", null), "/");
+});
+// terminals() の形は、動いている herdr で hc run --bg --rm したものを見て決めた (state は "live"、終わると一覧から消える)
+test("openTerminalOf: 印の付いた、動いているターミナル", () => {
+  const [k, v] = OPEN_LABEL.split("=");
+  const mine = { address: "t9", state: "live", labels: { [k]: v } };
+  assert.equal(openTerminalOf([{ address: "t1", state: "live", labels: {} }, mine]), mine);
+  assert.equal(openTerminalOf([{ ...mine, state: "finished" }]), null);
+  assert.equal(openTerminalOf([{ address: "t2", state: "live" }]), null);
+  assert.equal(openTerminalOf([]), null);
 });

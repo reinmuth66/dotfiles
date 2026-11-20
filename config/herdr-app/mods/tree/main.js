@@ -26,7 +26,7 @@ import { RETRY_MS, repoRoot } from "./data.js";
 import { GIT_STYLE, counts, fileIcon, flatten, folderState, parentIndex, parseStatus, treeRoot } from "./logic.js";
 import { REFS_ARGS, failureReason, filterBranches, parseRefs, switchPlan } from "./branches.js";
 import { renderPicker } from "./picker.js";
-import { openArgv } from "./open.js";
+import { openArgv, openCwd } from "./open.js";
 
 const FONT = "Moralerspace Neon HW";
 const PAD_RIGHT = 10;
@@ -315,7 +315,7 @@ export default class Tree extends View {
   requestOpen(row, how) {
     if (!row || row.kind !== "entry" || row.dir) return;
     const path = this.absPath(row);
-    setShared("preview-open", { argv: openArgv(path, how), cwd: this.root, at: Date.now() });
+    setShared("preview-open", { argv: openArgv(path, how), cwd: openCwd(path, this.isRepo ? this.root : null), at: Date.now() });
   }
 
   isIgnored(rel) {
