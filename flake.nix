@@ -46,7 +46,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     omnigraph = {
-      url = "github:ModernRelay/omnigraph/v0.15.0";
+      url = "github:ModernRelay/omnigraph/v0.16.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     yazi-flavors = {
