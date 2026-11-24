@@ -1,0 +1,69 @@
+name: Update antigravity-cli
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/setup-nix
+      - name: Check for new release
+        id: check
+        run: |
+          BASE="https://storage.googleapis.com/antigravity-public/antigravity-cli"
+          LATEST=$(curl -fsSL "$BASE/latest" | tr -d '[:space:]')
+          CURRENT=$(grep -oP '(?<=version = ")[^"]+' pkgs/antigravity-cli/default.nix || true)
+          [[ "$LATEST" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::想定外の版の形式: ${LATEST}"; exit 1; }
+          [[ "$CURRENT" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::pkgs/antigravity-cli/default.nix から現在の版を取得できない"; exit 1; }
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" != "$CURRENT" ]; then
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update version, buildId and hash
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          VERSION="${{ steps.check.outputs.latest }}"
+          BASE="https://storage.googleapis.com/antigravity-public/antigravity-cli"
+          MANIFEST=$(curl -fsSL "$BASE/${VERSION}/manifest.json")
+          URL=$(jq -r '.platforms["darwin-arm"].url' <<< "$MANIFEST")
+          SHA512=$(jq -r '.platforms["darwin-arm"].sha512' <<< "$MANIFEST")
+          BUILD_ID=$(sed -n "s|^${BASE}/${VERSION}-\([0-9]*\)/.*|\1|p" <<< "$URL")
+          [[ "$BUILD_ID" =~ ^[0-9]+$ ]] || { echo "::error::buildId を取り出せなかった: ${URL}"; exit 1; }
+          [[ "$SHA512" =~ ^[0-9a-f]{128}$ ]] || { echo "::error::sha512 の形式が想定外: ${SHA512}"; exit 1; }
+          HASH=$(nix hash convert --hash-algo sha512 --to sri "$SHA512")
+          [[ "$HASH" == sha512-* ]] || { echo "::error::hash を SRI に直せなかった"; exit 1; }
+          F=pkgs/antigravity-cli/default.nix
+          sed -i "s/version = \"[^\"]*\"/version = \"${VERSION}\"/" "$F"
+          sed -i "s/buildId = \"[^\"]*\"/buildId = \"${BUILD_ID}\"/" "$F"
+          sed -i "s|hash = \"[^\"]*\"|hash = \"${HASH}\"|" "$F"
+          grep -q "version = \"${VERSION}\"" "$F" || { echo "::error::version を書き換えられなかった"; exit 1; }
+          grep -q "buildId = \"${BUILD_ID}\"" "$F" || { echo "::error::buildId を書き換えられなかった"; exit 1; }
+          grep -qF "hash = \"${HASH}\"" "$F" || { echo "::error::hash を書き換えられなかった"; exit 1; }
+          if git diff --quiet "$F"; then echo "::error::${F} を書き換えられなかった"; exit 1; fi
+      - name: Create Pull Request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
+        with:
+          # A PR created with GITHUB_TOKEN does not trigger pull_request workflows, so check.yaml would not run on it.
+          token: ${{ secrets.CREATE_PR_TOKEN }}
+          commit-message: 'chore: update antigravity-cli to ${{ steps.check.outputs.latest }}'
+          title: 'chore: update antigravity-cli to ${{ steps.check.outputs.latest }}'
+          body: |
+            Automated update of antigravity-cli from ${{ steps.check.outputs.current }} to ${{ steps.check.outputs.latest }}.
+          branch: update/antigravity-cli
+          labels: dependencies
+          delete-branch: true
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-antigravity-cli'

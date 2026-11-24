@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, inputs, ... }:
 
 {
   imports = [
@@ -48,6 +48,7 @@
   };
 
   home.packages = with pkgs; [
+    inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.antigravity-cli
     colima
     csvlens
     docker

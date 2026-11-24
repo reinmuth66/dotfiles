@@ -20,6 +20,7 @@
         yazi-icons = pkgs.callPackage ../pkgs/yazi-icons { };
       }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+        antigravity-cli = pkgs.callPackage ../pkgs/antigravity-cli { };
         cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
         media-key = pkgs.callPackage ../pkgs/media-key { };
         sketchybar = pkgs.callPackage ../pkgs/sketchybar { };
