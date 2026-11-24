@@ -66,7 +66,7 @@ export function parseDenied(json, stderr) {
   };
   if (json && typeof json === "object") {
     if (typeof json.response === "string") {
-      const re = /Permission denied for command\((.*?)\)\. Matches user-configured deny rule\./g;
+      const re = /Permission denied for command\(([\s\S]*?)\)\. Matches user-configured deny rule\./g;
       for (const m of json.response.matchAll(re)) add(m[1]);
     }
     if (Array.isArray(json.denied_actions)) {

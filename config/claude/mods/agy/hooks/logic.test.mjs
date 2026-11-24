@@ -90,6 +90,8 @@ test("parseDenied: deny に当たったものと、聞けずに拒まれたも�
   assert.ok(parseDenied(null, "jetski: no output produced — x").some((c) => c.startsWith("stderr の知らせ: jetski")));
   assert.deepEqual(parseDenied({ response: "ok", denied_actions: [] }, ""), []);
   assert.deepEqual(parseDenied(null, ""), []);
+  const multi = parseDenied({ response: 'Permission denied for command(git commit -m "a\n\nb"). Matches user-configured deny rule.\nPermission denied for command(git push). Matches user-configured deny rule.' }, "");
+  assert.deepEqual(multi, ['git commit -m "a\n\nb"', "git push"]);
 });
 test("parseResult: fixtures の各種類", () => {
   const ok = parseResult(fx("ok.json"), fx("ok.stderr"), 0, null);
