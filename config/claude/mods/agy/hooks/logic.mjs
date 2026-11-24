@@ -1,5 +1,23 @@
 // agy:worker の判断の部分。副作用のない関数だけを置く。register.ts が呼ぶ。
-import path from "node:path";
+// hooks のモジュールは Node の組み込みを使えないので、POSIX の path.resolve を自前で持つ。
+export function resolvePath(...segments) {
+  let start = 0;
+  for (let i = segments.length - 1; i >= 0; i--) {
+    if (segments[i].startsWith("/")) {
+      start = i;
+      break;
+    }
+  }
+  const parts = [];
+  for (const seg of segments.slice(start)) {
+    for (const p of seg.split("/")) {
+      if (p === "" || p === ".") continue;
+      if (p === "..") parts.pop();
+      else parts.push(p);
+    }
+  }
+  return `/${parts.join("/")}`;
+}
 
 export const DEFAULT_MODEL = "gemini-4-hydrogen-high";
 
@@ -33,9 +51,9 @@ export function parseWorktrees(porcelain) {
 }
 
 export function isAllowedDir(dir, sessionCwd, worktrees) {
-  const d = path.resolve(dir);
+  const d = resolvePath(dir);
   return [sessionCwd, ...worktrees].some((b) => {
-    const base = path.resolve(b);
+    const base = resolvePath(b);
     return d === base || d.startsWith(base.endsWith("/") ? base : `${base}/`);
   });
 }
@@ -138,7 +156,7 @@ export function outsideWrites(transcriptJsonl, workDir) {
         if (!/path|file/i.test(k)) continue;
         const v = unwrap(raw);
         if (v === null || v === "") continue;
-        const abs = path.resolve(workDir, v);
+        const abs = resolvePath(workDir, v);
         if (!isAllowedDir(abs, workDir, []) && !out.includes(v)) out.push(v);
       }
     }

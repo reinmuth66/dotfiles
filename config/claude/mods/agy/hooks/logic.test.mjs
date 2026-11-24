@@ -12,6 +12,7 @@ import {
   modelFrom,
   outsideWrites,
   parseDenied,
+  resolvePath,
   parseResult,
   parseWorktrees,
   refsChanged,
@@ -34,6 +35,12 @@ test("isAllowedDir: cwd の中と worktree の中だけ (Review Focus 4)", () =>
   assert.equal(isAllowedDir("/r-evil", "/r", wts), false);
   assert.equal(isAllowedDir("/r/../etc", "/r", wts), false);
   assert.equal(isAllowedDir("/r-wt", "/r", wts), false);
+});
+test("resolvePath: POSIX の path.resolve と同じ", () => {
+  assert.equal(resolvePath("/r/../etc"), "/etc");
+  assert.equal(resolvePath("/r", "a/./b/"), "/r/a/b");
+  assert.equal(resolvePath("/r", "/x"), "/x");
+  assert.equal(resolvePath("/r", "../../.."), "/");
 });
 test("parseWorktrees: porcelain の worktree の行", () => {
   assert.deepEqual(parseWorktrees("worktree /r\nHEAD abc\nbranch refs/heads/main\n\nworktree /r-wt/feat\nHEAD def\n"), ["/r", "/r-wt/feat"]);
