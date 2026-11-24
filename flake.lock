@@ -378,16 +378,16 @@
         ]
       },
       "locked": {
-        "lastModified": 1794206096,
-        "narHash": "sha256-fDjXKhh/jAXST0SGoPsGkFDIZtpGF9NxCxGd7H4snBA=",
+        "lastModified": 1795128459,
+        "narHash": "sha256-csGHgabZhx6UUUEqge/4Hpx0F9NI+jCZrR+4pK/bEpk=",
         "owner": "ModernRelay",
         "repo": "omnigraph",
-        "rev": "373834b4c1c4b29cf0ddd64bee9565f98c60cc26",
+        "rev": "00b8cca842f2bf009bebeefcf765672b5ff64b26",
         "type": "github"
       },
       "original": {
         "owner": "ModernRelay",
-        "ref": "v0.15.0",
+        "ref": "v0.16.0",
         "repo": "omnigraph",
         "type": "github"
       }
