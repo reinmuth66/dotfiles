@@ -476,7 +476,7 @@ export default class Workspace extends View {
     this.refreshRepos(spaceList, cx);
     const names = this.updateNames(liveAgents);
     this.updateTimes(liveAgents, spaceList, now);
-    const subagents = collectSubagents(liveAgents, this.activity, terminals(), this.sessions);
+    const subagents = collectSubagents(liveAgents, this.activity, terminals(), this.sessions, now);
     const input = { agents: liveAgents, subagents, names, collapsed: this.collapsed };
     const rows =
       this.view === "status"
