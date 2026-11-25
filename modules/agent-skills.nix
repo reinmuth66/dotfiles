@@ -63,6 +63,7 @@ in
       fromSource "yomiyasu" [ "yomiyasu" ]
       // fromSource "imozuru" [ "imozuru" ]
       // fromSource "i-have-adhd" [ "i-have-adhd" ]
+      // fromSource "vercel-skills" [ "find-skills" ]
       // fromSource "effective-html" [
         "html"
         "big-pics-little-words"
