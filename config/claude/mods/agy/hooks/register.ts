@@ -1,4 +1,4 @@
-import type { EngineInterface, Register, TurnStepChunk } from 'claude-code'
+import type { EngineInterface, Register } from 'claude-code'
 import {
   buildArgv,
   buildPrompt,
@@ -77,8 +77,8 @@ async function readTranscript($: EngineInterface, file: string): Promise<string>
 const isAborted = (signal: AbortSignal, err: unknown): boolean =>
   signal.aborted || (err instanceof Error && (err.name === 'AbortError' || /\baborted\b/.test(err.message)))
 
-// 委任を agy に回し、報告を返す。表示だけの text を yield する。止められたら null を返す
-async function* runAgy($: EngineInterface, delegation: string, signal: AbortSignal): AsyncGenerator<TurnStepChunk, string | null> {
+// 委任を agy に回し、報告を返す。止められたら null を返す
+async function runAgy($: EngineInterface, delegation: string, signal: AbortSignal): Promise<string | null> {
   let home = ''
   try {
     const cwd = await $.session.cwd()
@@ -105,7 +105,6 @@ async function* runAgy($: EngineInterface, delegation: string, signal: AbortSign
     const hooksDir = `${$.plugin.root}/git-hooks`
     const before = await snapshot($, workDir)
 
-    yield { kind: 'text', index: 0, text: `agy を起動: ${workDir}\n` }
     const child = $.process.spawn({
       argv: buildArgv(buildPrompt(delegation), settings, chosen.model ?? ''),
       cwd: workDir,
@@ -125,11 +124,17 @@ async function* runAgy($: EngineInterface, delegation: string, signal: AbortSign
       else stderr += step.value.text
       step = await child.next()
     }
+    if (signal.aborted) return null
     const { code, signal: killedBy } = step.value
 
     // logic.mjs の推論では空の配列が never[] になるので、ここで型を付け直す
     const r = { ...parseResult(stdout, stderr, code, killedBy), refsChanged: [] as string[], outsideWrites: [] as string[] }
-    r.refsChanged = refsChanged(before, await snapshot($, workDir))
+    // 比べられなくても agy の結果は捨てない
+    try {
+      r.refsChanged = refsChanged(before, await snapshot($, workDir))
+    } catch (err) {
+      r.refsChanged = [`比べられなかった: ${errorText(err)}`]
+    }
     if (r.conversationId) {
       try {
         r.outsideWrites = outsideWrites(await readTranscript($, transcriptPath(home, r.conversationId)), workDir)
@@ -183,35 +188,25 @@ export const register: Register = (on) => {
 
     let message = reports.get(e.agentId)
     const first = message === undefined
-    let shown = ''
     if (message === undefined) {
-      const delegation = await delegationOf($, e.agentId)
-      const run = runAgy($, delegation, next.signal)
-      let step = await run.next()
-      while (!step.done) {
-        if (step.value.kind === 'text') shown += step.value.text
-        yield step.value
-        step = await run.next()
-      }
-      if (step.value === null) {
+      const report = await runAgy($, await delegationOf($, e.agentId), next.signal)
+      if (report === null) {
         return { turnId: e.turnId, index: e.index, answer: '', toolUses: [], stopReason: null, usage: null }
       }
-      message = step.value
+      message = report
       reports.set(e.agentId, message)
     }
 
     // auto mode では報告は SubagentHandback の呼び出しでしか届かない。ほかのモードでは最後の text が報告になる
-    // 起動前の表示 (shown) は、auto mode では報告に入らない
     if (first && modeOf.get(e.agentId) === 'auto') {
       const input = { message }
-      const index = shown === '' ? 0 : 1
-      yield { kind: 'tool', index, id: `toolu_agy_${e.turnId}_${e.index}`, name: HANDBACK }
-      yield { kind: 'input', index, json: JSON.stringify(input) }
+      yield { kind: 'tool', index: 0, id: `toolu_agy_${e.turnId}_${e.index}`, name: HANDBACK }
+      yield { kind: 'input', index: 0, json: JSON.stringify(input) }
       yield { kind: 'stop', stopReason: 'tool_use', usage: null }
-      return { turnId: e.turnId, index: e.index, answer: shown, toolUses: [{ name: HANDBACK, input }], stopReason: 'tool_use', usage: null }
+      return { turnId: e.turnId, index: e.index, answer: '', toolUses: [{ name: HANDBACK, input }], stopReason: 'tool_use', usage: null }
     }
     yield { kind: 'text', index: 0, text: message }
     yield { kind: 'stop', stopReason: 'end_turn', usage: null }
-    return { turnId: e.turnId, index: e.index, answer: shown + message, toolUses: [], stopReason: 'end_turn', usage: null }
+    return { turnId: e.turnId, index: e.index, answer: message, toolUses: [], stopReason: 'end_turn', usage: null }
   })
 }
