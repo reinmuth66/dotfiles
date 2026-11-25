@@ -45,10 +45,10 @@ test("resolvePath: POSIX の path.resolve と同じ", () => {
 test("parseWorktrees: porcelain の worktree の行", () => {
   assert.deepEqual(parseWorktrees("worktree /r\nHEAD abc\nbranch refs/heads/main\n\nworktree /r-wt/feat\nHEAD def\n"), ["/r", "/r-wt/feat"]);
 });
-test("modelFrom: 指示の行を取り、なければ hydrogen の high、不正なら error", () => {
+test("modelFrom: 指示の行を取り、なければ hydrogen の medium、不正なら error", () => {
   assert.deepEqual(modelFrom("作業ディレクトリ: /r\nモデル: gemini-3.8-flash-high \n"), { model: "gemini-3.8-flash-high" });
-  assert.deepEqual(modelFrom("作業ディレクトリ: /r"), { model: "gemini-4-hydrogen-high" });
-  assert.equal(DEFAULT_MODEL, "gemini-4-hydrogen-high");
+  assert.deepEqual(modelFrom("作業ディレクトリ: /r"), { model: "gemini-4-hydrogen-medium" });
+  assert.equal(DEFAULT_MODEL, "gemini-4-hydrogen-medium");
   assert.ok("error" in modelFrom("モデル: x; rm -rf /"));
   assert.ok("error" in modelFrom("モデル: Gemini 4"));
 });
@@ -130,6 +130,13 @@ test("parseResult: fixtures の各種類", () => {
   const to = parseResult(fx("timeout.json"), fx("timeout.stderr"), 3, null);
   assert.equal(to.status, "timeout");
   assert.equal(to.conversationId, "f73768ca-d6b9-4083-95f9-45a21ddf0d28");
+});
+test("parseResult: 利用枠が尽きたら exit 3 でも timeout でなく quota", () => {
+  const out = JSON.stringify({ status: "ERROR", error: "Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 160h21m23s." });
+  const r = parseResult(out, "", 3, null);
+  assert.equal(r.status, "quota");
+  assert.match(r.detail, /Resets in/);
+  assert.match(formatReturn(r, "/h"), /利用枠が尽きた/);
 });
 test("parseResult: JSON でない、空、シグナル (Review Focus 5)", () => {
   assert.equal(parseResult("panic: x", "trace", 2, null).status, "invalid-output");

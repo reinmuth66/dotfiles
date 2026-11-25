@@ -26,7 +26,7 @@ const DESCRIPTION =
   'superpowers の実装役 (直しを含む) と、利用者が agy に任せると言った作業にだけ使う。' +
   'Antigravity CLI (Gemini) が編集とテストを行い、git の書き込みはしない。' +
   '指示には `作業ディレクトリ: <絶対パス>` の行、計画書の場所と担当のタスク、完了条件を書く。' +
-  '省ける行: `モデル: <agy models の id>` (省くと gemini-4-hydrogen-high)。'
+  '省ける行: `モデル: <agy models の id>` (省くと gemini-4-hydrogen-medium)。'
 
 const PROMPT = 'このエージェントの要求は agy mod が Antigravity CLI に回す。モデルは呼ばれない。'
 

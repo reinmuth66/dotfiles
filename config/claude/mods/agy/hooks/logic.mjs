@@ -19,7 +19,7 @@ export function resolvePath(...segments) {
   return `/${parts.join("/")}`;
 }
 
-export const DEFAULT_MODEL = "gemini-4-hydrogen-high";
+export const DEFAULT_MODEL = "gemini-4-hydrogen-medium";
 
 const DIGEST_LIMIT = 8000;
 
@@ -215,6 +215,8 @@ export function parseResult(stdout, stderr, code, signal) {
     case "ERROR":
     case "INVALID": {
       if (json.status === "ERROR" && /authentication/i.test(error)) return { ...r, status: "auth", detail: error };
+      // 利用枠が尽きたときも exit 3 で終わるので、時間切れより先に見る
+      if (/quota reached/i.test(error)) return { ...r, status: "quota", detail: error };
       const timedOut =
         json.finished_reason === "print_timeout" || /print timeout/i.test(error) || /"reason":"print_timeout"/.test(stderr ?? "") || code === 3;
       return { ...r, status: timedOut && json.status === "ERROR" ? "timeout" : "error", detail: error };
@@ -235,6 +237,7 @@ export function formatReturn(r, home) {
   if (r.status !== "ok") {
     warn.push("ファイルが途中まで変わっている可能性がある。git status を確かめる");
     if (r.detail) warn.push(r.detail);
+    if (r.status === "quota") warn.push("agy の利用枠が尽きた。このあとのタスクも Claude の実装役に回す");
     if (r.status === "auth") warn.push("agy を対話で起動してログインし直す (headless の実行はブラウザを開いて 60 秒待つ)");
   }
   if (r.refsChanged.length > 0) {
