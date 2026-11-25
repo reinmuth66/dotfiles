@@ -1,4 +1,4 @@
-{ pkgs, ... }:
+{ pkgs, inputs, ... }:
 
 {
   imports = [
@@ -28,6 +28,8 @@
     ./zmk-battery-center.nix
     ./mole.nix
     ./ax.nix
+    ./omnigraph.nix
+    ./ollama.nix
     ./czg.nix
     ./marp.nix
     ./pdf-cli.nix
@@ -46,6 +48,7 @@
   };
 
   home.packages = with pkgs; [
+    inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.antigravity-cli
     colima
     csvlens
     docker

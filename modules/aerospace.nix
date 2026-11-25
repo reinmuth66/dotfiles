@@ -43,12 +43,6 @@
         }
         {
           "if" = {
-            app-name-regex-substring = "^wezterm-gui$";
-          };
-          run = "layout floating";
-        }
-        {
-          "if" = {
             app-id = "com.spotify.client";
           };
           run = "move-node-to-workspace F";

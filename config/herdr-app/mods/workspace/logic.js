@@ -48,17 +48,22 @@ export function activityFor(address, activity, liveAgents, sessions = {}) {
   return rec;
 }
 
+// Esc で止めると終わりが記録されないので、始まって 30 分を過ぎた記録は出さない
+export const SUBAGENT_STALE_MS = 30 * 60 * 1000;
+
 // エージェントごとのサブエージェント。hook が書いた作業中の Claude Code のサブエージェントと、
 // そのエージェントが hc run で起動して動いている端末 (parent がそのエージェント)。
-// hook のサブエージェントは、Esc で止めると終わりが記録されないので、親が待機か完了なら出さない
-export function collectSubagents(liveAgents, activity, terminals, sessions = {}) {
+export function collectSubagents(liveAgents, activity, terminals, sessions = {}, now = Date.now()) {
   const out = {};
   for (const agent of liveAgents) {
     const list = [];
-    const ended = agent.status === "idle" || agent.status === "done";
-    const subs = ended ? null : activityFor(agent.address, activity, liveAgents, sessions)?.subagents;
+    const subs = activityFor(agent.address, activity, liveAgents, sessions)?.subagents;
     if (Array.isArray(subs)) {
-      for (const s of subs) if (s?.status === "working" && s.id != null) list.push({ id: String(s.id), type: String(s.type ?? "agent") });
+      for (const s of subs) {
+        if (s?.status === "working" && s.id != null && typeof s.started_at === "number" && now - s.started_at < SUBAGENT_STALE_MS) {
+          list.push({ id: String(s.id), type: String(s.type ?? "agent") });
+        }
+      }
     }
     for (const t of terminals) {
       if (t.parent !== agent.address || t.state !== "live") continue;

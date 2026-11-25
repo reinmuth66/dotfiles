@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nestSpaces, contextFor, assignNames, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, agentOrder, collectSubagents, activityFor } from "./logic.js";
+import { nestSpaces, contextFor, assignNames, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS } from "./logic.js";
 
 const sp = (id, tabs, extra = {}) => ({ id, name: id, folder: `/r/${id}`, status: null, tabs, ...extra });
 const tab = (id, extra = {}) => ({ id, name: id, named: false, status: null, working_since: null, changed_at: null, ...extra });
@@ -124,14 +124,15 @@ test("buildGroups: サブエージェントは depth 2、エージェントの�
 });
 
 test("collectSubagents: 作業中の Claude Code のサブエージェントと hc run の端末", () => {
+  const now = 10_000_000;
   const live = [ag("t1", "tab1", "working"), ag("t2", "tab2"), ag("laptop/t3", "tab3")];
   const activity = {
     t1: { subagents: [
-      { id: "a1", type: "Explore", status: "working" },
-      { id: "a2", type: "Plan", status: "done" },
+      { id: "a1", type: "Explore", status: "working", started_at: now },
+      { id: "a2", type: "Plan", status: "done", started_at: now },
     ] },
-    t3: { subagents: [{ id: "x", type: "Explore", status: "working" }] }, // 別のコンピューターの t3 と結ばない
-    gone: { subagents: [{ id: "y", type: "Explore", status: "working" }] }, // agents() にない端末
+    t3: { subagents: [{ id: "x", type: "Explore", status: "working", started_at: now }] }, // 別のコンピューターの t3 と結ばない
+    gone: { subagents: [{ id: "y", type: "Explore", status: "working", started_at: now }] }, // agents() にない端末
   };
   const terms = [
     { address: "t9", parent: "t1", state: "live", name: "lint", argv: ["npm"] },
@@ -139,11 +140,11 @@ test("collectSubagents: 作業中の Claude Code のサブエージェントと 
     { address: "t11", parent: "t2", state: "finished", argv: ["old"] },
     { address: "t12", parent: "t5", state: "live", argv: ["x"] },
   ];
-  assert.deepEqual(collectSubagents(live, activity, terms), {
+  assert.deepEqual(collectSubagents(live, activity, terms, {}, now), {
     t1: [{ id: "a1", type: "Explore" }, { id: "t9", type: "lint" }],
     t2: [{ id: "t10", type: "pytest" }],
   });
-  assert.deepEqual(collectSubagents(live, {}, []), {});
+  assert.deepEqual(collectSubagents(live, {}, [], {}, now), {});
 });
 test("activityFor: agents() にない端末と別のコンピューターの端末は引かない", () => {
   const activity = { t1: { actions: [] }, t3: { actions: [] } };
@@ -160,17 +161,21 @@ test("activityFor: セッションが変わった記録は使わない (Review F
   assert.deepEqual(activityFor("t1", activity, live, {}), activity.t1); // セッションが分からなければ使う
   assert.deepEqual(activityFor("t1", { t1: { actions: [] } }, live, { t1: { session_id: "new" } }), { actions: [] });
 });
-test("collectSubagents: 親が待機か完了なら hook のサブエージェントは出さない、hc run の端末は出す", () => {
-  const subs = { subagents: [{ id: "a1", type: "Explore", status: "working" }] };
-  const terms = [{ address: "t9", parent: "t2", state: "live", argv: ["npm"] }];
-  const live = [ag("t1", "a", "idle"), ag("t2", "b", "done"), ag("t3", "c", "blocked")];
-  assert.deepEqual(collectSubagents(live, { t1: subs, t2: subs, t3: subs }, terms), {
-    t2: [{ id: "t9", type: "npm" }],
-    t3: [{ id: "a1", type: "Explore" }],
+test("collectSubagents: 親の状態によらず、始まって 30 分までの作業中のサブエージェントを出す", () => {
+  const now = 10_000_000;
+  const fresh = { id: "a1", type: "agy:worker", status: "working", started_at: now - SUBAGENT_STALE_MS + 1 };
+  const stale = { id: "a2", type: "Explore", status: "working", started_at: now - SUBAGENT_STALE_MS };
+  const old = { id: "a3", type: "Explore", status: "working" }; // started_at のない古い記録
+  const live = [ag("t1", "a", "idle"), ag("t2", "b", "done")];
+  const activity = { t1: { subagents: [fresh, stale, old] }, t2: { subagents: [fresh] } };
+  assert.deepEqual(collectSubagents(live, activity, [], {}, now), {
+    t1: [{ id: "a1", type: "agy:worker" }],
+    t2: [{ id: "a1", type: "agy:worker" }],
   });
 });
 test("collectSubagents: セッションが変わった記録のサブエージェントは出さない", () => {
+  const now = 10_000_000;
   const live = [ag("t1", "a", "working")];
-  const activity = { t1: { session_id: "old", subagents: [{ id: "a1", type: "Explore", status: "working" }] } };
-  assert.deepEqual(collectSubagents(live, activity, [], { t1: { session_id: "new" } }), {});
+  const activity = { t1: { session_id: "old", subagents: [{ id: "a1", type: "Explore", status: "working", started_at: now }] } };
+  assert.deepEqual(collectSubagents(live, activity, [], { t1: { session_id: "new" } }, now), {});
 });

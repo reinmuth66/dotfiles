@@ -1,0 +1,1 @@
+{ "name": "agy", "version": "0.1.0", "description": "Run agy:worker subagents on the Antigravity CLI instead of the model" }

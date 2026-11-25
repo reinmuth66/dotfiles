@@ -45,6 +45,10 @@
       url = "github:yusukebe/ax/v0.1.25";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    omnigraph = {
+      url = "github:ModernRelay/omnigraph/v0.15.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     yazi-flavors = {
       url = "github:yazi-rs/flavors";
       flake = false;

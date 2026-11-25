@@ -5,7 +5,7 @@ local ui = require("ui")
 --   CPU icon and x%, RAM icon and x%, Disk icon and used/total
 -- Data is measured at regular intervals by sketchybar-system-helper from pkgs/sketchybar-helper/system.c and delivered with the system_stats event.
 -- The helper only calls kernel APIs directly, so measurement is light. While the popup is closed, no set for drawing is issued.
--- The numbers have the same values and format as bottom's btm. btm is shown by btm-toggle in modules/sketchybar.nix. How values are measured: pkgs/sketchybar-helper/system.c.
+-- The numbers have the same values and format as bottom's btm. How values are measured: pkgs/sketchybar-helper/system.c.
 
 -- The glyph of :activity_monitor: in sketchybar-app-font is almost a square with side SIZE.
 -- Measured with CoreText's CTLineGetImageBounds. Width is SIZE x 0.998 and height is SIZE x 0.962: 19.96 x 19.24 at 20pt, 15.97 x 15.39 at 16pt.
@@ -32,7 +32,7 @@ sbar.add("event", "system_stats")
 ui.add_notch_spacer("q", "system.notch_gap")
 
 -- So that the icon sits concentrically within the circle, leave margins of ICON_PADDING on the left and right of the icon.
--- The pill is the circular background that shows the state of the btm window; see near set_btm_state. It is concentric with the bracket, and the gap to the edge is PILL_MARGIN top and bottom.
+-- The pill is a circle concentric with the bracket, and the gap to the edge is PILL_MARGIN top and bottom. The icon is centered in it.
 -- The gap is 5 pt, the same as aerospace's pill and spotify's image.
 -- Use the same gap on left and right, making the bracket's width equal to its height. It becomes a circle, the same as spotify's bracket.
 local PILL_MARGIN = 5
@@ -55,11 +55,6 @@ local gear = ui.add_item("system", "q", {
 		padding_right = 0,
 	},
 	label = { drawing = false },
-	background = {
-		drawing = false,
-		height = PILL_SIZE,
-		corner_radius = PILL_SIZE / 2,
-	},
 })
 
 local bracket = ui.add_bracket("system.bracket", { gear }, {
@@ -229,55 +224,8 @@ hit:subscribe({ "mouse.exited", "mouse.exited.global" }, function()
 	anchor:set({ popup = { drawing = false } })
 end)
 
--- The btm window is btm in a wezterm process of its own, separate from the everyday WezTerm. See btmToggle in modules/sketchybar.nix.
--- AeroSpace makes it floating and full screen, so it overlays the current workspace. The workspace does not switch.
--- btm-toggle state prints front, background, or none.
-local TOGGLE_BTM_COMMAND = "btm-toggle toggle"
-local BTM_STATE_COMMAND = "btm-toggle state"
-
--- When frontmost, invert the colors like aerospace's workspace. See highlight in items/aerospace.lua.
-local function set_btm_state(state)
-	local pill_color = {
-		front = colors.space.bg_focused,
-		background = colors.dim,
-	}
-	local color = pill_color[state]
-	gear:set({
-		icon = { color = color and colors.space.fg_focused or colors.white },
-		background = { drawing = color ~= nil, color = color },
-	})
-end
-
--- So that the result of an old query does not overwrite the new state, reflect only the last query.
-local btm_query = ui.latest()
-
--- The window becoming frontmost, losing focus, or closing are all detected by front_app_switched.
--- Right after the window closes the process may not have fully exited yet, and AeroSpace's focus may also lag behind the event.
--- So when the first answer is not front, wait a little and ask again.
-gear:subscribe("front_app_switched", function()
-	local is_latest = btm_query.begin()
-	sbar.exec(BTM_STATE_COMMAND, function(output)
-		if not is_latest() then
-			return
-		end
-		local state = (output or ""):match("%a+")
-		if state == "front" then
-			set_btm_state(state)
-			return
-		end
-		sbar.exec("sleep 0.3; " .. BTM_STATE_COMMAND, function(later)
-			if not is_latest() then
-				return
-			end
-			set_btm_state((later or ""):match("%a+"))
-		end)
-	end)
-end)
-
 hit:subscribe("mouse.clicked", function(env)
-	if env.BUTTON == "left" then
-		sbar.exec(TOGGLE_BTM_COMMAND)
-	elseif env.BUTTON == "right" then
+	if env.BUTTON == "right" then
 		pin.toggle(popup_open)
 	end
 end)

@@ -1,0 +1,24 @@
+{
+  "agentMode": "auto",
+  "permissions": {
+    "deny": [
+      "command(git add)",
+      "command(git commit)",
+      "command(git push)",
+      "command(git reset)",
+      "command(git checkout)",
+      "command(git switch)",
+      "command(git restore)",
+      "command(git rebase)",
+      "command(git merge)",
+      "command(git stash)",
+      "command(git clean)",
+      "command(git branch)",
+      "command(git tag)",
+      "command(git worktree)",
+      "command(gh)",
+      "command(regex:git -C )",
+      "command(regex:git -c )"
+    ]
+  }
+}

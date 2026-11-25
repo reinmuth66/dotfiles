@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "agy:worker では git の書き込みはできない (commit は指揮役が行う)" >&2
+exit 1
