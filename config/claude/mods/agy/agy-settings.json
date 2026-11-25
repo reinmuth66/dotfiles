@@ -16,7 +16,9 @@
       "command(git branch)",
       "command(git tag)",
       "command(git worktree)",
-      "command(gh)"
+      "command(gh)",
+      "command(regex:git -C )",
+      "command(regex:git -c )"
     ]
   }
 }

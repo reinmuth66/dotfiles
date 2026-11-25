@@ -28,15 +28,18 @@ export const AGY_RULES = [
   "",
   "---",
   "次の規則を必ず守ること。",
-  "- git の書き込み (add、commit、push、reset、checkout、switch、restore、rebase、merge、stash、clean、branch、tag、worktree) と gh は使わない。指示に commit するとあっても、commit は指揮役が行う。読むだけの git (status、diff、log) は使ってよい。",
+  "- git の書き込み (add、commit、push、reset、checkout、switch、restore、rebase、merge、stash、clean、branch、tag、worktree) と gh は使わない。指示に commit するとあっても、commit は指揮役が行う。読むだけの git (status、diff、log) は使ってよい。git には -C や -c を付けない (拒否の規則に当たる)。",
   "- 作業ディレクトリの外にファイルを書かない。",
   "- 完了条件のテストは走らせ、結果を digest に書く。",
   "- 返事は digest だけにする。1 行目は `Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`。続けて、変更したファイル、走らせたテストと結果、判断したこと、計画とのずれ、残った作業。大きな内容はファイルに書く。",
 ].join("\n");
 
 const lineValue = (text, key) => {
-  const m = new RegExp(`^${key}:\\s*(.+)$`, "m").exec(text);
-  return m ? m[1].trim() : null;
+  const m = new RegExp(`^${key}[:：][ \\t]*(.+)$`, "m").exec(text);
+  if (!m) return null;
+  let v = m[1].trim();
+  if (v.startsWith("`") && v.endsWith("`") && v.length >= 2) v = v.slice(1, -1).trim();
+  return v === "" ? null : v;
 };
 
 export function workDirFrom(delegation, sessionCwd) {
@@ -87,8 +90,15 @@ export function buildArgv(prompt, settings, model) {
   ];
 }
 
+// 空の pushInsteadOf はどの URL にも当たり、どの push も agy-push-blocked: に書き換わって失敗する
 export function gitHooksEnv(hooksDir) {
-  return { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.hooksPath", GIT_CONFIG_VALUE_0: hooksDir };
+  return {
+    GIT_CONFIG_COUNT: "2",
+    GIT_CONFIG_KEY_0: "core.hooksPath",
+    GIT_CONFIG_VALUE_0: hooksDir,
+    GIT_CONFIG_KEY_1: "url.agy-push-blocked:.pushInsteadOf",
+    GIT_CONFIG_VALUE_1: "",
+  };
 }
 
 export function parseDenied(json, stderr) {
@@ -235,16 +245,18 @@ export function formatReturn(r, home) {
   }
   const warn = [];
   if (r.status !== "ok") {
-    warn.push("ファイルが途中まで変わっている可能性がある。git status を確かめる");
+    if (r.status !== "outside" && r.status !== "bad-model") {
+      warn.push("ファイルが途中まで変わっている可能性がある。git status を確かめる");
+    }
     if (r.detail) warn.push(r.detail);
     if (r.status === "quota") warn.push("agy の利用枠が尽きた。このあとのタスクも Claude の実装役に回す");
     if (r.status === "auth") warn.push("agy を対話で起動してログインし直す (headless の実行はブラウザを開いて 60 秒待つ)");
   }
   if (r.refsChanged.length > 0) {
-    warn.push("警告: agy が git の ref を変えた。指示に反する。git log と git reflog を確かめ、戻すかを利用者に聞く");
+    warn.push("警告: agy が git の ref か index を変えた。指示に反する。git log、git reflog、git diff --cached を確かめ、戻すかを利用者に聞く");
   }
   if (r.outsideWrites.length > 0) {
-    warn.push("警告: agy が作業ディレクトリの外に書いた。そのファイルを確かめる");
+    warn.push("警告: agy がファイルのツールで作業ディレクトリの外に書いた。そのファイルを確かめる (シェルの書き込みはここに出ない)");
   }
   const join = (a) => (a.length > 0 ? a.join(" / ") : "-");
   const meta = [

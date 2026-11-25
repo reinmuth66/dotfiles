@@ -25,6 +25,10 @@ const fx = (name) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url)
 
 test("workDirFrom: 指示の行を取り、なければ cwd", () => {
   assert.equal(workDirFrom("計画: x\n作業ディレクトリ: /r/wt  \n", "/r"), "/r/wt");
+  assert.equal(workDirFrom("作業ディレクトリ：/r/wt\n", "/r"), "/r/wt");
+  assert.equal(workDirFrom("作業ディレクトリ: `/r/wt`\n", "/r"), "/r/wt");
+  assert.equal(workDirFrom("作業ディレクトリ:\n/r/wt\n", "/r"), "/r");
+  assert.equal(workDirFrom("作業ディレクトリ:   \n/r/wt\n", "/r"), "/r");
   assert.equal(workDirFrom("なし", "/r"), "/r");
 });
 test("isAllowedDir: cwd の中と worktree の中だけ (Review Focus 4)", () => {
@@ -69,14 +73,26 @@ test("buildArgv: auto でモデルを明示し、プロンプトは --print= の
   ]);
   assert.ok(!argv.includes("--mode"));
 });
-test("gitHooksEnv: core.hooksPath を環境で向ける", () => {
-  assert.deepEqual(gitHooksEnv("/m/git-hooks"), { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.hooksPath", GIT_CONFIG_VALUE_0: "/m/git-hooks" });
+test("gitHooksEnv: core.hooksPath と push 無効化を環境で向ける", () => {
+  assert.deepEqual(gitHooksEnv("/m/git-hooks"), {
+    GIT_CONFIG_COUNT: "2",
+    GIT_CONFIG_KEY_0: "core.hooksPath",
+    GIT_CONFIG_VALUE_0: "/m/git-hooks",
+    GIT_CONFIG_KEY_1: "url.agy-push-blocked:.pushInsteadOf",
+    GIT_CONFIG_VALUE_1: "",
+  });
 });
-test("refsChanged: 増えた、消えた、変わった ref (利用者の決定)", () => {
-  const before = refsSnapshot("aaa\n", "refs/heads/main aaa\nrefs/tags/v1 ttt\n");
+test("refsChanged: 増えた、消えた、変わった ref と INDEX (利用者の決定)", () => {
+  const before = refsSnapshot("aaa\n", "refs/heads/main aaa\nrefs/tags/v1 ttt\nINDEX idx1\n");
   assert.deepEqual(refsChanged(before, before), []);
-  const after = refsSnapshot("bbb\n", "refs/heads/main bbb\nrefs/heads/x ccc\n");
-  assert.deepEqual(refsChanged(before, after).sort(), ["HEAD: aaa -> bbb", "refs/heads/main: aaa -> bbb", "refs/heads/x: - -> ccc", "refs/tags/v1: ttt -> -"]);
+  const after = refsSnapshot("bbb\n", "refs/heads/main bbb\nrefs/heads/x ccc\nINDEX idx2\n");
+  assert.deepEqual(refsChanged(before, after).sort(), [
+    "HEAD: aaa -> bbb",
+    "INDEX: idx1 -> idx2",
+    "refs/heads/main: aaa -> bbb",
+    "refs/heads/x: - -> ccc",
+    "refs/tags/v1: ttt -> -",
+  ]);
 });
 test("outsideWrites: transcript の書き込みのうち作業ディレクトリの外", () => {
   const line = (name, args) => JSON.stringify({ step_index: 1, tool_calls: [{ name, args }] });
@@ -159,10 +175,10 @@ test("formatReturn: refs や外への書き込みがあれば、META の前に�
   const out = formatReturn(R({ digest: "d", refsChanged: ["refs/heads/main: a -> b"], outsideWrites: ["/tmp/x"] }), "/h");
   assert.match(out, /refs_changed: refs\/heads\/main: a -> b/);
   assert.match(out, /outside_writes: \/tmp\/x/);
-  assert.match(out, /警告: agy が git の ref を変えた[\s\S]*===META===/);
-  assert.match(out, /警告: agy が作業ディレクトリの外に書いた[\s\S]*===META===/);
+  assert.match(out, /警告: agy が git の ref か index を変えた[\s\S]*===META===/);
+  assert.match(out, /警告: agy がファイルのツールで作業ディレクトリの外に書いた。そのファイルを確かめる \(シェルの書き込みはここに出ない\)[\s\S]*===META===/);
 });
-test("formatReturn: 失敗では git status を促し、認証ならログインを促す (Review Focus 5)", () => {
+test("formatReturn: 失敗では git status を促し、起動前の失敗には付けない (Review Focus 5)", () => {
   const auth = formatReturn(R({ status: "auth" }), "/h");
   assert.match(auth, /agy を対話で起動してログイン/);
   assert.match(auth, /git status/);
@@ -170,4 +186,9 @@ test("formatReturn: 失敗では git status を促し、認証ならログイン
   const bad = formatReturn(R({ status: "bad-model", detail: "モデルの指定が不正: x" }), "/h");
   assert.match(bad, /status: bad-model/);
   assert.match(bad, /モデルの指定が不正: x/);
+  assert.doesNotMatch(bad, /ファイルが途中まで変わっている可能性がある/);
+  const outside = formatReturn(R({ status: "outside", detail: "作業ディレクトリがセッションと worktree の外: /tmp" }), "/h");
+  assert.match(outside, /status: outside/);
+  assert.match(outside, /作業ディレクトリがセッションと worktree の外: \/tmp/);
+  assert.doesNotMatch(outside, /ファイルが途中まで変わっている可能性がある/);
 });

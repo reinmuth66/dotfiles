@@ -58,12 +58,14 @@ const failure = (status: string, detail: string) => ({
   detail,
 })
 
-// 作業ディレクトリの git の refs と HEAD。git のリポジトリでなければ空
+// 作業ディレクトリの git の refs、HEAD、index。git のリポジトリでなければ空
 async function snapshot($: EngineInterface, cwd: string): Promise<string> {
   const refs = await $.process.run(['git', 'for-each-ref', '--format=%(refname) %(objectname)'], { cwd })
   if (refs.exitCode !== 0) return ''
   const head = await $.process.run(['git', 'rev-parse', 'HEAD'], { cwd })
-  return refsSnapshot(head.exitCode === 0 ? head.stdout : '-', refs.stdout)
+  const tree = await $.process.run(['git', 'write-tree'], { cwd })
+  const extra = tree.exitCode === 0 ? `\nINDEX ${tree.stdout.trim()}` : ''
+  return refsSnapshot(head.exitCode === 0 ? head.stdout : '-', `${refs.stdout}${extra}`)
 }
 
 // agy の transcript。4 MiB を超えるなら末尾の 4 MiB を読む (切れた先頭の行は outsideWrites が読み飛ばす)
