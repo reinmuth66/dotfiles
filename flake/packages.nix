@@ -18,6 +18,8 @@
         marp = pkgs.callPackage ../pkgs/marp { };
         # yazi の [icon] の表。herdr のツリーの mod がファイルのアイコンに使う
         yazi-icons = pkgs.callPackage ../pkgs/yazi-icons { };
+        # フックの node を絶対パスにした ponytail の Claude Code プラグイン
+        ponytail = pkgs.callPackage ../pkgs/ponytail { src = inputs.ponytail; };
       }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
         antigravity-cli = pkgs.callPackage ../pkgs/antigravity-cli { };

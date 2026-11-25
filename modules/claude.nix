@@ -2,6 +2,7 @@
   config,
   lib,
   pkgs,
+  inputs,
   ...
 }:
 
@@ -77,6 +78,8 @@ in
     mcpServers.playwright = {
       command = "${pkgs.playwright-mcp}/bin/playwright-mcp";
     };
+    # 個人のプラグインとして ~/.claude/skills/<名前> に置かれ、hooks も効く
+    plugins.ponytail = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.ponytail;
   };
 
   # settings.json は Claude Code も /permissions や /plugin で書き込むので、丸ごと置き換えずにマージする。

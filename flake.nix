@@ -49,6 +49,11 @@
       url = "github:ModernRelay/omnigraph/v0.15.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Claude Code のプラグイン。update-ponytail.yaml が新しいリリースのタグで PR を作る
+    ponytail = {
+      url = "github:DietrichGebert/ponytail/v5.3.3";
+      flake = false;
+    };
     yazi-flavors = {
       url = "github:yazi-rs/flavors";
       flake = false;
