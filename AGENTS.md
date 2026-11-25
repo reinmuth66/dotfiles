@@ -39,6 +39,7 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
 - 設定ファイルは、`programs.*` で表現できない、または Lua や JSON-with-comments など Nix に変換しにくい場合に、`config/<tool>/` に置く。モジュール内で `xdg.configFile` を宣言する。
 - Nix ストアのパスが変わるたびに macOS の権限 (Accessibility など) が外れるなら、`/wrap-app-permission` スキルで `.app` に包む。
 - `~/.claude/CLAUDE.md` と `statusline.sh` は、`modules/claude.nix` が `config/claude/` から配る。
+- このリポジトリの skill の正本は `.agents/skills/` (agy が読む)。`.claude/skills` はそこへのシンボリックリンクで、Claude Code はこれを通して読む。skill は `.agents/skills/` に足す。
 
 ## モジュールの補足
 
