@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   AGY_RULES,
+  REVIEW_RULES,
   DEFAULT_MODEL,
   buildArgv,
   buildPrompt,
@@ -17,7 +18,11 @@ import {
   parseWorktrees,
   refsChanged,
   refsSnapshot,
+  reportFileFrom,
+  roleFrom,
   transcriptPath,
+  treeChanged,
+  treeSnapshot,
   workDirFrom,
 } from "./logic.mjs";
 
@@ -160,7 +165,7 @@ test("parseResult: JSON でない、空、シグナル (Review Focus 5)", () => 
   assert.equal(parseResult("", "", 0, null).status, "empty");
   assert.equal(parseResult("", "", null, "SIGTERM").status, "killed");
 });
-const R = (o) => ({ status: "ok", digest: "", conversationId: null, tokens: null, denied: [], refsChanged: [], outsideWrites: [], detail: "", ...o });
+const R = (o) => ({ status: "ok", digest: "", conversationId: null, tokens: null, denied: [], refsChanged: [], outsideWrites: [], treeChanged: [], role: "implement", detail: "", ...o });
 test("transcriptPath", () => {
   assert.equal(transcriptPath("/h", "c1"), "/h/.gemini/antigravity-cli/brain/c1/.system_generated/logs/transcript.jsonl");
 });
@@ -191,4 +196,47 @@ test("formatReturn: 失敗では git status を促し、起動前の失敗には
   assert.match(outside, /status: outside/);
   assert.match(outside, /作業ディレクトリがセッションと worktree の外: \/tmp/);
   assert.doesNotMatch(outside, /ファイルが途中まで変わっている可能性がある/);
+});
+
+test("roleFrom: 行が無ければ implement、review を読み、不正なら error", () => {
+  assert.deepEqual(roleFrom("作業ディレクトリ: /r"), { role: "implement" });
+  assert.deepEqual(roleFrom("役: review \n"), { role: "review" });
+  assert.deepEqual(roleFrom("役: implement"), { role: "implement" });
+  assert.ok("error" in roleFrom("役: reviewer"));
+});
+test("buildPrompt: review では確認役の規則に切り替わり、Status と テストの規則は付かない", () => {
+  const p = buildPrompt("見て", "review");
+  assert.ok(p.endsWith(REVIEW_RULES));
+  assert.match(REVIEW_RULES, /読むだけ/);
+  assert.match(REVIEW_RULES, /テストは走らせ直さない/);
+  assert.match(REVIEW_RULES, /verdict/);
+  assert.match(REVIEW_RULES, /commit/);
+  assert.doesNotMatch(REVIEW_RULES, /Status: DONE/);
+  assert.equal(buildPrompt("見て"), "見て" + AGY_RULES);
+});
+test("reportFileFrom: 作業ディレクトリからの絶対 path にし、行が無ければ null", () => {
+  assert.equal(reportFileFrom("報告ファイル: /r/out/rep.md", "/r"), "/r/out/rep.md");
+  assert.equal(reportFileFrom("報告ファイル: out/rep.md", "/r"), "/r/out/rep.md");
+  assert.equal(reportFileFrom("なし", "/r"), null);
+});
+test("treeChanged: 作業ツリーが変わったら出し、報告ファイルだけは除く", () => {
+  const before = treeSnapshot([{ path: "a.txt", hash: "h1" }]);
+  assert.deepEqual(treeChanged(before, before, null, "/r"), []);
+  const after = treeSnapshot([
+    { path: "a.txt", hash: "h2" },
+    { path: "b.txt", hash: "h3" },
+    { path: "rep.md", hash: "h4" },
+  ]);
+  assert.deepEqual(treeChanged(before, after, "/r/rep.md", "/r"), ["a.txt: h1 -> h2", "b.txt: - -> h3"]);
+  assert.equal(treeChanged(before, treeSnapshot([]), null, "/r")[0], "a.txt: h1 -> -");
+});
+test("formatReturn: review では tree_changed と警告を出し、implement には出さない", () => {
+  const ok = formatReturn(R({ digest: "d", role: "review" }), "/h");
+  assert.match(ok, /outside_writes: -\ntree_changed: -\nverify: tree_changed が - であること/);
+  const bad = formatReturn(R({ digest: "d", role: "review", treeChanged: ["a.txt: h1 -> h2"] }), "/h");
+  assert.match(bad, /tree_changed: a\.txt: h1 -> h2/);
+  assert.match(bad, /警告: 確認役の agy が作業ツリーのファイルを変えた[\s\S]*===META===/);
+  assert.doesNotMatch(formatReturn(R({ digest: "d" }), "/h"), /tree_changed/);
+  const role = formatReturn(R({ status: "bad-role", detail: "役の指定が不正: x" }), "/h");
+  assert.doesNotMatch(role, /ファイルが途中まで変わっている可能性がある/);
 });

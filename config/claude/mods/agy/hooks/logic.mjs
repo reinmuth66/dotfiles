@@ -23,16 +23,29 @@ export const DEFAULT_MODEL = "gemini-4-hydrogen-medium";
 
 const DIGEST_LIMIT = 8000;
 
-export const AGY_RULES = [
+const COMMON_RULES = [
   "",
   "",
   "---",
   "次の規則を必ず守ること。",
   "- git の書き込み (add、commit、push、reset、checkout、switch、restore、rebase、merge、stash、clean、branch、tag、worktree) と gh は使わない。指示に commit するとあっても、commit は指揮役が行う。読むだけの git (status、diff、log) は使ってよい。git には -C や -c を付けない (拒否の規則に当たる)。",
   "- 作業ディレクトリの外にファイルを書かない。",
+];
+
+export const AGY_RULES = [
+  ...COMMON_RULES,
   "- 完了条件のテストは走らせ、結果を digest に書く。",
   "- 返事は digest だけにする。1 行目は `Status: DONE | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT`。続けて、変更したファイル、走らせたテストと結果、判断したこと、計画とのずれ、残った作業。大きな内容はファイルに書く。",
 ].join("\n");
+
+export const REVIEW_RULES = [
+  ...COMMON_RULES,
+  "- あなたは確認役で、読むだけにする。作業ツリーのファイルを作らず、直さず、消さない。見つけた問題は直さずに報告する。書いてよいのは、指示に `報告ファイル:` の行があるときのその 1 つだけ。",
+  "- テストは走らせ直さない。実装役と指揮役が走らせている。",
+  "- 返事は digest だけにする。1 行目は、指示の雛形が決めた verdict の形で始める。続けて、指摘ごとにファイルと行、理由。指摘が無ければ、無いと書く。詳しい報告が長くなるときは `報告ファイル:` の場所に書き、digest は verdict とその場所だけにする。",
+].join("\n");
+
+const ROLES = ["implement", "review"];
 
 const lineValue = (text, key) => {
   const m = new RegExp(`^${key}[:：][ \\t]*(.+)$`, "m").exec(text);
@@ -61,8 +74,20 @@ export function isAllowedDir(dir, sessionCwd, worktrees) {
   });
 }
 
-export function buildPrompt(delegation) {
-  return delegation + AGY_RULES;
+export function roleFrom(delegation) {
+  const v = lineValue(delegation, "役");
+  if (v === null) return { role: "implement" };
+  if (!ROLES.includes(v)) return { error: `役の指定が不正: ${v} (${ROLES.join(" か ")})` };
+  return { role: v };
+}
+
+export function reportFileFrom(delegation, workDir) {
+  const v = lineValue(delegation, "報告ファイル");
+  return v === null ? null : resolvePath(workDir, v);
+}
+
+export function buildPrompt(delegation, role = "implement") {
+  return delegation + (role === "review" ? REVIEW_RULES : AGY_RULES);
 }
 
 export function modelFrom(delegation) {
@@ -139,6 +164,14 @@ const snapshotMap = (s) => {
   return m;
 };
 
+// 確認役が読むだけだったかを見る。変わったファイルの path と内容の hash (消えていれば null) を、refsSnapshot と同じ形にする
+export function treeSnapshot(entries) {
+  return entries
+    .map(({ path, hash }) => `${path} ${hash ?? "-"}`)
+    .sort()
+    .join("\n");
+}
+
 export function refsChanged(before, after) {
   const b = snapshotMap(before);
   const a = snapshotMap(after);
@@ -149,6 +182,11 @@ export function refsChanged(before, after) {
     if (x !== y) out.push(`${name}: ${x} -> ${y}`);
   }
   return out;
+}
+
+// 報告ファイルだけは確認役が書いてよい
+export function treeChanged(before, after, reportFile, workDir) {
+  return refsChanged(before, after).filter((l) => reportFile === null || resolvePath(workDir, l.slice(0, l.indexOf(": "))) !== reportFile);
 }
 
 const unwrap = (v) => {
@@ -193,7 +231,7 @@ export function transcriptPath(home, conversationId) {
 }
 
 export function parseResult(stdout, stderr, code, signal) {
-  const base = { digest: "", conversationId: null, tokens: null, denied: [], refsChanged: [], outsideWrites: [], detail: "" };
+  const base = { digest: "", conversationId: null, tokens: null, denied: [], refsChanged: [], outsideWrites: [], treeChanged: [], role: "implement", detail: "" };
   if (signal) return { ...base, status: "killed", detail: `シグナル ${signal} で終了` };
   if (!stdout || stdout.trim() === "") {
     return { ...base, status: "empty", detail: (stderr ?? "").slice(-2000) };
@@ -245,7 +283,7 @@ export function formatReturn(r, home) {
   }
   const warn = [];
   if (r.status !== "ok") {
-    if (r.status !== "outside" && r.status !== "bad-model") {
+    if (r.status !== "outside" && r.status !== "bad-model" && r.status !== "bad-role") {
       warn.push("ファイルが途中まで変わっている可能性がある。git status を確かめる");
     }
     if (r.detail) warn.push(r.detail);
@@ -258,6 +296,9 @@ export function formatReturn(r, home) {
   if (r.outsideWrites.length > 0) {
     warn.push("警告: agy がファイルのツールで作業ディレクトリの外に書いた。そのファイルを確かめる (シェルの書き込みはここに出ない)");
   }
+  if (r.treeChanged.length > 0) {
+    warn.push("警告: 確認役の agy が作業ツリーのファイルを変えた。読むだけの指示に反する。git status と git diff を確かめ、戻すかを利用者に聞く");
+  }
   const join = (a) => (a.length > 0 ? a.join(" / ") : "-");
   const meta = [
     `status: ${r.status}`,
@@ -267,7 +308,9 @@ export function formatReturn(r, home) {
     `denied: ${join(r.denied)}`,
     `refs_changed: ${join(r.refsChanged)}`,
     `outside_writes: ${join(r.outsideWrites)}`,
-    "verify: git status と git diff を確かめ、完了条件のテストを走らせ、計画書の commit を行う",
+    ...(r.role === "review"
+      ? [`tree_changed: ${join(r.treeChanged)}`, "verify: tree_changed が - であることと、digest の verdict を確かめる"]
+      : ["verify: git status と git diff を確かめ、完了条件のテストを走らせ、計画書の commit を行う"]),
   ];
   return ["===DIGEST===", digest, ...notes, ...warn, "===META===", ...meta].join("\n");
 }

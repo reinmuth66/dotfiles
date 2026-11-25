@@ -11,7 +11,11 @@ import {
   parseWorktrees,
   refsChanged,
   refsSnapshot,
+  reportFileFrom,
+  roleFrom,
   transcriptPath,
+  treeChanged,
+  treeSnapshot,
   workDirFrom,
 } from './logic.mjs'
 
@@ -25,8 +29,9 @@ const READ_LIMIT = 4 * 1024 * 1024
 const DESCRIPTION =
   'superpowers の実装役 (直しを含む) と、利用者が agy に任せると言った作業にだけ使う。' +
   'Antigravity CLI (Gemini) が編集とテストを行い、git の書き込みはしない。' +
+  '確認役 (review) も任せられる。その指示には `役: review` の行を足す (読むだけの規則に切り替わる)。' +
   '指示には `作業ディレクトリ: <絶対パス>` の行、計画書の場所と担当のタスク、完了条件を書く。' +
-  '省ける行: `モデル: <agy models の id>` (省くと gemini-4-hydrogen-medium)。'
+  '省ける行: `モデル: <agy models の id>` (省くと gemini-4-hydrogen-medium)、`報告ファイル: <path>` (確認役が詳しい報告を書く場所)。'
 
 const PROMPT = 'このエージェントの要求は agy mod が Antigravity CLI に回す。モデルは呼ばれない。'
 
@@ -55,6 +60,8 @@ const failure = (status: string, detail: string) => ({
   denied: [],
   refsChanged: [],
   outsideWrites: [],
+  treeChanged: [],
+  role: 'implement',
   detail,
 })
 
@@ -66,6 +73,30 @@ async function snapshot($: EngineInterface, cwd: string): Promise<string> {
   const tree = await $.process.run(['git', 'write-tree'], { cwd })
   const extra = tree.exitCode === 0 ? `\nINDEX ${tree.stdout.trim()}` : ''
   return refsSnapshot(head.exitCode === 0 ? head.stdout : '-', `${refs.stdout}${extra}`)
+}
+
+// 作業ツリーで変わっているファイル (tracked の変更と削除、untracked) の path と内容の hash。git のリポジトリでなければ空
+async function treeEntries($: EngineInterface, cwd: string): Promise<string> {
+  const ls = await $.process.run(['git', 'ls-files', '-m', '-d', '-o', '--exclude-standard', '-z'], { cwd })
+  if (ls.exitCode !== 0) return ''
+  const paths = [...new Set(ls.stdout.split('\0').filter(Boolean))]
+  const present: string[] = []
+  const entries: { path: string; hash: string | null }[] = []
+  for (const path of paths) {
+    try {
+      await $.fs.stat(`${cwd}/${path}`)
+      present.push(path)
+    } catch {
+      entries.push({ path, hash: null })
+    }
+  }
+  if (present.length > 0) {
+    const h = await $.process.run(['git', 'hash-object', '--', ...present], { cwd })
+    if (h.exitCode !== 0) throw new Error(`git hash-object が失敗: ${h.stderr.trim()}`)
+    const hashes = h.stdout.split('\n')
+    present.forEach((path, i) => entries.push({ path, hash: hashes[i] ?? null }))
+  }
+  return treeSnapshot(entries)
 }
 
 // agy の transcript。4 MiB を超えるなら末尾の 4 MiB を読む (切れた先頭の行は outsideWrites が読み飛ばす)
@@ -103,12 +134,18 @@ async function runAgy($: EngineInterface, delegation: string, signal: AbortSigna
     const chosen = modelFrom(delegation)
     if ('error' in chosen) return formatReturn(failure('bad-model', chosen.error ?? ''), home)
 
+    const picked = roleFrom(delegation)
+    if ('error' in picked) return formatReturn(failure('bad-role', picked.error ?? ''), home)
+    const role = picked.role ?? 'implement'
+    const reportFile = reportFileFrom(delegation, workDir)
+
     const settings = `${$.plugin.root}/agy-settings.json`
     const hooksDir = `${$.plugin.root}/git-hooks`
     const before = await snapshot($, workDir)
+    const treeBefore = role === 'review' ? await treeEntries($, workDir) : ''
 
     const child = $.process.spawn({
-      argv: buildArgv(buildPrompt(delegation), settings, chosen.model ?? ''),
+      argv: buildArgv(buildPrompt(delegation, role), settings, chosen.model ?? ''),
       cwd: workDir,
       env: gitHooksEnv(hooksDir),
     })
@@ -130,12 +167,19 @@ async function runAgy($: EngineInterface, delegation: string, signal: AbortSigna
     const { code, signal: killedBy } = step.value
 
     // logic.mjs の推論では空の配列が never[] になるので、ここで型を付け直す
-    const r = { ...parseResult(stdout, stderr, code, killedBy), refsChanged: [] as string[], outsideWrites: [] as string[] }
+    const r = { ...parseResult(stdout, stderr, code, killedBy), refsChanged: [] as string[], outsideWrites: [] as string[], treeChanged: [] as string[], role }
     // 比べられなくても agy の結果は捨てない
     try {
       r.refsChanged = refsChanged(before, await snapshot($, workDir))
     } catch (err) {
       r.refsChanged = [`比べられなかった: ${errorText(err)}`]
+    }
+    if (role === 'review') {
+      try {
+        r.treeChanged = treeChanged(treeBefore, await treeEntries($, workDir), reportFile, workDir)
+      } catch (err) {
+        r.treeChanged = [`比べられなかった: ${errorText(err)}`]
+      }
     }
     if (r.conversationId) {
       try {
