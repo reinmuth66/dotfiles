@@ -54,11 +54,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.omnigraph.follows = "omnigraph";
     };
-    # Claude Code のプラグイン。update-last30days.yaml が新しいリリースのタグで PR を作る
-    last30days = {
-      url = "github:mvanhorn/last30days-skill/v4.6.0";
-      flake = false;
-    };
     yazi-flavors = {
       url = "github:yazi-rs/flavors";
       flake = false;

@@ -18,8 +18,6 @@
         marp = pkgs.callPackage ../pkgs/marp { };
         # yazi の [icon] の表。herdr のツリーの mod がファイルのアイコンに使う
         yazi-icons = pkgs.callPackage ../pkgs/yazi-icons { };
-        # フックの python3 を絶対パスにした last30days の Claude Code プラグイン
-        last30days = pkgs.callPackage ../pkgs/last30days { src = inputs.last30days; };
         # 版を固定して uvx で起動する headroom
         headroom = pkgs.callPackage ../pkgs/headroom { };
       }

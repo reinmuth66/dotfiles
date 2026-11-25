@@ -251,23 +251,6 @@
         "type": "github"
       }
     },
-    "last30days": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1795321828,
-        "narHash": "sha256-AygqH8Cl55KZKY2oC7hLlrW7RNQkfzJK9sxfHOrosdk=",
-        "owner": "mvanhorn",
-        "repo": "last30days-skill",
-        "rev": "64b1f006f800640022ce07f51de5ce56aad34b76",
-        "type": "github"
-      },
-      "original": {
-        "owner": "mvanhorn",
-        "ref": "v4.6.0",
-        "repo": "last30days-skill",
-        "type": "github"
-      }
-    },
     "mole": {
       "inputs": {
         "nixpkgs": [
@@ -436,7 +419,6 @@
         "flake-parts": "flake-parts_2",
         "git-hooks": "git-hooks",
         "home-manager": "home-manager",
-        "last30days": "last30days",
         "mole": "mole",
         "nix-claude-code": "nix-claude-code",
         "nix-darwin": "nix-darwin",
