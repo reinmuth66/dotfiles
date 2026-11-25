@@ -78,8 +78,6 @@ in
     mcpServers.playwright = {
       command = "${pkgs.playwright-mcp}/bin/playwright-mcp";
     };
-    # 個人のプラグインとして ~/.claude/skills/<名前> に置かれ、hooks も効く
-    plugins.ponytail = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.ponytail;
   };
 
   # settings.json は Claude Code も /permissions や /plugin で書き込むので、丸ごと置き換えずにマージする。
@@ -122,5 +120,9 @@ in
     ".claude/mods/hide-tools".source =
       config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/mods/hide-tools";
     ".claude/mods/agy".source = config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/mods/agy";
+    # 外部のプラグインは ~/.claude/skills/<名前> に置くと個人のプラグインとして読まれる。
+    # programs.claude-code.plugins は中身を 1 つずつリンクし、hooks/ が「プラグインの外」と見なされて拒まれるので、
+    # フォルダ全体を 1 本のリンクにする
+    ".claude/skills/ponytail".source = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.ponytail;
   };
 }
