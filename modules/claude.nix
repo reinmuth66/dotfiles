@@ -47,7 +47,18 @@ let
       ];
       SubagentStart = [ { hooks = [ herdrRecordHook ]; } ];
       SubagentStop = [ { hooks = [ herdrRecordHook ]; } ];
-      SessionStart = [ { hooks = [ herdrRecordHook ]; } ];
+      SessionStart = [
+        {
+          hooks = [
+            herdrRecordHook
+            # i-have-adhd は disable-model-invocation なので、/i-have-adhd と打つ代わりにセッションの開始時に 1 回だけ中身を渡す
+            {
+              type = "command";
+              command = "f=${claudeDir}/skills/i-have-adhd/SKILL.md; [ -f \"$f\" ] && { echo 'The user has invoked /i-have-adhd. Follow this skill for the whole session:'; cat \"$f\"; }; exit 0";
+            }
+          ];
+        }
+      ];
     };
   };
   herdrRecordHook = {
