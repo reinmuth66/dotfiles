@@ -23,7 +23,7 @@
 - レビューの指摘は、実際に起こりうる入力 (利用者、実際のファイル、連携先、並行して動く処理が作るもの) を名指しできるものだけを直す。前のレビューの直しで足したコードへの指摘や、直しが元のコードより大きくなる指摘は、利用者に判断を仰ぐ
 
 ## レビュー
-- バグを探すレビューは `/code-review` を使う。superpowers の最終レビュー (subagent-driven-development の whole-branch review) と requesting-code-review の代わりに、ブランチの差分に `/code-review high` を走らせ、その指摘を最終レビューの指摘として扱う (直しは 1 つの subagent にまとめて渡す)
+- バグを探すレビューは `/code-review` を使う。superpowers の最終レビュー (subagent-driven-development の whole-branch review) と requesting-code-review の代わりに、ブランチの差分に `/code-review medium` を走らせ、その指摘を最終レビューの指摘として扱う (直しは 1 つの subagent にまとめて渡す)
 - superpowers のタスクごとのレビュー (計画どおりかの確認) は、そのまま superpowers の reviewer に任せる
 
 ## 禁止事項
