@@ -49,6 +49,11 @@
       url = "github:ModernRelay/omnigraph/v0.15.0";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    zettelist = {
+      url = "github:reinmuth66/zettelist";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.omnigraph.follows = "omnigraph";
+    };
     # Claude Code のプラグイン。update-last30days.yaml が新しいリリースのタグで PR を作る
     last30days = {
       url = "github:mvanhorn/last30days-skill/v4.6.0";

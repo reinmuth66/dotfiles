@@ -31,6 +31,7 @@
     ./headroom.nix
     ./omnigraph.nix
     ./ollama.nix
+    ./zettelist.nix
     ./czg.nix
     ./marp.nix
     ./pdf-cli.nix

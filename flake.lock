@@ -448,7 +448,8 @@
         "treefmt-nix": "treefmt-nix_2",
         "yazi-flavors": "yazi-flavors",
         "yazi-plugins": "yazi-plugins",
-        "zeno-zsh": "zeno-zsh"
+        "zeno-zsh": "zeno-zsh",
+        "zettelist": "zettelist"
       }
     },
     "rust-analyzer-src": {
@@ -606,6 +607,29 @@
       "original": {
         "owner": "yuki-yano",
         "repo": "zeno.zsh",
+        "type": "github"
+      }
+    },
+    "zettelist": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "omnigraph": [
+          "omnigraph"
+        ]
+      },
+      "locked": {
+        "lastModified": 1795187482,
+        "narHash": "sha256-aOcRrd8lUllNlhKqirNF7jOGxPfg0fzQo8QBOIKrlS8=",
+        "owner": "reinmuth66",
+        "repo": "zettelist",
+        "rev": "f52862299ea37b6cabc535e73ee00cc676ef29fa",
+        "type": "github"
+      },
+      "original": {
+        "owner": "reinmuth66",
+        "repo": "zettelist",
         "type": "github"
       }
     }
