@@ -55,7 +55,18 @@ test("modelFrom: 指示の行を取り、なければ hydrogen の high、不正
 test("buildArgv: auto でモデルを明示し、プロンプトは --print= の 1 つの引数", () => {
   const argv = buildArgv("a --output-format b", "/s.json", "gemini-4-hydrogen-high");
   assert.equal(argv.at(-1), "--print=a --output-format b");
-  assert.deepEqual(argv.slice(0, 9), ["agy", "--output-format", "json", "--model", "gemini-4-hydrogen-high", "--settings", "/s.json", "--print-timeout", "25m"]);
+  assert.deepEqual(argv.slice(0, 10), [
+    "agy",
+    "--output-format",
+    "json",
+    "--model",
+    "gemini-4-hydrogen-high",
+    "--settings",
+    "/s.json",
+    "--dangerously-skip-permissions",
+    "--print-timeout",
+    "25m",
+  ]);
   assert.ok(!argv.includes("--mode"));
 });
 test("gitHooksEnv: core.hooksPath を環境で向ける", () => {

@@ -69,8 +69,22 @@ export function modelFrom(delegation) {
   return { model: v };
 }
 
+// agy の sandbox は /nix を読めず、Nix のシェルもツールも起動できない。headless では sandbox の外で走らせる許可を聞けないので、
+// --dangerously-skip-permissions で許す。permissions.deny と git-hooks はそれでも効く (2026-11-25 に確かめた)
 export function buildArgv(prompt, settings, model) {
-  return ["agy", "--output-format", "json", "--model", model, "--settings", settings, "--print-timeout", "25m", `--print=${prompt}`];
+  return [
+    "agy",
+    "--output-format",
+    "json",
+    "--model",
+    model,
+    "--settings",
+    settings,
+    "--dangerously-skip-permissions",
+    "--print-timeout",
+    "25m",
+    `--print=${prompt}`,
+  ];
 }
 
 export function gitHooksEnv(hooksDir) {
