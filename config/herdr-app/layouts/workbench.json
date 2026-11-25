@@ -69,6 +69,11 @@
           "id": "preview",
           "type": "block",
           "content": { "mod": "preview" }
+        },
+        {
+          "id": "wtr",
+          "type": "block",
+          "content": { "terminal": "wtr" }
         }
       ]
     },
