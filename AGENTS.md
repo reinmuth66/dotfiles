@@ -38,7 +38,7 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
 
 - 設定ファイルは、`programs.*` で表現できない、または Lua や JSON-with-comments など Nix に変換しにくい場合に、`config/<tool>/` に置く。モジュール内で `xdg.configFile` を宣言する。
 - Nix ストアのパスが変わるたびに macOS の権限 (Accessibility など) が外れるなら、`/wrap-app-permission` スキルで `.app` に包む。
-- `~/.claude/CLAUDE.md` と `statusline.sh` は、`modules/claude.nix` が `config/claude/` から配る。
+- `~/.claude/CLAUDE.md` は `config/agents/AGENTS.md` から、`statusline.sh` は `config/claude/` から、`modules/claude.nix` が配る。
 - このリポジトリの skill の正本は `.agents/skills/` (agy が読む)。`.claude/skills` はそこへのシンボリックリンクで、Claude Code はこれを通して読む。skill は `.agents/skills/` に足す。
 
 ## モジュールの補足
@@ -64,7 +64,8 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
   - デザインシステムは <https://claude.ai/artifact/LvnvWfqkhouGZxRA2cieud> にある。`config/design-system/` を変えたら publish する。`bundle.js` はリポジトリに置かないので、`nix build .#design-system` の結果 (`result/project/`) をスクラッチパッドにコピーし、それを `root` にして Artifact ツールで同じ URL に送る。`index.d.ts` は `contentType: text/plain` を付ける。索引 `design-system.json` は、直前に読み直してから最後に送る
 - `czg.nix`: conventional commit の TUI。`importNpmLock` で `pkgs/czg/` から作る
 - `claude.nix`: Claude Code 本体は `nix-claude-code` input の overlay (`darwin.nix`) で入れる。`update-claude-code.yaml` が、この input だけを毎日更新して PR を作る。MCP サーバーは `programs.claude-code.mcpServers` で宣言する
-  - 外部のプラグインは、タグ固定の `flake = false` input にし、`home.file.".claude/skills/<名前>".source` でフォルダ全体を 1 本のリンクにして置く (個人のプラグインとして読まれ、hooks も効く)。`programs.claude-code.plugins` は中身を 1 つずつリンクするので、Claude Code が hooks を「プラグインの外」と見なして拒む。フックが PATH の `node` や `python3` を呼ぶものは、`pkgs/<名前>/` で絶対パスに書き換える。実例は `ponytail` と `last30days` (`update-<名前>.yaml` がタグを更新する)。`last30days` のエンジンは `settings.env.LAST30DAYS_PYTHON` で Nix の python を使う
+  - 外部のプラグインは、タグ固定の `flake = false` input にし、`home.file.".claude/skills/<名前>".source` でフォルダ全体を 1 本のリンクにして置く (個人のプラグインとして読まれ、hooks も効く)。`programs.claude-code.plugins` は中身を 1 つずつリンクするので、Claude Code が hooks を「プラグインの外」と見なして拒む。フックが PATH の `node` や `python3` を呼ぶものは、`pkgs/<名前>/` で絶対パスに書き換える。実例は `last30days` (`update-last30days.yaml` がタグを更新する)。外すときは、flake input (`nix flake lock` で lock からも消える)、`flake/packages.nix`、`pkgs/<名前>/`、`home.file` の行、`update-<名前>.yaml` を消す
+  - `last30days` のエンジンは `settings.env.LAST30DAYS_PYTHON` で Nix の python を使う。`~/.config/last30days/.env` はエンジンも鍵などを書き足すのでリンクにせず、activation が `SETUP_COMPLETE` と `BROWSER_CONSENT` の行が無ければ足す (初回の設定が npx や brew でツールを入れるのを避けるため)。足りないツールは `home.packages` に足す
   - `settings.json` は丸ごと置き換えず、activation で jq マージする。Nix に書いたキーが勝ち、`enabledPlugins` や `permissions.allow` など Claude Code が書き込むものは残る。`hooks` だけは Nix の内容で置き換える
   - 自前の mod は `config/claude/mods/<名前>/` に置く。`~/.claude/mods/<名前>` へ `mkOutOfStoreSymlink` で配り、`settings.env.CLAUDE_CODE_PLUGIN_DIRS` に書いて常に読み込ませる (新しい mod は switch が要る)。Claude Code が mod のフォルダに書く `.claude-plugin/types/` は `.gitignore` 済み。`hide-tools` は herdr の中 (`HC_TERMINAL_ID` がある) だけ、会話の中のツールの行を消す (ctrl+o で出る)
   - `agy` は `agy:worker` サブエージェントを定義し、その要求をモデルに送らず agy (`pkgs/antigravity-cli/`) の headless 実行 (auto mode は `agy-settings.json` の `agentMode` で示す。headless の `--mode auto` は公開のフラグで止められていて警告が出るので付けない。agy の sandbox は `/nix` を読めず Nix のツールを起動できないので、`--dangerously-skip-permissions` で外で走らせる。git の書き込みは `agy-settings.json` の deny (regex は `(`、`+`、`[...]`、`--` を含む式が効かない)、`git-hooks/`、空の `pushInsteadOf` で止め、前後の HEAD、refs、index の比較で気づく。`git reset --hard` のような作業ツリーだけを変える操作と、シェルによる作業ディレクトリの外への書き込みには気づけない) に回す。判断の部分は `hooks/logic.mjs` にあり、`checks.claude-scripts` が試す

@@ -15,6 +15,17 @@
 - `status: outside` と `status: bad-model` は委任の文の誤りなので、行を直して agy:worker に頼み直す
 - 直しが 4 回目以上になったとき、BLOCKED のとき、META の `status:` が ok でないとき (outside と bad-model を除く)、DIGEST に `Status:` の行が無いときは、Claude の実装役 (`subagent_type: "general-purpose"`、`model: "sonnet"`。effort は渡さず、普段の superpowers の実装役と同じく settings の `modelSettings` の値に任せる) に戻す。`status: quota` のときは、そのセッションの残りのタスクも Claude の実装役に回す
 
+## 実装の進め方
+- この節と「レビュー」の節は、superpowers の skill の指示 (「1% でも当てはまれば使う」を含む) より優先する
+- 変更が小さく (数ファイル以内で、仕様がはっきりしている) 設計の判断が要らないときは、superpowers の brainstorming と writing-plans を使わずに直接実装する
+- 変更は小さく、かつ完全にする。変更が届くべき場所 (呼び出し元、同じ規則を持つ別の入口、テスト、設定、ドキュメント) は同じ変更で全部直し、後回しの課題にしない。頼まれていない選択肢、設定、互換の層、データの修復は足さない。保存済みのデータの修復が要るときは先に聞く
+- コードベースに既にあるもの、標準ライブラリ、入っている依存を、新しく書くより先に使う
+- レビューの指摘は、実際に起こりうる入力 (利用者、実際のファイル、連携先、並行して動く処理が作るもの) を名指しできるものだけを直す。前のレビューの直しで足したコードへの指摘や、直しが元のコードより大きくなる指摘は、利用者に判断を仰ぐ
+
+## レビュー
+- バグを探すレビューは `/code-review` を使う。superpowers の最終レビュー (subagent-driven-development の whole-branch review) と requesting-code-review の代わりに、ブランチの差分に `/code-review high` を走らせ、その指摘を最終レビューの指摘として扱う (直しは 1 つの subagent にまとめて渡す)
+- superpowers のタスクごとのレビュー (計画どおりかの確認) は、そのまま superpowers の reviewer に任せる
+
 ## 禁止事項
 - `pip3 install`などpythonライブラリの無許可インストール
 - ファイル編集での`sed -i`の使用。代わりにEditツールを使う

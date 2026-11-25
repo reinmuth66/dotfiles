@@ -67,6 +67,7 @@
     sketchybar-app-font
     switchaudio-osx
     texlab
+    yt-dlp
   ];
 
   home.file.".markdownlint-cli2.yaml".source = ../config/markdownlint-cli2.yaml;

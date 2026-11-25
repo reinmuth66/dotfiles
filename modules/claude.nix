@@ -111,9 +111,20 @@ in
     fi
   '';
 
+  # last30days の .env はエンジンも鍵などを書き足すので、リンクにせず、初回の設定 (自前でツールを npx や brew で入れる) を飛ばす印だけを足す
+  home.activation.last30daysSetup = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    ENV_FILE="${config.xdg.configHome}/last30days/.env"
+    run mkdir -p "$(dirname "$ENV_FILE")"
+    for line in SETUP_COMPLETE=true BROWSER_CONSENT=true; do
+      grep -q "^''${line%%=*}=" "$ENV_FILE" 2>/dev/null || run sh -c "echo $line >> '$ENV_FILE'"
+    done
+    run chmod 600 "$ENV_FILE"
+  '';
+
   # dotfiles の実体を直接指すので、編集すれば switch しなくても反映される
   home.file = {
-    ".claude/CLAUDE.md".source = config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/CLAUDE.md";
+    ".claude/CLAUDE.md".source =
+      config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/config/agents/AGENTS.md";
     ".claude/statusline.sh".source =
       config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/statusline.sh";
     ".claude/hooks/herdr-record.mjs".source =
@@ -125,7 +136,6 @@ in
     # 外部のプラグインは ~/.claude/skills/<名前> に置くと個人のプラグインとして読まれる。
     # programs.claude-code.plugins は中身を 1 つずつリンクし、hooks/ が「プラグインの外」と見なされて拒まれるので、
     # フォルダ全体を 1 本のリンクにする
-    ".claude/skills/ponytail".source = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.ponytail;
     ".claude/skills/last30days".source =
       inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.last30days;
   };
