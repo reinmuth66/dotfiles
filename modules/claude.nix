@@ -19,6 +19,8 @@ let
     permissions.defaultMode = "default";
     # 自前の mod (config/claude/mods/) を常に読み込ませる。複数は区切り文字 (:) でつなぐ
     env.CLAUDE_CODE_PLUGIN_DIRS = "${claudeDir}/mods/hide-tools:${claudeDir}/mods/agy";
+    # last30days のエンジンは 3.12 以上の python を探し、無ければ uv で取りに行くので、Nix のものを指す
+    env.LAST30DAYS_PYTHON = "${pkgs.python3}/bin/python3";
     statusLine = {
       type = "command";
       command = "~/.claude/statusline.sh";
@@ -124,5 +126,7 @@ in
     # programs.claude-code.plugins は中身を 1 つずつリンクし、hooks/ が「プラグインの外」と見なされて拒まれるので、
     # フォルダ全体を 1 本のリンクにする
     ".claude/skills/ponytail".source = inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.ponytail;
+    ".claude/skills/last30days".source =
+      inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.last30days;
   };
 }
