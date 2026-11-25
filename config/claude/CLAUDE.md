@@ -7,6 +7,12 @@
 ## ツール
 - URL の取得、Web ページの調査、HTML からの抽出には `ax` を使う。WebFetch、`curl`、使い捨てのスクリプトは使わない。使い方は skill `ax` か `ax agent-context` で確認する
 
+## agy
+- superpowers:subagent-driven-development の実装役 (直しを含む) は `subagent_type: "agy:worker"` で起動する。`model` は渡さない (モデルを呼ばないため)
+- 委任の文には、実装役の雛形の中身に加えて `作業ディレクトリ: <絶対パス>` の行を書く
+- agy:worker が `Status: DONE` を返したら、指揮役が `git status` と `git diff` を見て、計画書の commit を行ってから review package を作る。`denied:` に必要なコマンドがあれば、指揮役が走らせる
+- 直しが 4 回目以上になったとき、BLOCKED のとき、META の `status:` が ok でないとき、DIGEST に `Status:` の行が無いときは、Claude の実装役 (general-purpose) に戻す
+
 ## 禁止事項
 - `pip3 install`などpythonライブラリの無許可インストール
 - ファイル編集での`sed -i`の使用。代わりにEditツールを使う
