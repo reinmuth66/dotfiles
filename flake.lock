@@ -620,11 +620,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795187482,
-        "narHash": "sha256-aOcRrd8lUllNlhKqirNF7jOGxPfg0fzQo8QBOIKrlS8=",
+        "lastModified": 1795590313,
+        "narHash": "sha256-Ht9aK1JLwSeG1c+u9o0MVjm01sPOxAYXiWD43wAYB1w=",
         "owner": "reinmuth66",
         "repo": "zettelist",
-        "rev": "f52862299ea37b6cabc535e73ee00cc676ef29fa",
+        "rev": "2ff449a69cab360d5b7b6d4a51dd731437925844",
         "type": "github"
       },
       "original": {
