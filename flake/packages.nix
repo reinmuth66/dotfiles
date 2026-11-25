@@ -20,6 +20,8 @@
         yazi-icons = pkgs.callPackage ../pkgs/yazi-icons { };
         # フックの node を絶対パスにした ponytail の Claude Code プラグイン
         ponytail = pkgs.callPackage ../pkgs/ponytail { src = inputs.ponytail; };
+        # 版を固定して uvx で起動する headroom
+        headroom = pkgs.callPackage ../pkgs/headroom { };
       }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
         antigravity-cli = pkgs.callPackage ../pkgs/antigravity-cli { };

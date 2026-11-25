@@ -50,6 +50,7 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
 - `spicetify.nix`: Spotify と spicetify-cli は nixpkgs-spotify の rev で固定し、`update-spotify.yaml` が、猶予期間・互換性・ビルドを確認してから PR で更新する
 - `cavaviz.nix`: Spotify ポップアップの背景と棒グラフを描くサウンドビジュアライザ。`pkgs/cavaviz/` の CavaViz.app と、cava の設定とシェーダーからなる
 - `mole.nix`: タグ固定の flake input。`update-mole.yaml` が新しいリリースで PR を作る
+- `headroom.nix`: PyPI の `headroom-ai` を、`pkgs/headroom/` で版を固定して `uvx` で起動する (Nix ではビルドしない。初回の実行時に依存を取る)。`update-headroom.yaml` が PyPI の新しい版で PR を作る。使うときだけ `headroom wrap claude` で起動する
 - `marp.nix`: テーマ `modern` は手で書かず、`pkgs/marp-theme/` がデザインシステムから組み立てる (`nix build .#marp-theme` で確認できる)
   - 連結の順は、`tokens.json` から作る変数、`components/bundle.css` (部品)、`config/marp/layout.css` (marp 固有のレイアウト)
   - 色、文字サイズ、余白、角丸、線の値は `config/design-system/project/tokens.json` にだけ書く。CSS では変数で指す。色の直書きは `nix flake check` (`checks.marp-theme`) が止める

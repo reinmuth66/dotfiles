@@ -1,0 +1,51 @@
+name: Update headroom
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check for new version on PyPI
+        id: check
+        run: |
+          LATEST=$(curl -fsSL https://pypi.org/pypi/headroom-ai/json | jq -r '.info.version')
+          CURRENT=$(grep -oP '(?<=version = ")[^"]+' pkgs/headroom/default.nix || true)
+          [[ "$LATEST" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::想定外の版の形式: ${LATEST}"; exit 1; }
+          [[ "$CURRENT" =~ ^[0-9]+(\.[0-9]+)*$ ]] || { echo "::error::pkgs/headroom/default.nix から現在の版を取得できない"; exit 1; }
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST" != "$CURRENT" ]; then
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Update version
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          sed -i "s|version = \"${{ steps.check.outputs.current }}\"|version = \"${{ steps.check.outputs.latest }}\"|" pkgs/headroom/default.nix
+          if git diff --quiet pkgs/headroom/default.nix; then echo "::error::版を書き換えられなかった"; exit 1; fi
+      - name: Create Pull Request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
+        with:
+          # A PR created with GITHUB_TOKEN does not trigger pull_request workflows, so check.yaml would not run on it.
+          token: ${{ secrets.CREATE_PR_TOKEN }}
+          commit-message: 'chore: update headroom to ${{ steps.check.outputs.latest }}'
+          title: 'chore: update headroom to ${{ steps.check.outputs.latest }}'
+          body: |
+            Automated update of headroom-ai from ${{ steps.check.outputs.current }} to ${{ steps.check.outputs.latest }}.
+          branch: update/headroom
+          labels: dependencies
+          delete-branch: true
+      - name: Report failure
+        if: failure()
+        uses: ./.github/actions/notify-failure
+        with:
+          key: 'failure:update-headroom'
