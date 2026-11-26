@@ -5,19 +5,18 @@ import * as fs from "fs/promises";
 import { View, div, image, svg, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { appHome, checking, exec, readTextFile, writeTextFile } from "herdr";
-import { METRICS, PALETTE, cells, ringArc } from "./ui.js";
+import { METRICS, PALETTE, cells } from "./ui.js";
 import { watchJsonDir } from "./data.js";
 import { parseAgyQuota, pickAgyPool, windowView } from "./logic.js";
 
 const FONT = "Moralerspace Neon HW";
 const PAD_RIGHT = 10;
-const RING_OUTER = 36; // 5h (外側の輪) の直径
-const RING_INNER = 26; // 7d (内側の輪) の直径
+const RING_OUTER = 48; // 5h (外側の輪) の直径
+const RING_INNER = 34; // 7d (内側の輪) の直径
 const RING_STROKE = 3;
-const TICK_LEN = 3; // 経過の位置に輪をまたぐ線の長さ
-const TICK_STROKE = 1;
-const ICON_SIZE = 14;
-const GROUP_GAP = 4;
+const ICON_SIZE = 18; // agy のマーク
+const CLAUDE_ICON_SIZE = 22; // Claude Code のキャラ。横長なので一回り大きくする (内側の輪の内径は 28)
+const RING_GAP = 6; // 円と数字の間。円 48 + 間 6 + 数字 15 × 2 = 84 (枠の中の高さ)
 const AGY_INTERVAL = 5 * 60_000;
 const AGY_TIMEOUT = 60_000;
 
@@ -27,63 +26,39 @@ function ringPoint(cx, cy, r, fraction) {
   return [cx + r * Math.sin(angle), cy - r * Math.cos(angle)];
 }
 
-function strokeArc(arc, stroke) {
-  const { r, cx, cy, start, end, largeArc, full } = arc;
-  let builder = PathBuilder.stroke(stroke).move_to(...start);
-  if (full) builder = builder.arc_to(r, r, 0, false, true, cx, cy + r).arc_to(r, r, 0, false, true, ...start);
-  else builder = builder.arc_to(r, r, 0, largeArc, true, ...end);
+// from から to まで (0 から 1) の弧を描く。arc_to は半周の弧で半径がずれて描かれるので、
+// 1 回の arc_to は 1/8 周以下にする
+function arcPath(from, to, outer, stroke) {
+  const a = Math.max(0, from);
+  const b = Math.min(1, to);
+  if (!(b - a > 0)) return null;
+  const r = (outer - stroke) / 2;
+  const c = outer / 2;
+  // 1/8 周以下の弧に分けて arc_to でつなぐ (直線でつなぐと角が見える)
+  const steps = Math.max(1, Math.ceil((b - a) * 8));
+  let builder = PathBuilder.stroke(stroke).move_to(...ringPoint(c, c, r, a));
+  for (let i = 1; i <= steps; i++) builder = builder.arc_to(r, r, 0, false, true, ...ringPoint(c, c, r, a + ((b - a) * i) / steps));
   return builder.build();
 }
 
-// 経過の位置から超過分だけ時計回りに描く弧
-function overArcPath(from, over, outer, stroke) {
-  const to = Math.min(1, from + over);
-  const span = to - from;
-  if (!(span > 0)) return null;
-  const r = (outer - stroke) / 2;
-  const cx = outer / 2;
-  const cy = outer / 2;
-  const start = ringPoint(cx, cy, r, from);
-  let builder = PathBuilder.stroke(stroke).move_to(...start);
-  if (span >= 0.999) {
-    const mid = ringPoint(cx, cy, r, from + 0.5);
-    builder = builder.arc_to(r, r, 0, false, true, ...mid).arc_to(r, r, 0, false, true, ...start);
-  } else {
-    const end = ringPoint(cx, cy, r, to);
-    builder = builder.arc_to(r, r, 0, span > 0.5, true, ...end);
-  }
-  return builder.build();
-}
-
-// 経過の位置に輪の線をまたぐ短い線
-function tickPath(fraction, outer, stroke) {
-  const r = (outer - stroke) / 2;
-  const cx = outer / 2;
-  const cy = outer / 2;
-  const angle = fraction * 2 * Math.PI;
-  const ux = Math.sin(angle);
-  const uy = -Math.cos(angle);
-  const half = TICK_LEN / 2;
-  return PathBuilder.stroke(TICK_STROKE)
-    .move_to(cx + (r - half) * ux, cy + (r - half) * uy)
-    .line_to(cx + (r + half) * ux, cy + (r + half) * uy)
-    .build();
-}
-
-// 1 本の輪。全周の下地を敷き、窓があれば使用分・超過分・経過の印を重ねる
+// 1 本の輪。全周の下地の上に、経過の位置から 100% までを残り時間の薄い色で敷き、
+// 0 から使用分を窓の色で、経過の位置より先の使用分を超過の色で重ねる
 function ringLayer(view, outer) {
   const offset = (RING_OUTER - outer) / 2;
-  const paint = (path, color) => window.paint_path(path, color).absolute().top(0).left(0).size_full();
-  const layers = [paint(strokeArc(ringArc(1, outer, RING_STROKE), RING_STROKE), PALETTE.surface0)];
+  const layers = [];
+  const add = (from, to, color) => {
+    const path = arcPath(from, to, outer, RING_STROKE);
+    if (path) layers.push(window.paint_path(path, color).absolute().top(0).left(0).size_full());
+  };
+  add(0, 1, PALETTE.surface0);
   if (view) {
-    const usedArc = ringArc(view.used / 100, outer, RING_STROKE);
-    if (usedArc) layers.push(paint(strokeArc(usedArc, RING_STROKE), view.barColor));
+    const used = view.used / 100;
     if (view.elapsed != null) {
-      if (view.overColor) {
-        const over = overArcPath(view.elapsed, view.over, outer, RING_STROKE);
-        if (over) layers.push(paint(over, view.overColor));
-      }
-      layers.push(paint(tickPath(view.elapsed, outer, RING_STROKE), PALETTE.text));
+      add(view.elapsed, 1, view.remainingColor);
+      add(0, Math.min(used, view.elapsed), view.barColor);
+      if (view.overColor) add(view.elapsed, used, view.overColor);
+    } else {
+      add(0, used, view.barColor);
     }
   }
   return div().absolute().top(offset).left(offset).w(outer).h(outer).children(layers);
@@ -151,34 +126,12 @@ export default class Usage extends View {
     }
   }
 
-  // 左 (使用率 2 行) + 二重の円 (中央にマーク) + 右 (残り時間 2 行)
+  // 二重の円 (中央にマーク) と、その下の「使用率 残り時間」の 2 行 (上が 5h、下が 7d)
   ringGroup(windows, icon, now) {
     const w5 = findWindow(windows, "5h");
     const w7 = findWindow(windows, "7d");
     const v5 = w5 ? windowView(w5, now) : null;
     const v7 = w7 ? windowView(w7, now) : null;
-    const rowH = RING_OUTER / 2;
-
-    const leftCol = v_flex()
-      .flex_none()
-      .w(cells(4))
-      .h(RING_OUTER)
-      .items_end()
-      .child(
-        h_flex()
-          .h(rowH)
-          .items_center()
-          .text_color(v5 ? v5.barColor : PALETTE.text)
-          .child(v5 ? `${Math.round(v5.used)}%` : ""),
-      )
-      .child(
-        h_flex()
-          .h(rowH)
-          .items_center()
-          .text_color(v7 ? v7.barColor : PALETTE.text)
-          .child(v7 ? `${Math.round(v7.used)}%` : ""),
-      );
-
     const ring = div()
       .relative()
       .flex_none()
@@ -186,29 +139,23 @@ export default class Usage extends View {
       .h(RING_OUTER)
       .child(ringLayer(v5, RING_OUTER))
       .child(ringLayer(v7, RING_INNER))
-      .child(div().absolute().inset_0().flex().items_center().justify_center().child(icon.w(ICON_SIZE).h(ICON_SIZE).flex_none()));
-
-    const rightCol = v_flex()
-      .flex_none()
-      .w(cells(5))
-      .h(RING_OUTER)
-      .items_start()
-      .child(
-        h_flex()
-          .h(rowH)
-          .items_center()
-          .text_color(v5 ? v5.remainingColor : PALETTE.text)
-          .child(v5?.remaining ?? ""),
-      )
-      .child(
-        h_flex()
-          .h(rowH)
-          .items_center()
-          .text_color(v7 ? v7.remainingColor : PALETTE.text)
-          .child(v7?.remaining ?? ""),
-      );
-
-    return h_flex().flex_none().items_center().gap(GROUP_GAP).child(leftCol).child(ring).child(rightCol);
+      .child(div().absolute().inset_0().flex().items_center().justify_center().child(icon.flex_none()));
+    const row = (v) =>
+      h_flex()
+        .h(15)
+        .items_center()
+        .gap(cells(1))
+        // 使用率は "100%" の幅で右寄せ、残り時間は "16h42m" の幅で左寄せにして、行ごとに位置を揃える
+        .child(
+          h_flex()
+            .flex_none()
+            .w(cells(4))
+            .justify_end()
+            .text_color(v ? v.barColor : PALETTE.text)
+            .child(v ? `${Math.round(v.used)}%` : ""),
+        )
+        .child(div().flex_none().w(cells(6)).text_color(v ? v.remainingColor : PALETTE.text).child(v?.remaining ?? ""));
+    return v_flex().flex_none().items_center().child(ring).child(div().h(RING_GAP)).child(row(v5)).child(row(v7));
   }
 
   render() {
@@ -217,7 +164,11 @@ export default class Usage extends View {
     const agyPools = this.files["agy"]?.pools;
     const agyPool = pickAgyPool(agyPools, now);
     const agyWindows = agyPools?.[agyPool];
-    const agyIcon = agyPool === "gemini" ? image("icons/antigravity.svg") : svg("icons/claude.svg").text_color(PALETTE.blue);
+    const claudeIcon = () => image("icons/claude.svg").w(CLAUDE_ICON_SIZE).h(CLAUDE_ICON_SIZE);
+    const agyIcon =
+      agyPool === "gemini"
+        ? image("icons/antigravity.svg").w(ICON_SIZE).h(ICON_SIZE)
+        : svg("icons/claude.svg").text_color(PALETTE.blue).w(CLAUDE_ICON_SIZE).h(CLAUDE_ICON_SIZE);
 
     return h_flex()
       .id("usage")
@@ -225,12 +176,12 @@ export default class Usage extends View {
       .pl(METRICS.padLeft)
       .pr(PAD_RIGHT)
       .items_center()
-      .justify_between()
+      .justify_around()
       .overflow_hidden()
       .font_family(FONT)
       .text_size(METRICS.fontSize)
       .text_color(PALETTE.text)
-      .child(this.ringGroup(claudeWindows, image("icons/claude.svg"), now))
+      .child(this.ringGroup(claudeWindows, claudeIcon(), now))
       .child(this.ringGroup(agyWindows, agyIcon, now));
   }
 }
