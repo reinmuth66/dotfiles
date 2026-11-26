@@ -66,6 +66,35 @@ test("リセット後に 5h の値が来なくても、5h を使用率 0 で残�
   );
 });
 
+test("止まったセッションの古い値で、新しい使用率を上書きしない", () => {
+  const now = Math.floor(Date.now() / 1000);
+  const limits = (h, d, dReset = now + 86400) => ({
+    rate_limits: {
+      five_hour: { used_percentage: h, resets_at: now + 3600 },
+      seven_day: { used_percentage: d, resets_at: dReset },
+    },
+  });
+  const windows = () => readJson("app/data/limits/claude-code.json").windows.map((w) => [w.key, w.used_percentage]);
+  run({ ...fixture, ...limits(40, 80) }, "fresh");
+  run({ ...fixture, ...limits(30, 78) }, "stale");
+  assert.deepEqual(windows(), [
+    ["5h", 40],
+    ["7d", 80],
+  ]);
+  // 5h の値が無い古いセッションも、まだ続いている 5h を 0 にしない
+  run({ ...fixture, rate_limits: { seven_day: { used_percentage: 78, resets_at: now + 86400 } } }, "stale");
+  assert.deepEqual(windows(), [
+    ["5h", 40],
+    ["7d", 80],
+  ]);
+  // 次の窓に入れば、使用率が下がっても新しい値を使う
+  run({ ...fixture, ...limits(45, 2, now + 86400 + 604800) }, "fresh");
+  assert.deepEqual(windows(), [
+    ["5h", 45],
+    ["7d", 2],
+  ]);
+});
+
 test("effort と current_usage がなければ null", () => {
   run({ ...fixture, effort: undefined, context_window: { context_window_size: 200000, current_usage: null } }, "t2");
   const s = readJson("app/data/sessions/t2.json");
@@ -80,7 +109,7 @@ test("形に合わない HC_TERMINAL_ID では何も書かない", () => {
     assert.equal(r.stdout, "");
   }
   assert.deepEqual(
-    listFiles("app/data/sessions").filter((f) => !["t1.json", "t2.json", "t5h.json"].includes(f)),
+    listFiles("app/data/sessions").filter((f) => !["t1.json", "t2.json", "t5h.json", "fresh.json", "stale.json"].includes(f)),
     [],
   );
   assert.deepEqual(listFiles("app/data"), ["limits", "sessions"]);

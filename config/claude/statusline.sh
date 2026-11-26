@@ -161,19 +161,33 @@ if [ -n "${HC_TERMINAL_ID+x}" ]; then
       }' 2>/dev/null)
       [ -n "$session_json" ] && write_atomic "$data_dir/sessions/$HC_TERMINAL_ID.json" "$session_json"
 
-      # 5h の窓はリセット後、次に使うまで値が来ない。ほかの窓が来ていれば、5h は使用率 0 で残す
-      limits_json=$(printf '%s' "$input" | jq -c '
+      # 5h の窓はリセット後、次に使うまで値が来ない。ほかの窓が来ていれば、5h は使用率 0 で残す。
+      # 止まっているセッションも、描き直すたびに最後に受けた古い値を送ってくる。そのため、
+      # 書いてある値と窓ごとに比べ、リセットの時刻が後の方、同じ窓 (差が 60 秒以内) なら使用率の大きい方を残す。
+      # 書いてある窓のリセットの時刻が過ぎていれば、新しい値をそのまま使う
+      limits_file="$data_dir/limits/claude-code.json"
+      old_windows=$(jq -c '.windows // []' "$limits_file" 2>/dev/null) || old_windows='[]'
+      [ -n "$old_windows" ] || old_windows='[]'
+      limits_json=$(printf '%s' "$input" | jq -c --argjson old "$old_windows" '
+        def pick($o):
+          if $o == null or $o.resets_at == null or $o.resets_at <= now then .
+          elif .resets_at == null or .resets_at < $o.resets_at - 60 then $o
+          elif .resets_at > $o.resets_at + 60 then .
+          elif $o.used_percentage > .used_percentage then $o
+          else . end;
+        ($old | map({ (.key): . }) | add // {}) as $prev |
         [
           { key: "5h", duration: 18000, w: .rate_limits.five_hour },
           { key: "7d", duration: 604800, w: .rate_limits.seven_day }
         ]
         | if any(.[]; .w.used_percentage != null) then . else [] end
         | map(if .w.used_percentage != null then . else .w = { used_percentage: 0 } end
-            | { key, used_percentage: .w.used_percentage, resets_at: (.w.resets_at // null), duration })
+            | { key, used_percentage: .w.used_percentage, resets_at: (.w.resets_at // null), duration }
+            | pick($prev[.key]))
         | select(length > 0)
         | { agent: "claude-code", name: "Claude Code", updated_at: (now | floor), windows: . }
       ' 2>/dev/null)
-      [ -n "$limits_json" ] && write_atomic "$data_dir/limits/claude-code.json" "$limits_json"
+      [ -n "$limits_json" ] && write_atomic "$limits_file" "$limits_json"
     fi
   fi
   exit 0
