@@ -27,17 +27,11 @@ let
       commit = "";
       pr = "";
     };
+    # 離席から戻ったときの 1 行の要約 (Session recap) を出さない
+    awaySummaryEnabled = false;
+    # 待っている間に長い会話を compact しない (schemastore のスキーマにはまだ無いキー)
+    idleCompaction = false;
     hooks = {
-      Stop = [
-        {
-          hooks = [
-            {
-              type = "command";
-              command = "/usr/bin/afplay /System/Library/Sounds/Glass.aiff";
-            }
-          ];
-        }
-      ];
       # herdr の中では、行動、編集、サブエージェントを herdr-app の data/ に書き出す (外では何もしない)
       PostToolUse = [
         {
