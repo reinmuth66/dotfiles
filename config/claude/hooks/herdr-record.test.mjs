@@ -1,4 +1,4 @@
-// herdr-record.mjs: Claude Code の行動、編集、サブエージェントを herdr-app の data/ に書き出す
+// herdr-record.mjs: Claude Code の行動とサブエージェントを herdr-app の data/ に書き出す
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { editContents, kindOf, record } from "./herdr-record.mjs";
+import { kindOf, record } from "./herdr-record.mjs";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "herdr-record.mjs");
 const tmp = mkdtempSync(join(tmpdir(), "herdr-record-"));
@@ -34,15 +34,13 @@ function runProcess(event, e, path = script) {
   });
 }
 
-test("Edit の前後と行動を書く", () => {
-  writeFileSync(file, "after\n");
+test("Edit の行動を書き、編集の中身は書かない", () => {
   record(post("Edit", { file_path: file, old_string: "before", new_string: "after" }, { originalFile: "before\n" }), env(), 1000);
   const a = readJson("data/activity/t1.json");
   assert.deepEqual([a.terminal, a.session_id, a.cwd], ["t1", "abc", "/r"]);
   assert.deepEqual([a.actions[0].tool, a.actions[0].kind, a.actions[0].path, a.actions[0].at], ["Edit", "edit", file, 1000]);
-  const e = readJson(`data/edits/t1/${a.edits[0]}.json`);
-  assert.deepEqual([e.seq, e.at, e.path], [a.edits[0], 1000, file]);
-  assert.deepEqual([e.before, e.after, e.too_large], ["before\n", "after\n", false]);
+  assert.equal(Object.hasOwn(a, "edits"), false);
+  assert.equal(existsSync(join(app, "data/edits")), false);
 });
 
 test("Bash のコマンドは 1 行目を 120 文字まで", () => {
@@ -54,39 +52,17 @@ test("Bash のコマンドは 1 行目を 120 文字まで", () => {
   assert.equal(readJson("data/activity/t1.json").actions.length, 3);
 });
 
-test("行動は 20 件、編集は 10 件まで。外れた編集のファイルは消す", () => {
+test("行動は 20 件まで", () => {
   for (let i = 0; i < 25; i++) record(post("Write", { file_path: file, content: `${i}` }, {}), env("t5"), i);
   const a = readJson("data/activity/t5.json");
   assert.equal(a.actions.length, 20);
   assert.equal(a.actions[0].at, 24);
-  assert.equal(a.edits.length, 10);
-  assert.deepEqual(a.edits, [25, 24, 23, 22, 21, 20, 19, 18, 17, 16]);
-  assert.equal(readdirSync(join(app, "data/edits/t5")).length, 10);
-  const e = readJson("data/edits/t5/25.json");
-  assert.deepEqual([e.before, e.after], ["", "24"]);
 });
 
-test("大きな編集は中身を持たない", () => {
-  record(post("Write", { file_path: file, content: "x".repeat(1024 * 1024) }, {}), env("t6"), 1);
-  const e = readJson(`data/edits/t6/${readJson("data/activity/t6.json").edits[0]}.json`);
-  assert.deepEqual([e.before, e.after, e.too_large], [null, null, true]);
-});
-
-test("エスケープで JSON が 900 KiB を超える編集も中身を持たない", () => {
-  const content = '"\n'.repeat(300 * 1024); // 中身は 600 KiB、JSON では 1200 KiB を超える
-  assert.ok(Buffer.byteLength(content) < 900 * 1024);
-  record(post("Write", { file_path: file, content }, {}), env("t14"), 1);
-  const a = readJson("data/activity/t14.json");
-  const path = join(app, `data/edits/t14/${a.edits[0]}.json`);
-  assert.ok(readFileSync(path).length < 900 * 1024);
-  const e = readJson(`data/edits/t14/${a.edits[0]}.json`);
-  assert.deepEqual([e.before, e.after, e.too_large, e.seq], [null, null, true, a.edits[0]]);
-});
-
-test("NotebookEdit は行動だけ記録する", () => {
+test("NotebookEdit の行動を書く", () => {
   record(post("NotebookEdit", { notebook_path: "/r/a.ipynb", new_source: "x" }), env("t8"), 1);
   const a = readJson("data/activity/t8.json");
-  assert.deepEqual([a.actions[0].kind, a.actions[0].path, a.edits], ["edit", "/r/a.ipynb", []]);
+  assert.deepEqual([a.actions[0].kind, a.actions[0].path], ["edit", "/r/a.ipynb"]);
 });
 
 test("サブエージェントの開始と終了", () => {
@@ -115,48 +91,41 @@ test("終わったサブエージェントは 10 件まで、動いているも�
 test("SessionStart の clear で空にする", () => {
   record({ hook_event_name: "SessionStart", session_id: "new", cwd: "/r", source: "clear" }, env("t1"), 3000);
   const a = readJson("data/activity/t1.json");
-  assert.deepEqual([a.actions, a.edits, a.subagents, a.session_id], [[], [], [], "new"]);
-  assert.equal(existsSync(join(app, "data/edits/t1")), false);
+  assert.deepEqual([a.actions, a.subagents, a.session_id], [[], [], "new"]);
 });
 
-test("SessionStart で、7 日より古い他の端末の activity、edits、sessions を消す", () => {
+test("SessionStart で、7 日より古い他の端末の activity、sessions を消す", () => {
   const home = join(tmp, "prune");
   const d = join(home, "data");
   const e = { HC_TERMINAL_ID: "cur", HERDR_APP_HOME: home, HOME: tmp };
   const now = Date.now();
   const old = (now - 8 * 24 * 3600 * 1000) / 1000;
   const recent = (now - 6 * 24 * 3600 * 1000) / 1000;
-  const put = (rel, age, dir = false) => {
+  const put = (rel, age) => {
     const p = join(d, rel);
-    if (dir) {
-      mkdirSync(p, { recursive: true });
-      writeFileSync(join(p, "1.json"), "{}");
-    } else {
-      mkdirSync(dirname(p), { recursive: true });
-      writeFileSync(p, "{}");
-    }
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, "{}");
     utimesSync(p, age, age);
   };
   for (const t of ["old", "new", "cur"]) {
     const age = t === "new" ? recent : old;
     put(`activity/${t}.json`, age);
     put(`sessions/${t}.json`, age);
-    put(`edits/${t}`, age, true);
   }
   // data/ の外を指すリンクはたどらず消さない。ID の形でない名前、ロック中の端末も消さない
   const outside = join(tmp, "prune-outside");
   mkdirSync(outside, { recursive: true });
   writeFileSync(join(outside, "keep.json"), "{}");
-  symlinkSync(outside, join(d, "edits/link"));
+  utimesSync(join(outside, "keep.json"), old, old);
+  symlinkSync(join(outside, "keep.json"), join(d, "activity/link.json"));
   put("sessions/.x.json", old);
   put("activity/locked.json", old);
   mkdirSync(join(d, "activity/.locked.lock"));
 
   record({ hook_event_name: "SessionStart", session_id: "s", cwd: "/r", source: "startup" }, e, now);
   const ls = (rel) => readdirSync(join(d, rel)).sort();
-  assert.deepEqual(ls("activity"), [".locked.lock", "cur.json", "locked.json", "new.json"]);
+  assert.deepEqual(ls("activity"), [".locked.lock", "cur.json", "link.json", "locked.json", "new.json"]);
   assert.deepEqual(ls("sessions"), [".x.json", "cur.json", "new.json"]);
-  assert.deepEqual(ls("edits"), ["link", "new"]); // cur は SessionStart で空にした
   assert.equal(existsSync(join(outside, "keep.json")), true);
 });
 
@@ -174,7 +143,6 @@ test("PostToolUse では古いファイルを消さない", () => {
 test("SessionStart の resume では消さない", () => {
   record({ hook_event_name: "SessionStart", session_id: "abc", cwd: "/r", source: "resume" }, env("t5"), 3000);
   assert.equal(readJson("data/activity/t5.json").actions.length, 20);
-  assert.equal(readdirSync(join(app, "data/edits/t5")).length, 10);
 });
 
 test("形に合わない HC_TERMINAL_ID では何も書かない", () => {
@@ -206,14 +174,11 @@ test("ロックが取れなければ何も書かない。60 秒より古いロ�
   assert.equal(existsSync(lock), false);
 });
 
-test("kindOf と editContents", () => {
+test("kindOf", () => {
   assert.deepEqual(
     ["Edit", "MultiEdit", "NotebookEdit", "Write", "Read", "Grep", "Glob", "WebSearch", "WebFetch", "Bash", "Task", "mcp__x"].map(kindOf),
     ["edit", "edit", "edit", "write", "read", "search", "search", "web", "web", "bash", "other", "other"],
   );
-  assert.equal(editContents(post("NotebookEdit", { notebook_path: "/r/a.ipynb" })), null);
-  assert.equal(editContents(post("Read", { file_path: file })), null);
-  assert.deepEqual(editContents(post("Write", { file_path: "/r/a", content: "b" }, { originalFile: "a" })), { path: "/r/a", before: "a", after: "b" });
 });
 
 test("同時に 10 個走っても、行動が 10 件残り、JSON が壊れない", async () => {

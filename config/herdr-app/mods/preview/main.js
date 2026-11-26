@@ -148,7 +148,7 @@ export default class Preview extends View {
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
-        // focus 以外 (作業履歴の切り替えなど) は、ファイルの表示では何もしない
+        // focus 以外は何もしない
         if (c === "focus") this.handle.focus();
         cx.notify();
       }

@@ -1,5 +1,5 @@
-// Claude Code の hook。行動、編集の前後、サブエージェントを herdr-app の data/ に書き出す。
-// 読む側は herdr-app の mod (workspace、preview)。形は設計書の「データの受け渡し」。
+// Claude Code の hook。行動とサブエージェントを herdr-app の data/ に書き出す。
+// 読む側は herdr-app の mod (workspace)。形は設計書の「データの受け渡し」。
 // Claude Code を止めないよう、標準出力には何も出さず、どんな例外でも終了コード 0 で終わる
 import { lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -7,10 +7,8 @@ import { fileURLToPath } from "node:url";
 
 const ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const MAX_ACTIONS = 20;
-const MAX_EDITS = 10;
 const MAX_DONE_SUBAGENTS = 10;
 const MAX_COMMAND = 120;
-const MAX_EDIT_BYTES = 900 * 1024;
 const LOCK_WAIT_MS = 50;
 const LOCK_GIVE_UP_MS = 2000;
 const LOCK_STALE_MS = 60_000;
@@ -34,32 +32,6 @@ export function kindOf(toolName) {
 }
 
 const str = (v) => (typeof v === "string" ? v : null);
-
-// 前後の中身。中身を読めなければ null を入れる (サイズの判定は record が行う)
-export function editContents(event) {
-  const input = event.tool_input ?? {};
-  const response = event.tool_response ?? {};
-  const path = str(input.file_path);
-  if (path === null) return null;
-  if (event.tool_name === "Edit" || event.tool_name === "MultiEdit") {
-    return { path, before: str(response.originalFile), after: readSmall(path) };
-  }
-  if (event.tool_name === "Write") {
-    return { path, before: str(response.originalFile) ?? "", after: str(input.content) };
-  }
-  return null;
-}
-
-// 大きすぎるファイルは読まない。上限を超えたことは TOO_LARGE で伝える
-const TOO_LARGE = Symbol("too large");
-function readSmall(path) {
-  try {
-    if (statSync(path).size > MAX_EDIT_BYTES) return TOO_LARGE;
-    return readFileSync(path, "utf8");
-  } catch {
-    return null;
-  }
-}
 
 function sleep(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
@@ -120,7 +92,6 @@ const emptyActivity = (id, event) => ({
   session_id: str(event.session_id),
   cwd: str(event.cwd),
   actions: [],
-  edits: [],
   subagents: [],
 });
 
@@ -131,46 +102,16 @@ function loadActivity(path, id, event) {
     session_id: str(event.session_id) ?? a.session_id ?? null,
     cwd: str(event.cwd) ?? a.cwd ?? null,
     actions: Array.isArray(a.actions) ? a.actions : [],
-    edits: Array.isArray(a.edits) ? a.edits.filter(Number.isInteger) : [],
     subagents: Array.isArray(a.subagents) ? a.subagents : [],
   };
 }
 
-function seqFiles(dir) {
-  try {
-    return readdirSync(dir)
-      .map((f) => /^(\d+)\.json$/.exec(f))
-      .filter(Boolean)
-      .map((m) => Number(m[1]));
-  } catch {
-    return [];
-  }
-}
-
-function recordTool(activity, event, editsDir, now) {
+function recordTool(activity, event, now) {
   const input = event.tool_input ?? {};
   const tool = str(event.tool_name) ?? "";
   const command = tool === "Bash" && typeof input.command === "string" ? input.command.split("\n")[0].slice(0, MAX_COMMAND) : null;
   const path = str(input.file_path) ?? str(input.notebook_path) ?? null;
   activity.actions = [{ at: now, tool, kind: kindOf(tool), path, command }, ...activity.actions].slice(0, MAX_ACTIONS);
-
-  const contents = editContents(event);
-  if (contents === null) return;
-  const seq = Math.max(0, ...activity.edits, ...seqFiles(editsDir)) + 1;
-  const { before, after } = contents;
-  const base = { seq, at: now, path: contents.path };
-  // 上限は読む側 (readTextFile) が読む JSON の大きさで測る。エスケープで中身より大きくなる
-  let json = null;
-  if (before !== TOO_LARGE && after !== TOO_LARGE) {
-    json = JSON.stringify({ ...base, before, after, too_large: false });
-    if (Buffer.byteLength(json, "utf8") > MAX_EDIT_BYTES) json = null;
-  }
-  json ??= JSON.stringify({ ...base, before: null, after: null, too_large: true });
-  mkdirSync(editsDir, { recursive: true });
-  writeText(join(editsDir, `${seq}.json`), json);
-  activity.edits = [seq, ...activity.edits].slice(0, MAX_EDITS);
-  const keep = new Set(activity.edits);
-  for (const s of seqFiles(editsDir)) if (!keep.has(s)) rmSync(join(editsDir, `${s}.json`), { force: true });
 }
 
 function recordSubagent(activity, event, now) {
@@ -215,13 +156,12 @@ function removeIfStale(path, isDir, now) {
 
 const terminalOfJson = (name) => (name.endsWith(".json") ? name.slice(0, -".json".length) : null);
 
-// 端末の ID は使い回されないので、終わった端末の activity、edits、sessions (statusline.sh が書く) は
+// 端末の ID は使い回されないので、終わった端末の activity、sessions (statusline.sh が書く) は
 // 残り続ける。新しいセッションの始まりに、7 日より古いものを、他の端末の分も含めて消す (今の端末は除く)。
-// activity と edits は、その端末のロックを 1 回だけ試し、取れたときだけ消す (取れなければ次の機会に)
+// activity は、その端末のロックを 1 回だけ試し、取れたときだけ消す (取れなければ次の機会に)
 function pruneStale(data, id, now) {
   const activityDir = join(data, "activity");
-  const editsDir = join(data, "edits");
-  const terminals = new Set([...namesIn(activityDir).map(terminalOfJson), ...namesIn(editsDir)]);
+  const terminals = new Set(namesIn(activityDir).map(terminalOfJson));
   for (const term of terminals) {
     if (term === null || term === id || !ID_PATTERN.test(term)) continue;
     const lock = join(activityDir, `.${term}.lock`);
@@ -232,7 +172,6 @@ function pruneStale(data, id, now) {
     }
     try {
       removeIfStale(join(activityDir, `${term}.json`), false, now);
-      removeIfStale(join(editsDir, term), true, now);
     } finally {
       rmSync(lock, { recursive: true, force: true });
     }
@@ -257,18 +196,16 @@ export function record(event, env, now) {
     const data = join(env.HERDR_APP_HOME || join(env.HOME, ".config/herdr-app"), "data");
     const activityDir = join(data, "activity");
     const activityPath = join(activityDir, `${id}.json`);
-    const editsDir = join(data, "edits", id);
     mkdirSync(activityDir, { recursive: true });
 
     const lock = join(activityDir, `.${id}.lock`);
     if (!acquire(lock)) return;
     try {
       if (isReset) {
-        rmSync(editsDir, { recursive: true, force: true });
         writeJson(activityPath, emptyActivity(id, event));
       } else {
         const activity = loadActivity(activityPath, id, event);
-        if (name === "PostToolUse") recordTool(activity, event, editsDir, now);
+        if (name === "PostToolUse") recordTool(activity, event, now);
         else recordSubagent(activity, event, now);
         writeJson(activityPath, activity);
       }

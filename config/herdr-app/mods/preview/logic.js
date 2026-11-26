@@ -178,7 +178,7 @@ export function pruneTargets(entries, max) {
     .map((e) => e.name);
 }
 
-// タブごとの状態。view は今のところ "file" だけ (作業履歴の "history" は後で加わる)。file は出しているファイル
+// タブごとの状態。view は "file" だけ。file は出しているファイル
 export const initialTabState = () => ({ view: "file", file: null });
 
 // 今のタブのエージェントの端末。複数なら focused().terminal と同じもの、なければ最初のもの

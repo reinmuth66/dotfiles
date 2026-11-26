@@ -71,7 +71,7 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
   - `CLAUDE.md` と `statusline.sh` は `mkOutOfStoreSymlink` で dotfiles を直接指すので、編集は switch なしで反映される
 - `herdr-app.nix`: herdr アプリの設定と自前の mod (`config/herdr-app/`)
   - mod は自分のフォルダの外を `import` できない。共通の部品は `config/herdr-app/shared/` の正本を、使う mod のフォルダへ `cp` で同じ中身に写す。`shared/shared.test.js` が一致を確かめる
-  - Claude Code から mod へは `~/.config/herdr-app/data/` で渡す。`config/claude/statusline.sh` が `limits/` と `sessions/`、`config/claude/hooks/herdr-record.mjs` が `activity/` と `edits/` を書き、mod が `watchJsonDir` で読む。どちらも herdr の外 (`HC_TERMINAL_ID` がない) では何も書かない
+  - Claude Code から mod へは `~/.config/herdr-app/data/` で渡す。`config/claude/statusline.sh` が `limits/` と `sessions/`、`config/claude/hooks/herdr-record.mjs` が `activity/` を書き、mod が `watchJsonDir` で読む。どちらも herdr の外 (`HC_TERMINAL_ID` がない) では何も書かない
   - `workbench.json` の preview の stack の wtr の枠 (`"terminal": "wtr"`) は、名前 `wtr` のターミナルを映す。中のターミナルが終わると、herdr は枠を落として `workbench.json` を保存し直し、dotfiles を書き換える。そのため、ターミナルは `herdr-wtr` (wtr を起こし直し続けるループ) を動かして終わらせず、preview の mod (`mods/preview/wtr.js`) が、無ければ起こし、再起動で残ったシェルなら `herdr-wtr` に戻す。wtr を入れ替えるときは `pkill -x wtr` にし、`hc kill` しない。wtr は flake input (`github:reinmuth66/wtr`、main を追う)
   - mod のフォルダは dotfiles への out-of-store のリンク。中のファイルの編集はレイアウトを読み直せば効く (`layout.switch` で別のレイアウトへ移ってから戻す)。新しい mod や新しくリンクするファイルは switch が要る
 - `gh-dash.nix`: Issue の一覧で `C` が `herdr-issue-task` (Issue を herdr の新しいタブの Claude Code に渡す)、`N` が herdr の新しいタブで `gh issue create` を開く。組み込みの `C` (checkout) は上書きしている
