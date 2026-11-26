@@ -1,38 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PALETTE } from "./ui.js";
-import { dim, parseAgyQuota, pickAgyPool, windowView } from "./logic.js";
+import { dim, pickAgyPool, windowView } from "./logic.js";
 
-const QUOTA = [
-  "Gemini Models\tWeekly Limit Remaining\t91%\t2026-12-02T02:45:28Z",
-  "Gemini Models\tFive Hour Limit Remaining\t100%\t2026-11-26T09:55:21Z",
-  "Claude and GPT models\tWeekly Limit Remaining\t100%\t1970-01-01T00:00:00Z",
-  "Claude and GPT models\tFive Hour Limit Remaining\t100%\t1970-01-01T00:00:00Z",
-].join("\n");
-
-test("parseAgyQuota: 残りを使用率に直し、枠ごとに分ける", () => {
-  const p = parseAgyQuota(QUOTA);
-  assert.deepEqual(p.gemini, [
-    { key: "5h", used_percentage: 0, resets_at: Date.parse("2026-11-26T09:55:21Z") / 1000, duration: 18000 },
-    { key: "7d", used_percentage: 9, resets_at: Date.parse("2026-12-02T02:45:28Z") / 1000, duration: 604800 },
-  ]);
-  // 1970 年はまだ使っていない窓
-  assert.deepEqual(
-    p.other.map((w) => [w.key, w.used_percentage, w.resets_at]),
-    [
-      ["5h", 0, null],
-      ["7d", 0, null],
-    ],
-  );
-});
-test("parseAgyQuota: 知らない行と壊れた行は飛ばす", () => {
-  const p = parseAgyQuota(`Fetching...\nGemini Models\tWeekly Limit Remaining\tx%\t-\n${QUOTA.split("\n")[1]}`);
-  assert.deepEqual(
-    p.gemini.map((w) => w.key),
-    ["5h"],
-  );
-  assert.deepEqual(p.other, []);
-});
 test("pickAgyPool: Gemini が尽きたら other、リセットを過ぎたら gemini に戻る", () => {
   const now = 1_000_000;
   const g = (h, d, hReset = now + 3600) => [

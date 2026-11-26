@@ -1,13 +1,11 @@
 // 利用制限 (5h、7d)。data/limits/{claude-code,agy}.json を見張り、2 つの二重の円で出す。
-// agy の値は 5 分ごとに `agy -p /quota` で取って agy.json に書く。
-// 表示の組み立ては logic.js、色と寸法は ui.js にある
-import * as fs from "fs/promises";
+// どちらも statusline.sh が書き出す。表示の組み立ては logic.js、色と寸法は ui.js にある
 import { View, div, image, svg, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { appHome, checking, exec, readTextFile, writeTextFile } from "herdr";
-import { METRICS, PALETTE, cells } from "./ui.js";
+import { checking } from "herdr";
+import { METRICS, PALETTE, arcSteps, cells } from "./ui.js";
 import { watchJsonDir } from "./data.js";
-import { parseAgyQuota, pickAgyPool, windowView } from "./logic.js";
+import { pickAgyPool, windowView } from "./logic.js";
 
 const FONT = "Moralerspace Neon HW";
 const PAD_RIGHT = 10;
@@ -17,27 +15,13 @@ const RING_STROKE = 3;
 const ICON_SIZE = 18; // agy のマーク
 const CLAUDE_ICON_SIZE = 22; // Claude Code のキャラ。横長なので一回り大きくする (内側の輪の内径は 28)
 const RING_GAP = 6; // 円と数字の間。円 48 + 間 6 + 数字 15 × 2 = 84 (枠の中の高さ)
-const AGY_INTERVAL = 5 * 60_000;
-const AGY_TIMEOUT = 60_000;
 
-// 12 時を 0、時計回りに 1 周を 1 とする角度の円周上の点
-function ringPoint(cx, cy, r, fraction) {
-  const angle = fraction * 2 * Math.PI;
-  return [cx + r * Math.sin(angle), cy - r * Math.cos(angle)];
-}
-
-// from から to まで (0 から 1) の弧を描く。arc_to は半周の弧で半径がずれて描かれるので、
-// 1 回の arc_to は 1/8 周以下にする
+// from から to まで (0 から 1) の弧を描く
 function arcPath(from, to, outer, stroke) {
-  const a = Math.max(0, from);
-  const b = Math.min(1, to);
-  if (!(b - a > 0)) return null;
-  const r = (outer - stroke) / 2;
-  const c = outer / 2;
-  // 1/8 周以下の弧に分けて arc_to でつなぐ (直線でつなぐと角が見える)
-  const steps = Math.max(1, Math.ceil((b - a) * 8));
-  let builder = PathBuilder.stroke(stroke).move_to(...ringPoint(c, c, r, a));
-  for (let i = 1; i <= steps; i++) builder = builder.arc_to(r, r, 0, false, true, ...ringPoint(c, c, r, a + ((b - a) * i) / steps));
+  const arc = arcSteps(from, to, outer, stroke);
+  if (!arc) return null;
+  let builder = PathBuilder.stroke(stroke).move_to(...arc.start);
+  for (const pt of arc.points) builder = builder.arc_to(arc.r, arc.r, 0, false, true, ...pt);
   return builder.build();
 }
 
@@ -71,8 +55,6 @@ function findWindow(windows, key) {
 export default class Usage extends View {
   init(_props, cx) {
     this.files = {};
-    this.agyPath = null;
-    this.fetchingAgy = false;
     this.watch = watchJsonDir(cx, "limits", (files) => {
       this.files = files;
       cx.notify();
@@ -80,50 +62,11 @@ export default class Usage extends View {
     if (checking()) return;
     // 経過と残り時間を進める
     this.timer = cx.timer.every(60_000, (cx) => cx.notify());
-    cx.spawn(() => this.fetchAgy());
-    this.agyTimer = cx.timer.every(AGY_INTERVAL, (cx) => {
-      cx.spawn(() => this.fetchAgy());
-    });
   }
 
   close() {
     this.watch?.cancel();
     this.timer?.cancel();
-    this.agyTimer?.cancel();
-  }
-
-  // `agy -p /quota` を実行し、取れた窓があれば data/limits/agy.json を原子的に置き換える。
-  // herdr の PATH に agy が無いこともあるので、最初の 1 回だけログインシェルで絶対パスを引く
-  async fetchAgy() {
-    if (this.fetchingAgy) return;
-    this.fetchingAgy = true;
-    try {
-      if (!this.agyPath) {
-        const found = await exec("/bin/zsh", ["-lc", "command -v agy"]);
-        const resolved = found.code === 0 ? found.stdout.trim() : "";
-        if (!resolved) return;
-        this.agyPath = resolved;
-      }
-      const res = await exec(this.agyPath, ["-p", "/quota"], { timeout: AGY_TIMEOUT });
-      if (res.code !== 0) return;
-      const pools = parseAgyQuota(res.stdout);
-      if (pools.gemini.length + pools.other.length === 0) return;
-      const dir = `${appHome()}/data/limits`;
-      const target = `${dir}/agy.json`;
-      const body = JSON.stringify({
-        agent: "agy",
-        name: "agy",
-        updated_at: Math.floor(Date.now() / 1000),
-        pools,
-      });
-      await fs.mkdir(dir, { recursive: true });
-      const expected = await readTextFile(target);
-      await writeTextFile(target, body, expected);
-    } catch {
-      // 失敗は黙って次を待つ
-    } finally {
-      this.fetchingAgy = false;
-    }
   }
 
   // 二重の円 (中央にマーク) と、その下の「使用率 残り時間」の 2 行 (上が 5h、下が 7d)

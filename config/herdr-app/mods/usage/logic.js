@@ -5,38 +5,6 @@ export function dim(color) {
   return `${color}99`;
 }
 
-const AGY_WINDOWS = [
-  { match: "Five Hour", key: "5h", duration: 18000 },
-  { match: "Weekly", key: "7d", duration: 604800 },
-];
-const WINDOW_ORDER = { "5h": 0, "7d": 1 };
-
-// agy-quota 出力を解析し、gemini と other に分けて 5h, 7d の順で返す
-export function parseAgyQuota(text) {
-  const pools = { gemini: [], other: [] };
-  for (const line of String(text ?? "").split("\n")) {
-    const parts = line.split("\t");
-    if (parts.length !== 4) continue;
-    const [group, label, pctStr, resetStr] = parts;
-    const win = AGY_WINDOWS.find((w) => label.includes(w.match));
-    if (!win) continue;
-    const m = pctStr.trim().match(/^(\d+(?:\.\d+)?)%$/);
-    if (!m) continue;
-    const ms = Date.parse(resetStr.trim());
-    const pool = group.startsWith("Gemini") ? pools.gemini : pools.other;
-    pool.push({
-      key: win.key,
-      used_percentage: 100 - Number(m[1]),
-      resets_at: Number.isFinite(ms) && ms > 0 ? ms / 1000 : null,
-      duration: win.duration,
-    });
-  }
-  const byKey = (a, b) => WINDOW_ORDER[a.key] - WINDOW_ORDER[b.key];
-  pools.gemini.sort(byKey);
-  pools.other.sort(byKey);
-  return pools;
-}
-
 export function pickAgyPool(pools, nowSec) {
   const gemini = Array.isArray(pools?.gemini) ? pools.gemini : [];
   return gemini.some((w) => windowView(w, nowSec).used >= 100) ? "other" : "gemini";
