@@ -552,11 +552,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795663075,
-        "narHash": "sha256-LbDIukbVwdlbC4l2iV2NnMfiJYJ0qBnPTIdqIaZzs7o=",
+        "lastModified": 1795665200,
+        "narHash": "sha256-CJrspjVUGlcKk9NIYr7mnMFvAuiP3KbuAkpaOLmHaOI=",
         "owner": "reinmuth66",
         "repo": "wtr",
-        "rev": "a88adc2bc50b24af3fa07f2cf9e6711834a3423c",
+        "rev": "39800e2bef4e1e92c6912bc9eb26222ddb6a1c03",
         "type": "github"
       },
       "original": {
