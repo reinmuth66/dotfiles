@@ -6,6 +6,7 @@
 
 ## ツール
 - URL の取得、Web ページの調査、HTML からの抽出には `ax` を使う。WebFetch、`curl`、使い捨てのスクリプトは使わない。使い方は skill `ax` か `ax agent-context` で確認する
+- herdr の中 (環境変数 `HC_TERMINAL_ID` がある) では、skill `terminal-browser` の `terminal-browser action` の代わりに `herdr-browser-action` を使う (引数は同じ。preview の browser の枠のブラウザを操作する)。`terminal-browser ls` と `open` は herdr の中では使わない
 
 ## agy
 - superpowers:subagent-driven-development の実装役 (直しを含む) は `subagent_type: "agy:worker"` で起動する。`model` は渡さない (モデルを呼ばないため)

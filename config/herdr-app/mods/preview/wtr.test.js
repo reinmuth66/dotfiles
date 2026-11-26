@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shellIsIdle, wtrAction } from "./wtr.js";
+import { BROWSER_START, shellIsIdle, wtrAction } from "./wtr.js";
 
 test("starts wtr when no live terminal is named wtr", () => {
   assert.equal(wtrAction([]), "start");
@@ -23,4 +23,11 @@ test("types exec only while the shell itself is in the foreground", () => {
   assert.equal(shellIsIdle({ foreground: { name: "bash", argv: ["/nix/store/x-bash/bin/bash", "/etc/profiles/per-user/u/bin/herdr-wtr"] } }), false);
   assert.equal(shellIsIdle({ foreground: { name: "wtr" } }), false);
   assert.equal(shellIsIdle(null), false);
+});
+
+test("browser のターミナルも名前で見分け、herdr-browser で起こす", () => {
+  const list = [{ name: "wtr", state: "live", agent: "herdr-wtr" }];
+  assert.equal(wtrAction(list, "browser"), "start");
+  assert.equal(wtrAction([...list, { name: "browser", state: "live", agent: "herdr-browser" }], "browser"), null);
+  assert.deepEqual(BROWSER_START.slice(-3), ["browser", "--", "herdr-browser"]);
 });

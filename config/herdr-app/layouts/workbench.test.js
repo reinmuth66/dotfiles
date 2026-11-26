@@ -39,3 +39,8 @@ test("枠の見出しは pane-header", () => {
 test("帯の中は usage、workspace、tree の 3 つの自分の mod", () => {
   assert.deepEqual(byId.sidebar.children.map((c) => [c.id, c.content?.mod]), [["usage", "usage"], ["workspace", "workspace"], ["tree", "tree"]]);
 });
+
+test("preview-area の stack に preview、wtr、browser の枠がある", () => {
+  assert.deepEqual(byId["preview-area"].children.map((c) => c.id), ["preview", "wtr", "browser"]);
+  assert.equal(byId.browser.content.terminal, "browser");
+});

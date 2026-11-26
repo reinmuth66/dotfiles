@@ -28,7 +28,7 @@ import {
 import { METRICS, PALETTE, REMOTE_LABEL, isRemoteAddress, isRemoteSpace } from "./ui.js";
 import { repoRoot } from "./data.js";
 import { openArgv, openCwd, openTerminalOf, OPEN_LABEL } from "./open.js";
-import { shellIsIdle, wtrAction, WTR_NAME, WTR_PROGRAM, WTR_START } from "./wtr.js";
+import { BROWSER_NAME, BROWSER_PROGRAM, BROWSER_START, shellIsIdle, wtrAction, WTR_NAME, WTR_PROGRAM, WTR_START } from "./wtr.js";
 import {
   MAX_TEXT_BYTES,
   PREVIEW_CACHE_DIR,
@@ -115,20 +115,20 @@ async function withTmpDir(fn) {
   }
 }
 
-// workbench.json の wtr の枠が映すターミナルを用意する。無ければ起こし、--keep で残ったシェルなら herdr-wtr に戻す。
+// workbench.json の wtr と browser の枠が映すターミナルを用意する。無ければ起こし、--keep で残ったシェルなら program に戻す。
 // 同じ名前のターミナルは 1 つしか作れないので、起こすのが重なっても 2 つにはならない
-async function ensureWtr() {
-  const action = wtrAction(terminals());
-  if (action === "start") await hc(WTR_START).catch(() => {});
+async function ensureTerminal(name, program, start) {
+  const action = wtrAction(terminals(), name);
+  if (action === "start") await hc(start).catch(() => {});
   else if (action === "check") {
-    const r = await hc(["get", WTR_NAME, "--json"]).catch(() => null);
+    const r = await hc(["get", name, "--json"]).catch(() => null);
     let info = null;
     try {
       info = r?.code === 0 ? JSON.parse(r.stdout) : null;
     } catch {
       // 読めなければ何もしない
     }
-    if (shellIsIdle(info)) await hc(["send", WTR_NAME, `exec ${WTR_PROGRAM}`]).catch(() => {});
+    if (shellIsIdle(info)) await hc(["send", name, `exec ${program}`]).catch(() => {});
   }
 }
 
@@ -153,7 +153,8 @@ export default class Preview extends View {
     this.watching = null; // 終わるのを見張っている、開いたツールのターミナル
     this.openBack = "preview"; // 開いたツールが終わったら、フォーカスを戻す先
     if (checking()) return;
-    ensureWtr();
+    ensureTerminal(WTR_NAME, WTR_PROGRAM, WTR_START);
+    ensureTerminal(BROWSER_NAME, BROWSER_PROGRAM, BROWSER_START);
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();

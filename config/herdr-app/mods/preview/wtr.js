@@ -8,7 +8,16 @@ export const WTR_PROGRAM = "herdr-wtr";
 
 // --keep: core が落ちたとき (再起動など) も、ターミナルを残す (枠を落とさせない)。代わりにシェルが動くので、
 // それは herdr-wtr に戻す
-export const WTR_START = ["run", "--bg", "--keep", "--no-parent", "--name", WTR_NAME, "--", WTR_PROGRAM];
+export const WTR_START = startArgs(WTR_NAME, WTR_PROGRAM);
+
+// workbench.json の browser の枠 ("terminal": "browser") も同じ作り。herdr-browser が terminal-browser を子として起こし直し続ける
+export const BROWSER_NAME = "browser";
+export const BROWSER_PROGRAM = "herdr-browser";
+export const BROWSER_START = startArgs(BROWSER_NAME, BROWSER_PROGRAM);
+
+function startArgs(name, program) {
+  return ["run", "--bg", "--keep", "--no-parent", "--name", name, "--", program];
+}
 
 // --keep で残ったときに動くシェル
 const SHELLS = new Set(["zsh", "bash", "sh", "fish"]);
@@ -16,8 +25,8 @@ const SHELLS = new Set(["zsh", "bash", "sh", "fish"]);
 // terminals() から、することを決める。"start": 起こす。"check": シェルから始まったターミナルなので、
 // 今動いているもの (hc get の foreground) を確かめる。null: 何もしない (herdr-wtr か、人が動かした別のもの)。
 // agent は最初のプログラムの名前で、シェルで exec herdr-wtr したあとも zsh のまま (動いている herdr で見た)
-export function wtrAction(list) {
-  const t = list.find((x) => x.name === WTR_NAME && x.state === "live");
+export function wtrAction(list, name = WTR_NAME) {
+  const t = list.find((x) => x.name === name && x.state === "live");
   if (!t) return "start";
   if (SHELLS.has(t.agent)) return "check";
   return null;

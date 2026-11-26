@@ -37,6 +37,13 @@ const expectedObjects = {
   "ctrl-shift-x": { command: "tab.move", args: { by: -1 } },
 };
 
+// WezTerm には無い、herdr の preview の欄の切り替え
+const expectedSelects = {
+  "ctrl-shift-f": { command: "layout.select", args: { stack: "preview-area", child: "preview" } },
+  "ctrl-shift-g": { command: "layout.select", args: { stack: "preview-area", child: "wtr" } },
+  "ctrl-shift-r": { command: "layout.select", args: { stack: "preview-area", child: "browser" } },
+};
+
 test("WezTerm と同じ ctrl-shift のキーが割り当てられている", () => {
   for (const [key, action] of Object.entries(expected)) {
     assert.equal(global[key], action, key);
@@ -45,6 +52,12 @@ test("WezTerm と同じ ctrl-shift のキーが割り当てられている", () 
 
 test("ctrl-shift-c と ctrl-shift-x でタブを動かす", () => {
   for (const [key, action] of Object.entries(expectedObjects)) {
+    assert.deepEqual(global[key], action, key);
+  }
+});
+
+test("ctrl-shift-f、g、r で preview の欄の表示を選ぶ", () => {
+  for (const [key, action] of Object.entries(expectedSelects)) {
     assert.deepEqual(global[key], action, key);
   }
 });
@@ -59,7 +72,11 @@ test("ctrl-shift + 1 文字のキーは、決めた一覧のものだけ", () =>
   const actual = Object.keys(global)
     .filter((key) => /^ctrl-shift-.$/.test(key))
     .sort();
-  const allowed = [...Object.keys(expected), ...Object.keys(expectedObjects)]
+  const allowed = [
+    ...Object.keys(expected),
+    ...Object.keys(expectedObjects),
+    ...Object.keys(expectedSelects),
+  ]
     .filter((key) => /^ctrl-shift-.$/.test(key))
     .sort();
   assert.deepEqual(actual, allowed);

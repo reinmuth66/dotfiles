@@ -45,11 +45,45 @@ let
       sleep 1
     done
   '';
+
+  # workbench.json の browser の枠 ("terminal": "browser") で動かす。herdr-wtr と同じ理由で、terminal-browser は子として動かす
+  herdr-browser = pkgs.writeShellScriptBin "herdr-browser" ''
+    while :; do
+      terminal-browser
+      sleep 1
+    done
+  '';
+
+  # herdr の中で `terminal-browser action` の代わりに使う (引数は同じ。例: herdr-browser-action -- snapshot)。
+  # terminal-browser は環境変数で外側の端末を判断し、herdr が引き継ぐ Ghostty の変数を見て Ghostty の窓を探して
+  # 失敗する (herdr 用の判定は別の製品の herdr 向け)。そこで Ghostty の変数を外し、browser のターミナルと
+  # 同じ tty で動く browser を --browser で指す
+  herdr-browser-action = pkgs.writeShellApplication {
+    name = "herdr-browser-action";
+    runtimeInputs = [ pkgs.jq ];
+    text = ''
+      tb() { env -u TERM_PROGRAM -u GHOSTTY_RESOURCES_DIR terminal-browser "$@"; }
+      pid=$(hc get browser 2>/dev/null | jq -r '.pid // empty' || true)
+      if [[ ! "$pid" =~ ^[0-9]+$ ]]; then
+        echo "herdr-browser-action: browser のターミナルがない" >&2
+        exit 1
+      fi
+      tty=$(ps -o tty= -p "$pid" | tr -d ' ')
+      key=$(tb ls --all --json | jq -r --arg tty "/dev/$tty" 'first(.browsers[] | select(.tty == $tty) | .key) // empty')
+      if [ -z "$key" ]; then
+        echo "herdr-browser-action: browser のターミナル ($tty) で動く terminal-browser がない" >&2
+        exit 1
+      fi
+      tb action --browser "$key" "$@"
+    '';
+  };
 in
 {
   home.packages = [
     wtr
     herdr-wtr
+    herdr-browser
+    herdr-browser-action
   ];
 
   # dotfiles のファイルを直接指すので、switch なしで編集がその場で反映される
