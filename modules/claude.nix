@@ -17,7 +17,7 @@ let
     model = "opus";
     permissions.defaultMode = "default";
     # 自前の mod (config/claude/mods/) を常に読み込ませる。複数は区切り文字 (:) でつなぐ
-    env.CLAUDE_CODE_PLUGIN_DIRS = "${claudeDir}/mods/hide-tools:${claudeDir}/mods/agy";
+    env.CLAUDE_CODE_PLUGIN_DIRS = "${claudeDir}/mods/agy";
     statusLine = {
       type = "command";
       command = "~/.claude/statusline.sh";
@@ -117,8 +117,6 @@ in
     ".claude/hooks/herdr-record.mjs".source =
       config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/hooks/herdr-record.mjs";
     # mod は CLAUDE_CODE_PLUGIN_DIRS (上の settings.env) で読み込ませる
-    ".claude/mods/hide-tools".source =
-      config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/mods/hide-tools";
     ".claude/mods/agy".source = config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/mods/agy";
   };
 }
