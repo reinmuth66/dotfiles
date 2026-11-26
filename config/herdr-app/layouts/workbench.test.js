@@ -26,6 +26,11 @@ test("エージェントの枠に最小の幅がある", () => {
   assert.ok((byId["agent-area"].min ?? 0) >= 320);
 });
 
+// サイドバーを狭めても、usage の 2 つの円と数字が切れない
+test("サイドバーに最小の幅がある", () => {
+  assert.ok((byId.sidebar.min ?? 0) >= 240);
+});
+
 test("resize-mode が動かすブロックの id がある", () => {
   for (const id of ["sidebar", "usage", "workspace", "tree", "preview-area", "agent-area"]) {
     assert.ok(byId[id], `${id} がない`);
