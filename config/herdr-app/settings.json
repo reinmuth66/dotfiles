@@ -9,6 +9,7 @@
   "terminal_line_height": 1,
   "terminal_cell_width": 1,
   "terminal_scroll_speed": 1,
+  "pane_scrollbars": false,
   "minimum_contrast": 1,
   "appearance": "dark",
   "theme": "catppuccin-macchiato",

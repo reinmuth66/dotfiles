@@ -15,6 +15,7 @@ const LOCK_STALE_MS = 60_000;
 const STALE_DATA_MS = 7 * 24 * 60 * 60 * 1000;
 
 const KINDS = {
+  // Claude Code
   Edit: "edit",
   MultiEdit: "edit",
   NotebookEdit: "edit",
@@ -25,6 +26,22 @@ const KINDS = {
   WebSearch: "web",
   WebFetch: "web",
   Bash: "bash",
+  // Antigravity CLI (agy)
+  edit_file: "edit",
+  replace_file_content: "edit",
+  multi_replace_file_content: "edit",
+  write_file: "write",
+  write_to_file: "write",
+  read_file: "read",
+  view_file: "read",
+  view_file_outline: "read",
+  view_code_item: "read",
+  grep_search: "search",
+  find_by_name: "search",
+  list_dir: "search",
+  search_web: "web",
+  read_url_content: "web",
+  run_command: "bash",
 };
 
 export function kindOf(toolName) {
@@ -109,7 +126,7 @@ function loadActivity(path, id, event) {
 function recordTool(activity, event, now) {
   const input = event.tool_input ?? {};
   const tool = str(event.tool_name) ?? "";
-  const command = tool === "Bash" && typeof input.command === "string" ? input.command.split("\n")[0].slice(0, MAX_COMMAND) : null;
+  const command = kindOf(tool) === "bash" && typeof input.command === "string" ? input.command.split("\n")[0].slice(0, MAX_COMMAND) : null;
   const path = str(input.file_path) ?? str(input.notebook_path) ?? null;
   activity.actions = [{ at: now, tool, kind: kindOf(tool), path, command }, ...activity.actions].slice(0, MAX_ACTIONS);
 }
@@ -184,9 +201,27 @@ function pruneStale(data, id, now) {
   }
 }
 
-export function record(event, env, now) {
+function normalizeEvent(raw) {
+  if (typeof raw.hookEventName !== "string") return raw;
+  const call = raw.toolCall && typeof raw.toolCall === "object" ? raw.toolCall : {};
+  const args = call.args && typeof call.args === "object" ? call.args : {};
+  return {
+    hook_event_name: raw.hookEventName,
+    session_id: raw.conversationId ?? raw.session_id,
+    cwd: raw.cwd,
+    source: raw.hookEventName === "SessionStart" ? "startup" : undefined,
+    tool_name: call.name,
+    tool_input: {
+      file_path: str(args.Path) ?? str(args.TargetFile) ?? str(args.AbsolutePath),
+      command: str(args.CommandLine),
+    },
+  };
+}
+
+export function record(rawEvent, env, now) {
   try {
-    if (!event || typeof event !== "object") return;
+    if (!rawEvent || typeof rawEvent !== "object") return;
+    const event = normalizeEvent(rawEvent);
     const id = env.HC_TERMINAL_ID;
     if (typeof id !== "string" || !ID_PATTERN.test(id)) return;
     const name = event.hook_event_name;
@@ -227,10 +262,14 @@ function isMain() {
 }
 
 if (isMain()) {
+  let isAgy = false;
   try {
-    record(JSON.parse(readFileSync(0, "utf8")), process.env, Date.now());
+    const event = JSON.parse(readFileSync(0, "utf8"));
+    isAgy = typeof event?.hookEventName === "string";
+    record(event, process.env, Date.now());
   } catch {
     // 壊れた入力も無視する
   }
+  if (isAgy) process.stdout.write("{}\n");
   process.exitCode = 0;
 }

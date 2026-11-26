@@ -1,4 +1,4 @@
-{ pkgs, inputs, ... }:
+{ pkgs, ... }:
 
 {
   imports = [
@@ -23,6 +23,7 @@
     ./nvim.nix
     ./nh.nix
     ./claude.nix
+    ./agy.nix
     ./herdr-app.nix
     ./agent-skills.nix
     ./zmk-battery-center.nix
@@ -51,7 +52,6 @@
   };
 
   home.packages = with pkgs; [
-    inputs.self.packages.${pkgs.stdenv.hostPlatform.system}.antigravity-cli
     colima
     csvlens
     docker

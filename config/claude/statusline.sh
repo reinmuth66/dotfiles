@@ -145,13 +145,16 @@ if [ -n "${HC_TERMINAL_ID+x}" ]; then
   if valid_terminal_id "$HC_TERMINAL_ID"; then
     data_dir="${HERDR_APP_HOME:-$HOME/.config/herdr-app}/data"
     if mkdir -p "$data_dir/limits" "$data_dir/sessions"; then
-      session_json=$(printf '%s' "$input" | jq -c --arg terminal "$HC_TERMINAL_ID" '{
+      session_json=$(printf '%s' "$input" | jq -c --arg terminal "$HC_TERMINAL_ID" '
+        (.effort.level // .model.effort // null) as $effort | {
         terminal: $terminal,
         session_id: (.session_id // null),
         cwd: (.cwd // null),
-        model: (.model.display_name // null),
-        effort: (.effort.level // null),
-        context: (if .context_window.current_usage == null then null else {
+        model: (if .model.display_name == null then null
+          elif (.model.effort // "") != "" then (.model.display_name | sub(" \\(" + $effort + "\\)$"; ""; "i"))
+          else .model.display_name end),
+        effort: $effort,
+        context: (if .context_window.current_usage == null or (.context_window.context_window_size // 0) <= 0 then null else {
           used: ((.context_window.current_usage.input_tokens // 0)
             + (.context_window.current_usage.cache_creation_input_tokens // 0)
             + (.context_window.current_usage.cache_read_input_tokens // 0)),
@@ -194,7 +197,7 @@ if [ -n "${HC_TERMINAL_ID+x}" ]; then
 fi
 
 # モデル名取得
-model=$(echo "$input" | jq -r '.model.display_name')
+model=$(echo "$input" | jq -r '.model.display_name // empty')
 
 # CWD取得
 cwd=$(echo "$input" | jq -r '.cwd // empty')
@@ -212,9 +215,9 @@ fi
 # コンテキスト使用率計算 - ベースカラー: 緑
 ctx_str=""
 usage=$(echo "$input" | jq '.context_window.current_usage')
-if [ "$usage" != "null" ]; then
-  current=$(echo "$input" | jq '.context_window.current_usage | .input_tokens + .cache_creation_input_tokens + .cache_read_input_tokens')
-  size=$(echo "$input" | jq '.context_window.context_window_size')
+size=$(echo "$input" | jq '.context_window.context_window_size // 0')
+if [ "$usage" != "null" ] && [ "$size" -gt 0 ]; then
+  current=$(echo "$input" | jq '.context_window.current_usage | (.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)')
   ctx_pct=$(((current * 100 + size / 2) / size))
   ctx_color=$(get_color $ctx_pct "$GREEN")
   ctx_bar=$(make_progress_bar $ctx_pct 10)

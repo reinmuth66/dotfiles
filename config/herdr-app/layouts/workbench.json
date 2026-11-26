@@ -11,7 +11,8 @@
     "chrome": "#1e2030b3"
   },
   "background": "canvas",
-  "terminal_padding": [14, 12],
+  "terminal_padding": [6, 10],
+  "terminal_opacity": 0,
   "divider": {
     "width": 1,
     "color": "border"
@@ -86,19 +87,20 @@
       "id": "agent-area",
       "type": "block",
       "min": 320,
-      "padding": 8,
+      "padding": 0,
       "content": {
         "tab": "active",
         "pane": {
-          "gap": 8,
-          "radius": 10,
-          "background": "background",
+          "gap": 0,
+          "radius": 0,
+          "background": "#00000000",
           "lone": true,
-          "border": { "width": 1, "color": "border" },
-          "focus": { "width": 1, "color": "accent" },
+          "border": { "width": 0.5, "color": "border" },
+          "focus": { "width": 0.5, "color": "border" },
+          "veil": 0.2,
           "header": {
             "content": { "mod": "pane-header" },
-            "height": 30,
+            "height": 28,
             "position": "top",
             "reveal": "always"
           }

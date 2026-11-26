@@ -115,6 +115,25 @@ test("形に合わない HC_TERMINAL_ID では何も書かない", () => {
   assert.deepEqual(listFiles("app/data"), ["limits", "sessions"]);
 });
 
+test("herdr の中 (agy): model.effort と context_window_size 0 を扱う", () => {
+  const agyFixture = {
+    session_id: "agy-1",
+    cwd: "/tmp",
+    model: { id: "Gemini 4 Argon (Medium)", display_name: "Gemini 4 Argon (Medium)", effort: "medium" },
+    context_window: {
+      context_window_size: 1048576,
+      current_usage: { input_tokens: 60000, cache_creation_input_tokens: 0, cache_read_input_tokens: 20000 },
+    },
+  };
+  const r = run(agyFixture, "t-agy");
+  assert.equal(r.stdout, "");
+  const s = readJson("app/data/sessions/t-agy.json");
+  assert.deepEqual([s.model, s.effort, s.context.used, s.context.size], ["Gemini 4 Argon", "medium", 80000, 1048576]);
+
+  run({ ...agyFixture, context_window: { context_window_size: 0, current_usage: { input_tokens: 10 } } }, "t-agy-zero");
+  assert.equal(readJson("app/data/sessions/t-agy-zero.json").context, null);
+});
+
 test("herdr の外では今までどおり表示する", () => {
   const r = run(fixture, undefined);
   assert.match(r.stdout, /Opus 5\.5/);

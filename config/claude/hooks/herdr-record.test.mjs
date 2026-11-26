@@ -217,3 +217,27 @@ test("直接実行: シンボリックリンク越しでも動く", async () => 
   assert.deepEqual(await runProcess(post("Read", { file_path: file }), env("t13"), link), { code: 0, stdout: "" });
   assert.equal(readJson("data/activity/t13.json").actions.length, 1);
 });
+
+test("agy の hook 形式 (SessionStart / PostToolUse) を記録し {} を返す", async () => {
+  const start = await runProcess({ hookEventName: "SessionStart", conversationId: "c1", cwd: "/r" }, env("t-agy"));
+  assert.deepEqual(start, { code: 0, stdout: "{}\n" });
+  const edit = await runProcess(
+    { hookEventName: "PostToolUse", conversationId: "c1", cwd: "/r", toolCall: { name: "edit_file", args: { Path: file } } },
+    env("t-agy"),
+  );
+  assert.deepEqual(edit, { code: 0, stdout: "{}\n" });
+  const bash = await runProcess(
+    { hookEventName: "PostToolUse", conversationId: "c1", cwd: "/r", toolCall: { name: "run_command", args: { CommandLine: "nix flake check" } } },
+    env("t-agy"),
+  );
+  assert.deepEqual(bash, { code: 0, stdout: "{}\n" });
+  const a = readJson("data/activity/t-agy.json");
+  assert.deepEqual([a.terminal, a.session_id, a.cwd], ["t-agy", "c1", "/r"]);
+  assert.deepEqual(
+    a.actions.map((x) => [x.tool, x.kind, x.path, x.command]),
+    [
+      ["run_command", "bash", null, "nix flake check"],
+      ["edit_file", "edit", file, null],
+    ],
+  );
+});
