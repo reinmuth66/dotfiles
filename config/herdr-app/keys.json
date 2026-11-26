@@ -67,7 +67,6 @@
     "ctrl-shift-h": "resize-mode.start",
     "ctrl-shift-b": "resize-mode.cycle-sidebar",
     "ctrl-shift-v": "workspace.toggle-view",
-    "ctrl-shift-u": "usage.cycle-mode",
     "ctrl-shift-z": "preview.toggle-view",
     "ctrl-shift-o": "layout.toggle:preview-area",
     "ctrl-shift-f": { "command": "layout.select", "args": { "stack": "preview-area", "child": "preview" } },
