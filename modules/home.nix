@@ -28,6 +28,7 @@
     ./zmk-battery-center.nix
     ./mole.nix
     ./ax.nix
+    ./terminal-browser.nix
     ./headroom.nix
     ./omnigraph.nix
     ./ollama.nix

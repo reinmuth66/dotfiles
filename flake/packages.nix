@@ -26,6 +26,7 @@
         cavaviz = pkgs.callPackage ../pkgs/cavaviz { };
         media-key = pkgs.callPackage ../pkgs/media-key { };
         sketchybar = pkgs.callPackage ../pkgs/sketchybar { };
+        terminal-browser = pkgs.callPackage ../pkgs/terminal-browser { };
         zmk-battery-center = pkgs.callPackage ../pkgs/zmk-battery-center { };
       };
     };
