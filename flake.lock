@@ -428,6 +428,7 @@
         "pdf-cli": "pdf-cli",
         "spicetify-nix": "spicetify-nix",
         "treefmt-nix": "treefmt-nix_2",
+        "wtr": "wtr",
         "yazi-flavors": "yazi-flavors",
         "yazi-plugins": "yazi-plugins",
         "zeno-zsh": "zeno-zsh",
@@ -541,6 +542,26 @@
       "original": {
         "owner": "numtide",
         "repo": "treefmt-nix",
+        "type": "github"
+      }
+    },
+    "wtr": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1795660739,
+        "narHash": "sha256-FYGsQl7issOwCNy7RnJnxFnPAqhxAeMoJm0bxUJmqwA=",
+        "owner": "reinmuth66",
+        "repo": "wtr",
+        "rev": "bb97624c543d37c77ee816596580a3c2f3ab7556",
+        "type": "github"
+      },
+      "original": {
+        "owner": "reinmuth66",
+        "repo": "wtr",
         "type": "github"
       }
     },

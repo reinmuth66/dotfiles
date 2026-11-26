@@ -28,6 +28,7 @@ import {
 import { METRICS, PALETTE, REMOTE_LABEL, isRemoteAddress, isRemoteSpace } from "./ui.js";
 import { repoRoot } from "./data.js";
 import { openArgv, openCwd, openTerminalOf, OPEN_LABEL } from "./open.js";
+import { wtrAction, WTR_NAME, WTR_PROGRAM, WTR_START } from "./wtr.js";
 import {
   MAX_TEXT_BYTES,
   PREVIEW_CACHE_DIR,
@@ -114,6 +115,14 @@ async function withTmpDir(fn) {
   }
 }
 
+// workbench.json の wtr の枠が映すターミナルを用意する。無ければ起こし、--keep で残ったシェルなら herdr-wtr に戻す。
+// 同じ名前のターミナルは 1 つしか作れないので、起こすのが重なっても 2 つにはならない
+async function ensureWtr() {
+  const action = wtrAction(terminals());
+  if (action === "start") await hc(WTR_START).catch(() => {});
+  else if (action === "exec") await hc(["send", WTR_NAME, `exec ${WTR_PROGRAM}`]).catch(() => {});
+}
+
 export default class Preview extends View {
   init(_props, cx) {
     this.handle = cx.focus_handle();
@@ -135,6 +144,7 @@ export default class Preview extends View {
     this.watching = null; // 終わるのを見張っている、開いたツールのターミナル
     this.openBack = "preview"; // 開いたツールが終わったら、フォーカスを戻す先
     if (checking()) return;
+    ensureWtr();
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
