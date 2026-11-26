@@ -6,7 +6,7 @@ import { v_flex, h_flex } from "gpui-base";
 import { agents, checking, focused, nextCommand, theme } from "herdr";
 import { METRICS, PALETTE, cells } from "./ui.js";
 import { watchJsonDir } from "./data.js";
-import { nextMode, visibleAgents, windowView } from "./logic.js";
+import { windowView } from "./logic.js";
 
 const FONT = "Moralerspace Neon HW";
 const PAD_RIGHT = 10;
@@ -66,7 +66,7 @@ export default class Usage extends View {
   }
 
   cycleMode() {
-    this.mode = nextMode(this.mode);
+    this.mode = "all";
     save("mode", this.mode);
     if (this.mode === "pinned" && this.shown.length > 0) {
       this.pinned = this.shown[0];
@@ -131,13 +131,7 @@ export default class Usage extends View {
   render() {
     const t = theme();
     const now = Date.now() / 1000;
-    const list = visibleAgents({
-      mode: this.mode,
-      pinned: this.pinned,
-      files: this.files,
-      activeApp: this.activeApp(),
-      lastApp: this.lastApp,
-    });
+    const list = Object.keys(this.files).sort();
     this.shown = list;
     const rows = [];
     for (const name of list) {

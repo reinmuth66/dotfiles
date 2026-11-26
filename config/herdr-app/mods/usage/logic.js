@@ -1,21 +1,45 @@
 // 利用制限の表示の組み立て。herdr に依存しない (node --test で試す)
 import { PALETTE } from "./ui.js";
 
-const MODES = ["active", "all", "pinned"];
-
-// active → all → pinned → active
-export function nextMode(mode) {
-  const i = MODES.indexOf(mode);
-  return MODES[(i + 1) % MODES.length];
+export function dim(color) {
+  return `${color}99`;
 }
 
-// 出すエージェントの種類。どれもファイル (data/limits/<種類>.json) があるものだけ
-export function visibleAgents({ mode, pinned, files, activeApp, lastApp }) {
-  const has = (name) => name != null && Object.hasOwn(files, name);
-  if (mode === "all") return Object.keys(files).sort();
-  if (mode === "pinned") return has(pinned) ? [pinned] : [];
-  const name = activeApp ?? lastApp;
-  return has(name) ? [name] : [];
+const AGY_WINDOWS = [
+  { match: "Five Hour", key: "5h", duration: 18000 },
+  { match: "Weekly", key: "7d", duration: 604800 },
+];
+const WINDOW_ORDER = { "5h": 0, "7d": 1 };
+
+// agy-quota 出力を解析し、gemini と other に分けて 5h, 7d の順で返す
+export function parseAgyQuota(text) {
+  const pools = { gemini: [], other: [] };
+  for (const line of String(text ?? "").split("\n")) {
+    const parts = line.split("\t");
+    if (parts.length !== 4) continue;
+    const [group, label, pctStr, resetStr] = parts;
+    const win = AGY_WINDOWS.find((w) => label.includes(w.match));
+    if (!win) continue;
+    const m = pctStr.trim().match(/^(\d+(?:\.\d+)?)%$/);
+    if (!m) continue;
+    const ms = Date.parse(resetStr.trim());
+    const pool = group.startsWith("Gemini") ? pools.gemini : pools.other;
+    pool.push({
+      key: win.key,
+      used_percentage: 100 - Number(m[1]),
+      resets_at: Number.isFinite(ms) && ms > 0 ? ms / 1000 : null,
+      duration: win.duration,
+    });
+  }
+  const byKey = (a, b) => WINDOW_ORDER[a.key] - WINDOW_ORDER[b.key];
+  pools.gemini.sort(byKey);
+  pools.other.sort(byKey);
+  return pools;
+}
+
+export function pickAgyPool(pools, nowSec) {
+  const gemini = Array.isArray(pools?.gemini) ? pools.gemini : [];
+  return gemini.some((w) => windowView(w, nowSec).used >= 100) ? "other" : "gemini";
 }
 
 // statusline.sh の format_countdown と同じ形 (3d04h、2h05m、40m)
@@ -47,7 +71,7 @@ export function windowView(w, nowSec) {
     over,
     remaining: known ? formatCountdown(Math.floor(resetsAt - nowSec)) : null,
     barColor, // 帯の使用分の色。90% 以上でも区切りの色のまま
-    usedColor: used >= 90 ? PALETTE.red : barColor,
+    remainingColor: dim(barColor),
     overColor: over > 0 ? (over < 0.1 ? PALETTE.peach : PALETTE.red) : null,
   };
 }
