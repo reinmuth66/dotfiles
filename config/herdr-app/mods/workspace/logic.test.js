@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nestSpaces, contextFor, assignNames, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS } from "./logic.js";
+import { nestSpaces, contextFor, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS } from "./logic.js";
 
 const sp = (id, tabs, extra = {}) => ({ id, name: id, folder: `/r/${id}`, status: null, tabs, ...extra });
 const tab = (id, extra = {}) => ({ id, name: id, named: false, status: null, working_since: null, changed_at: null, ...extra });
-const ag = (address, tabId, status = "idle") => ({ address, tab: tabId, space: "s1", space_name: "dotfiles", tab_name: tabId, status });
+const ag = (address, tabId, status = "idle", extra = {}) => ({ address, tab: tabId, space: "s1", space_name: "dotfiles", tab_name: tabId, status, program: { key: "claude", name: "Claude Code" }, ...extra });
 
 test("nestSpaces: worktree は元の space の下", () => {
   const spaces = [sp("wt", []), sp("main", []), sp("other", [])];
@@ -24,17 +24,6 @@ test("別のコンピューターの space と端末", () => { // Review Focus 6
   assert.equal(contextFor("laptop/t1", sessions), null);
   assert.equal(contextFor("t1", sessions).model, "Opus 5.5");
   assert.equal(contextFor("t2", sessions), null);
-});
-test("assignNames: 生きている端末の名前は変わらず、空いた名前を前から使う", () => {
-  const r = ["Mocha", "Latte"];
-  assert.deepEqual(assignNames({ t1: "Latte" }, ["t1", "t2"], r), { t1: "Latte", t2: "Mocha" });
-  assert.deepEqual(assignNames({ t1: "Mocha", t2: "Latte" }, ["t1", "t2", "t3"], r), { t1: "Mocha", t2: "Latte", t3: "Mocha 2" });
-  assert.deepEqual(assignNames({ t1: "Mocha", t9: "Latte" }, ["t1"], r), { t1: "Mocha" }); // Review Focus 4
-});
-test("assignNames: 全部使われていたら番号付きの名前を名簿の順に", () => {
-  const r = ["Mocha", "Latte"];
-  const prev = { t1: "Mocha", t2: "Latte", t3: "Mocha 2" };
-  assert.deepEqual(assignNames(prev, ["t1", "t2", "t3", "t4"], r).t4, "Latte 2");
 });
 test("trackAgentTimes と agentTime", () => {
   let recs = trackAgentTimes({}, [{ address: "t1", status: "working" }], 1000, { t1: { since: 0 } });
@@ -70,15 +59,16 @@ test("nextTick", () => {
 });
 test("buildStructure: エージェントが 1 つのタブは畳む", () => {
   const nested = [{ space: sp("s1", [tab("a"), tab("b"), tab("c", { named: true, name: "logs" })]), depth: 0 }];
-  const rows = buildStructure({ nested, agents: [ag("t1", "a", "working")], subagents: {}, names: { t1: "Mocha" }, collapsed: new Set() });
-  assert.deepEqual(rows.map((r) => [r.kind, r.depth, r.label]), [["space", 0, "s1"], ["agent", 1, "Mocha"], ["tab", 1, null], ["tab", 1, "logs"]]);
+  const rows = buildStructure({ nested, agents: [ag("t1", "a", "working")], subagents: {}, sessions: { t1: { model: "Opus 5.5" } }, collapsed: new Set() });
+  assert.deepEqual(rows.map((r) => [r.kind, r.depth, r.label]), [["space", 0, "s1"], ["agent", 1, "Opus 5.5"], ["tab", 1, null], ["tab", 1, "logs"]]);
   assert.equal(rows[0].status, null);
   assert.equal(rows[1].status, "working");
+  assert.equal(rows[1].program.key, "claude");
   assert.deepEqual(rows.map((r) => r.key), ["space:s1", "agent:t1", "tab:b", "tab:c"]);
 });
 test("buildStructure: サブエージェントがいれば展開し、畳める", () => {
   const nested = [{ space: sp("s1", [tab("a")]), depth: 0 }];
-  const base = { nested, agents: [ag("t1", "a", "working")], subagents: { t1: [{ id: "x", type: "Explore" }] }, names: { t1: "Mocha" } };
+  const base = { nested, agents: [ag("t1", "a", "working")], subagents: { t1: [{ id: "x", type: "Explore" }] }, sessions: { t1: { model: "Opus 5.5" } } };
   assert.deepEqual(buildStructure({ ...base, collapsed: new Set() }).map((r) => r.kind), ["space", "tab", "agent", "sub"]);
   assert.deepEqual(buildStructure({ ...base, collapsed: new Set(["agent:t1"]) }).map((r) => r.kind), ["space", "tab", "agent"]);
   assert.deepEqual(buildStructure({ ...base, collapsed: new Set(["space:s1"]) }).map((r) => r.kind), ["space"]);
@@ -88,27 +78,27 @@ test("buildStructure: サブエージェントがいれば展開し、畳める"
   assert.equal(rows[3].key, "sub:t1:x");
   assert.equal(rows[3].label, "Explore");
 });
-test("buildStructure: エージェントが 2 つのタブは下に並べ、worktree は字下げ、名前がなければ tab_name", () => {
+test("buildStructure: エージェントが 2 つのタブは下に並べ、worktree は字下げ、モデルが無ければプログラム名・tab_name", () => {
   const nested = [
     { space: sp("s1", [tab("a")]), depth: 0 },
     { space: sp("s2", [tab("z")]), depth: 1 },
   ];
-  const agents = [ag("t1", "a", "idle"), ag("t2", "a", "blocked"), { ...ag("t3", "z", "done"), space: "s2" }];
-  const rows = buildStructure({ nested, agents, subagents: {}, names: { t1: "Mocha" }, collapsed: new Set() });
+  const agents = [ag("t1", "a", "idle"), ag("t2", "a", "blocked"), ag("t3", "z", "done", { space: "s2", program: null })];
+  const rows = buildStructure({ nested, agents, subagents: {}, sessions: { t1: { model: "Opus 5.5" } }, collapsed: new Set() });
   assert.deepEqual(rows.map((r) => [r.kind, r.depth, r.label]), [
-    ["space", 0, "s1"], ["tab", 1, null], ["agent", 2, "Mocha"], ["agent", 2, "a"],
+    ["space", 0, "s1"], ["tab", 1, null], ["agent", 2, "Opus 5.5"], ["agent", 2, "Claude Code"],
     ["space", 1, "s2"], ["agent", 2, "z"],
   ]);
   // 開いた space は中の行が状態を出すので、space の行には出さない
   assert.equal(rows[0].status, null);
   assert.equal(rows[1].status, "blocked");
   assert.equal(rows[4].status, null);
-  const closed = buildStructure({ nested, agents, subagents: {}, names: {}, collapsed: new Set(["space:s1", "space:s2"]) });
+  const closed = buildStructure({ nested, agents, subagents: {}, sessions: {}, collapsed: new Set(["space:s1", "space:s2"]) });
   assert.deepEqual(closed.map((r) => r.status), ["blocked", "done"]);
 });
 test("buildGroups と agentOrder: 入力待ちが先、Idle は畳める", () => {
   const agents = [ag("t1", "a", "working"), ag("t2", "b", "blocked"), ag("t3", "c", "idle")];
-  const rows = buildGroups({ agents, subagents: {}, names: { t1: "Mocha", t2: "Latte", t3: "Pecan" }, collapsed: new Set(["group:idle"]) });
+  const rows = buildGroups({ agents, subagents: {}, sessions: { t1: { model: "Opus 5.5" }, t2: { model: "Sonnet 5" } }, collapsed: new Set(["group:idle"]) });
   assert.deepEqual(rows.map((r) => r.key), ["group:blocked", "agent:t2", "group:working", "agent:t1", "group:idle"]);
   assert.equal(rows.at(-1).count, 1);
   assert.equal(rows.at(-1).open, false);
@@ -116,11 +106,11 @@ test("buildGroups と agentOrder: 入力待ちが先、Idle は畳める", () =>
 });
 test("buildGroups: サブエージェントは depth 2、エージェントのいないまとまりは出さない", () => {
   const agents = [ag("t1", "a", "working")];
-  const rows = buildGroups({ agents, subagents: { t1: [{ id: "x", type: "Explore" }] }, names: {}, collapsed: new Set() });
+  const rows = buildGroups({ agents, subagents: { t1: [{ id: "x", type: "Explore" }] }, sessions: {}, collapsed: new Set() });
   assert.deepEqual(rows.map((r) => [r.key, r.depth]), [["group:working", 0], ["agent:t1", 1], ["sub:t1:x", 2]]);
   assert.equal(rows[1].spaceName, "dotfiles");
   assert.equal(rows[0].open, true);
-  assert.deepEqual(buildGroups({ agents: [], subagents: {}, names: {}, collapsed: new Set() }), []);
+  assert.deepEqual(buildGroups({ agents: [], subagents: {}, sessions: {}, collapsed: new Set() }), []);
 });
 
 test("collectSubagents: 作業中の Claude Code のサブエージェントと hc run の端末", () => {

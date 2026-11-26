@@ -1,6 +1,6 @@
 // 帯の一覧。space → タブ → エージェント → サブエージェント の構造の表示と、作業状態で並べる表示を持つ。
 // 行の組み立ては logic.js、記号と色と寸法は ui.js にある
-import { View, div, PathBuilder } from "gpui-kit";
+import { View, div, image, svg, PathBuilder } from "gpui-kit";
 import { v_flex, h_flex, ScrollHandle } from "gpui-base";
 import {
   agents,
@@ -11,8 +11,6 @@ import {
   panes,
   run,
   setAgentOrder,
-  setShared,
-  shared,
   spaces,
   terminals,
   theme,
@@ -21,16 +19,15 @@ import {
   GLYPH,
   METRICS,
   PALETTE,
-  ROSTER,
   STATUS,
+  agentIconSpec,
+  arcSteps,
   cells,
   contextColor,
   contextPercent,
   isRemoteAddress,
   isRemoteSpace,
-  mark,
   paneLabel,
-  ringArc,
 } from "./ui.js";
 import { RETRY_MS, repoRootNow, watchJsonDir } from "./data.js";
 import { describe, domainTag } from "./domains.js";
@@ -38,7 +35,6 @@ import {
   activityFor,
   agentOrder,
   agentTime,
-  assignNames,
   buildGroups,
   buildStructure,
   collectSubagents,
@@ -81,16 +77,31 @@ function statusGlyph(status) {
   return box.text_size(METRICS.glyphSize).text_color(PALETTE[s.color]).child(s.glyph);
 }
 
-// コンテキストの使用率の輪。外径 METRICS.ring、12 時から時計回りに fraction の長さ
+function arcPath(from, to, outer, stroke) {
+  const arc = arcSteps(from, to, outer, stroke);
+  if (!arc) return null;
+  let builder = PathBuilder.stroke(stroke).move_to(...arc.start);
+  for (const pt of arc.points) builder = builder.arc_to(arc.r, arc.r, 0, false, true, ...pt);
+  return builder.build();
+}
+
+// コンテキストの使用率の輪。全周に下地 (surface0) を敷き、12 時から時計回りに使用分を重ねる
 function ringElement(fraction, color) {
-  const box = div().relative().flex_none().w(METRICS.ring).h(METRICS.ring);
-  const arc = ringArc(fraction, METRICS.ring, METRICS.ringStroke);
-  if (!arc) return box;
-  const { r, cx, cy, start, end, largeArc, full } = arc;
-  let builder = PathBuilder.stroke(METRICS.ringStroke).move_to(...start);
-  if (full) builder = builder.arc_to(r, r, 0, false, true, cx, cy + r).arc_to(r, r, 0, false, true, ...start);
-  else builder = builder.arc_to(r, r, 0, largeArc, true, ...end);
-  return box.child(window.paint_path(builder.build(), color).absolute().top(0).left(0).size_full());
+  const layers = [];
+  const add = (from, to, c) => {
+    const path = arcPath(from, to, METRICS.ring, METRICS.ringStroke);
+    if (path) layers.push(window.paint_path(path, c).absolute().top(0).left(0).size_full());
+  };
+  add(0, 1, PALETTE.surface0);
+  if (fraction > 0) add(0, fraction, color);
+  return div().relative().flex_none().w(METRICS.ring).h(METRICS.ring).children(layers);
+}
+
+function agentIcon(program, model) {
+  const spec = agentIconSpec(program, model);
+  if (!spec) return div().text_size(METRICS.agentIcon).text_color(PALETTE.overlay2).child(GLYPH.terminal);
+  if (spec.tint) return svg(spec.src).text_color(spec.color ?? PALETTE.text).w(spec.size).h(spec.size);
+  return image(spec.src).w(spec.size).h(spec.size);
 }
 
 export default class Workspace extends View {
@@ -206,19 +217,6 @@ export default class Workspace extends View {
       home: home(),
     });
     return { icon, text: label.text };
-  }
-
-  updateNames(liveAgents) {
-    const prev = shared("agent-names") ?? {};
-    // 起動の直後は agents() が空のことがある。そのときに名前を全部捨てない
-    if (!this.seenAgents) return prev;
-    const names = assignNames(
-      prev,
-      liveAgents.map((a) => a.address),
-      ROSTER.map((r) => r.name),
-    );
-    if (!sameJson(names, prev)) setShared("agent-names", names);
-    return names;
   }
 
   updateTimes(liveAgents, spaceList, now) {
@@ -361,10 +359,9 @@ export default class Workspace extends View {
     ];
   }
 
-  // 輪とマークを記号の枠の中心に合わせて重ねる。輪は枠からはみ出してよい
+  // 輪とアイコンを記号の枠の中心に合わせて重ねる。輪は枠からはみ出してよい
   agentSlot(r) {
-    const m = mark(r.label);
-    const slot = [div().font_weight(700).text_color(m.color).child(m.letter)];
+    const slot = [];
     const session = contextFor(r.address, this.sessions);
     const pct = contextPercent(session?.context);
     if (pct != null) {
@@ -377,6 +374,7 @@ export default class Workspace extends View {
           .child(ringElement(Math.min(1, pct / 100), contextColor(pct))),
       );
     }
+    slot.push(agentIcon(r.program, session?.model ?? null).flex_none());
     if (r.hasChildren) {
       slot.push(
         div()
@@ -425,7 +423,7 @@ export default class Workspace extends View {
       });
     }
     if (r.kind === "agent") {
-      const name = [div().flex_none().text_color(mark(r.label).color).child(r.label)];
+      const name = [div().flex_none().text_color(PALETTE.text).child(r.label)];
       let second = null;
       // 札と 2 行目は状態の表示でだけ出す
       if (this.view === "status") {
@@ -474,10 +472,9 @@ export default class Workspace extends View {
     if (liveAgents.length > 0) this.seenAgents = true;
     const spaceList = spaces();
     this.refreshRepos(spaceList, cx);
-    const names = this.updateNames(liveAgents);
     this.updateTimes(liveAgents, spaceList, now);
     const subagents = collectSubagents(liveAgents, this.activity, terminals(), this.sessions, now);
-    const input = { agents: liveAgents, subagents, names, collapsed: this.collapsed };
+    const input = { agents: liveAgents, subagents, sessions: this.sessions, collapsed: this.collapsed };
     const rows =
       this.view === "status"
         ? buildGroups(input)

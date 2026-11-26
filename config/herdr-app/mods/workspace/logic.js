@@ -74,22 +74,6 @@ export function collectSubagents(liveAgents, activity, terminals, sessions = {},
   return out;
 }
 
-// 生きている端末の名前は変えず、消えた端末の名前は外す。新しい端末には使われていない名前を前から付ける。
-// 全部使われていたら "Mocha 2"、"Mocha 3" (名簿の順で、使われていない最初のもの)
-export function assignNames(prev, live, roster) {
-  const next = {};
-  for (const address of live) if (prev[address] !== undefined) next[address] = prev[address];
-  const used = new Set(Object.values(next));
-  for (const address of live) {
-    if (next[address] !== undefined) continue;
-    let name = roster.find((n) => !used.has(n));
-    for (let i = 2; name === undefined; i++) name = roster.map((n) => `${n} ${i}`).find((n) => !used.has(n));
-    next[address] = name;
-    used.add(name);
-  }
-  return next;
-}
-
 // 状態が変わった時刻と、working から done までにかかった時間を覚える
 export function trackAgentTimes(prev, agents, now, fallback) {
   const next = {};
@@ -126,11 +110,14 @@ export function nextTick(recs, now) {
   return best;
 }
 
-const agentRow = (agent, depth, names, extra = {}) => ({
+const agentLabel = (agent, sessions) => contextFor(agent.address, sessions)?.model || agent.program?.name || agent.tab_name;
+
+const agentRow = (agent, depth, sessions, extra = {}) => ({
   key: `agent:${agent.address}`,
   kind: "agent",
   depth,
-  label: names[agent.address] ?? agent.tab_name,
+  label: agentLabel(agent, sessions),
+  program: agent.program ?? null,
   status: agent.status,
   address: agent.address,
   tabId: agent.tab,
@@ -147,7 +134,7 @@ const subRow = (agent, sub, depth, status) => ({
 });
 
 // space → タブ → エージェント → サブエージェント
-export function buildStructure({ nested, agents, subagents, names, collapsed }) {
+export function buildStructure({ nested, agents, subagents, sessions = {}, collapsed }) {
   const rows = [];
   for (const { space, depth } of nested) {
     const tabAgents = (tab) => agents.filter((a) => a.tab === tab.id);
@@ -170,7 +157,7 @@ export function buildStructure({ nested, agents, subagents, names, collapsed }) 
       const list = tabAgents(tab);
       const subsOf = (a) => subagents[a.address] ?? [];
       if (list.length === 1 && subsOf(list[0]).length === 0) {
-        rows.push(agentRow(list[0], td, names, { spaceId: space.id }));
+        rows.push(agentRow(list[0], td, sessions, { spaceId: space.id }));
         continue;
       }
       rows.push({
@@ -185,7 +172,7 @@ export function buildStructure({ nested, agents, subagents, names, collapsed }) 
       for (const agent of list) {
         const subs = subsOf(agent);
         const open = !collapsed.has(`agent:${agent.address}`);
-        rows.push(agentRow(agent, td + 1, names, { spaceId: space.id, hasChildren: subs.length > 0, open }));
+        rows.push(agentRow(agent, td + 1, sessions, { spaceId: space.id, hasChildren: subs.length > 0, open }));
         if (open) for (const sub of subs) rows.push(subRow(agent, sub, td + 2, agent.status));
       }
     }
@@ -194,7 +181,7 @@ export function buildStructure({ nested, agents, subagents, names, collapsed }) 
 }
 
 // 作業状態で並べる。STATUS_ORDER の順にまとまり、エージェントのいないまとまりは出さない
-export function buildGroups({ agents, subagents, names, collapsed }) {
+export function buildGroups({ agents, subagents, sessions = {}, collapsed }) {
   const rows = [];
   for (const status of STATUS_ORDER) {
     const list = agents.filter((a) => a.status === status);
@@ -205,7 +192,7 @@ export function buildGroups({ agents, subagents, names, collapsed }) {
     for (const agent of list) {
       const subs = subagents[agent.address] ?? [];
       const subOpen = !collapsed.has(`agent:${agent.address}`);
-      rows.push(agentRow(agent, 1, names, { spaceId: agent.space, spaceName: agent.space_name, hasChildren: subs.length > 0, open: subOpen }));
+      rows.push(agentRow(agent, 1, sessions, { spaceId: agent.space, spaceName: agent.space_name, hasChildren: subs.length > 0, open: subOpen }));
       if (subOpen) for (const sub of subs) rows.push(subRow(agent, sub, 2, status));
     }
   }

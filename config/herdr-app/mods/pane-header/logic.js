@@ -4,9 +4,9 @@ import { GLYPH, contextColor, contextPercent, formatTokens, paneLabel, tokensToC
 // エージェント: 作業状態がある、またはプログラムがエージェント
 export const isAgentPane = (pane) => pane.status != null || Boolean(pane.program?.agent);
 
-// エージェントは、輪で囲んだマーク、名前、model、effort、要約までの残り。それ以外は paneLabel。
+// エージェントは、輪で囲んだアイコン、model (無ければプログラム名)、effort、要約までの残り。それ以外は paneLabel。
 // 別のコンピューターの枠では、main.js が session と repoRoot に null を渡す
-export function headerFor({ pane, session, name, repoRoot, home }) {
+export function headerFor({ pane, session, repoRoot, home }) {
   // mod の枠 (pane.split {mod}) は端末を持たない。枠の名前だけ
   if (pane.terminal == null) return { kind: "plain", icon: GLYPH.terminal, text: pane.title ?? pane.mod ?? "" };
   const program = pane.program;
@@ -15,8 +15,9 @@ export function headerFor({ pane, session, name, repoRoot, home }) {
     const left = tokensToCompact(session?.context);
     return {
       kind: "agent",
-      name: name ?? program?.name ?? "",
+      program: program ?? null,
       model: session?.model ?? null,
+      label: session?.model || program?.name || "",
       effort: session?.effort ?? null,
       tokens: left == null ? null : formatTokens(left),
       tokensColor: pct == null ? null : contextColor(pct),

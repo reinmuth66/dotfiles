@@ -1,10 +1,10 @@
-// 枠の見出し。エージェントは、使用率の輪で囲んだマーク、名前、model、effort、右端に要約までの残り。
+// 枠の見出し。エージェントは、使用率の輪で囲んだアイコン、model (無ければプログラム名)、effort、右端に要約までの残り。
 // それ以外は記号とフォルダ (paneLabel)。中身の組み立ては logic.js、記号と色と寸法は ui.js にある。
 // 同梱の pane mod を元にした。props: { pane, terminal }。押すとその枠に移る
-import { View, div, PathBuilder } from "gpui-kit";
+import { View, div, image, svg, PathBuilder } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { home, panes, props, run, shared, theme } from "herdr";
-import { METRICS, PALETTE, isRemoteAddress, mark, ringArc } from "./ui.js";
+import { home, panes, props, run, theme } from "herdr";
+import { GLYPH, METRICS, PALETTE, agentIconSpec, arcSteps, isRemoteAddress } from "./ui.js";
 import { repoRootNow, watchJsonDir } from "./data.js";
 import { headerFor, isAgentPane } from "./logic.js";
 
@@ -12,16 +12,31 @@ const FONT = "Moralerspace Neon HW";
 const TEXT = 12;
 const SEP = " · ";
 
-// コンテキストの使用率の輪。外径 METRICS.ring、12 時から時計回りに fraction の長さ (workspace と同じ)
+function arcPath(from, to, outer, stroke) {
+  const arc = arcSteps(from, to, outer, stroke);
+  if (!arc) return null;
+  let builder = PathBuilder.stroke(stroke).move_to(...arc.start);
+  for (const pt of arc.points) builder = builder.arc_to(arc.r, arc.r, 0, false, true, ...pt);
+  return builder.build();
+}
+
+// コンテキストの使用率の輪。全周に下地 (surface0) を敷き、12 時から時計回りに使用分を重ねる (workspace と同じ)
 function ringElement(fraction, color) {
-  const box = div().relative().flex_none().w(METRICS.ring).h(METRICS.ring);
-  const arc = ringArc(fraction, METRICS.ring, METRICS.ringStroke);
-  if (!arc) return box;
-  const { r, cx, cy, start, end, largeArc, full } = arc;
-  let builder = PathBuilder.stroke(METRICS.ringStroke).move_to(...start);
-  if (full) builder = builder.arc_to(r, r, 0, false, true, cx, cy + r).arc_to(r, r, 0, false, true, ...start);
-  else builder = builder.arc_to(r, r, 0, largeArc, true, ...end);
-  return box.child(window.paint_path(builder.build(), color).absolute().top(0).left(0).size_full());
+  const layers = [];
+  const add = (from, to, c) => {
+    const path = arcPath(from, to, METRICS.ring, METRICS.ringStroke);
+    if (path) layers.push(window.paint_path(path, c).absolute().top(0).left(0).size_full());
+  };
+  add(0, 1, PALETTE.surface0);
+  if (fraction > 0) add(0, fraction, color);
+  return div().relative().flex_none().w(METRICS.ring).h(METRICS.ring).children(layers);
+}
+
+function agentIcon(program, model) {
+  const spec = agentIconSpec(program, model);
+  if (!spec) return div().text_size(METRICS.agentIcon).text_color(PALETTE.overlay2).child(GLYPH.terminal);
+  if (spec.tint) return svg(spec.src).text_color(spec.color ?? PALETTE.text).w(spec.size).h(spec.size);
+  return image(spec.src).w(spec.size).h(spec.size);
 }
 
 export default class PaneHeader extends View {
@@ -42,10 +57,9 @@ export default class PaneHeader extends View {
     return repoRootNow(this.roots, cwd, cx);
   }
 
-  // 輪とマークを同じ中心に重ねる
+  // 輪とアイコンを同じ中心に重ねる
   agentMark(h) {
-    const m = mark(h.name);
-    const box = div()
+    return div()
       .relative()
       .flex_none()
       .w(METRICS.ring)
@@ -53,13 +67,11 @@ export default class PaneHeader extends View {
       .flex()
       .items_center()
       .justify_center()
-      .child(div().font_weight(700).text_color(m.color).child(m.letter));
-    if (h.ring == null) return box;
-    return box.child(div().absolute().top(0).left(0).child(ringElement(h.ring, h.ringColor)));
+      .when(h.ring != null, (box) => box.child(div().absolute().top(0).left(0).child(ringElement(h.ring, h.ringColor))))
+      .child(agentIcon(h.program, h.model).flex_none());
   }
 
   agent(el, h) {
-    const detail = [h.model, h.effort].filter((s) => s != null && s !== "");
     return el
       .child(this.agentMark(h))
       .child(
@@ -67,9 +79,9 @@ export default class PaneHeader extends View {
           .flex_1()
           .min_w(0)
           .items_center()
-          .child(div().flex_none().text_color(mark(h.name).color).child(h.name))
-          .when(detail.length > 0, (row) =>
-            row.child(div().truncate().text_color(PALETTE.subtext0).child(SEP + detail.join(SEP))),
+          .child(div().flex_none().text_color(PALETTE.text).child(h.label))
+          .when(Boolean(h.effort), (row) =>
+            row.child(div().truncate().text_color(PALETTE.subtext0).child(SEP + h.effort)),
           ),
       )
       .when(h.tokens != null, (row) => row.child(div().flex_none().text_color(h.tokensColor).child(h.tokens)));
@@ -95,11 +107,9 @@ export default class PaneHeader extends View {
     if (!p) return div();
     // 別のコンピューターの枠では、このコンピューターのファイルと git を読まない (名前とフォルダ名だけ)
     const remote = isRemoteAddress(p.terminal);
-    const names = shared("agent-names") ?? {};
     const h = headerFor({
       pane: p,
       session: remote || p.terminal == null ? null : (this.sessions[p.terminal] ?? null),
-      name: p.terminal == null ? null : (names[p.terminal] ?? null),
       repoRoot: remote || isAgentPane(p) ? null : this.rootOf(p.cwd, cx),
       home: home(),
     });

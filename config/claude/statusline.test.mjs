@@ -115,20 +115,60 @@ test("形に合わない HC_TERMINAL_ID では何も書かない", () => {
   assert.deepEqual(listFiles("app/data"), ["limits", "sessions"]);
 });
 
-test("herdr の中 (agy): model.effort と context_window_size 0 を扱う", () => {
+test("herdr の中 (agy): model.effort、context_window_size 0、quota を扱う", () => {
+  const now = Math.floor(Date.now() / 1000);
+  const hReset = new Date((now + 3600) * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+  const dReset = new Date((now + 86400) * 1000).toISOString().replace(/\.\d+Z$/, "Z");
   const agyFixture = {
     session_id: "agy-1",
     cwd: "/tmp",
+    product: "antigravity",
     model: { id: "Gemini 4 Argon (Medium)", display_name: "Gemini 4 Argon (Medium)", effort: "medium" },
     context_window: {
       context_window_size: 1048576,
       current_usage: { input_tokens: 60000, cache_creation_input_tokens: 0, cache_read_input_tokens: 20000 },
+    },
+    quota: {
+      "gemini-5h": { remaining_fraction: 0.84, reset_time: hReset, reset_in_seconds: 3600 },
+      "gemini-weekly": { remaining_fraction: 0.95, reset_time: dReset, reset_in_seconds: 86400 },
+      "3p-5h": { remaining_fraction: 1, reset_time: "1970-01-01T00:00:00Z", reset_in_seconds: 0 },
+      "3p-weekly": { remaining_fraction: 1, reset_time: "1970-01-01T00:00:00Z", reset_in_seconds: 0 },
     },
   };
   const r = run(agyFixture, "t-agy");
   assert.equal(r.stdout, "");
   const s = readJson("app/data/sessions/t-agy.json");
   assert.deepEqual([s.model, s.effort, s.context.used, s.context.size], ["Gemini 4 Argon", "medium", 80000, 1048576]);
+
+  const l = readJson("app/data/limits/agy.json");
+  assert.equal(l.agent, "agy");
+  assert.deepEqual(
+    l.pools.gemini.map((w) => [w.key, Math.round(w.used_percentage), w.resets_at, w.duration]),
+    [
+      ["5h", 16, now + 3600, 18000],
+      ["7d", 5, now + 86400, 604800],
+    ],
+  );
+  assert.deepEqual(
+    l.pools.other.map((w) => [w.key, Math.round(w.used_percentage), w.resets_at, w.duration]),
+    [
+      ["5h", 0, null, 18000],
+      ["7d", 0, null, 604800],
+    ],
+  );
+
+  // 止まったセッションの古い値で新しい使用率を上書きしない
+  run(
+    {
+      ...agyFixture,
+      quota: {
+        ...agyFixture.quota,
+        "gemini-5h": { remaining_fraction: 0.9, reset_time: hReset, reset_in_seconds: 3600 },
+      },
+    },
+    "t-agy-stale",
+  );
+  assert.equal(Math.round(readJson("app/data/limits/agy.json").pools.gemini[0].used_percentage), 16);
 
   run({ ...agyFixture, context_window: { context_window_size: 0, current_usage: { input_tokens: 10 } } }, "t-agy-zero");
   assert.equal(readJson("app/data/sessions/t-agy-zero.json").context, null);

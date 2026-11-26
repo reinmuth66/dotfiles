@@ -168,29 +168,71 @@ if [ -n "${HC_TERMINAL_ID+x}" ]; then
       # 止まっているセッションも、描き直すたびに最後に受けた古い値を送ってくる。そのため、
       # 書いてある値と窓ごとに比べ、リセットの時刻が後の方、同じ窓 (差が 60 秒以内) なら使用率の大きい方を残す。
       # 書いてある窓のリセットの時刻が過ぎていれば、新しい値をそのまま使う
-      limits_file="$data_dir/limits/claude-code.json"
-      old_windows=$(jq -c '.windows // []' "$limits_file" 2>/dev/null) || old_windows='[]'
-      [ -n "$old_windows" ] || old_windows='[]'
-      limits_json=$(printf '%s' "$input" | jq -c --argjson old "$old_windows" '
-        def pick($o):
-          if $o == null or $o.resets_at == null or $o.resets_at <= now then .
-          elif .resets_at == null or .resets_at < $o.resets_at - 60 then $o
-          elif .resets_at > $o.resets_at + 60 then .
-          elif $o.used_percentage > .used_percentage then $o
-          else . end;
-        ($old | map({ (.key): . }) | add // {}) as $prev |
-        [
-          { key: "5h", duration: 18000, w: .rate_limits.five_hour },
-          { key: "7d", duration: 604800, w: .rate_limits.seven_day }
-        ]
-        | if any(.[]; .w.used_percentage != null) then . else [] end
-        | map(if .w.used_percentage != null then . else .w = { used_percentage: 0 } end
-            | { key, used_percentage: .w.used_percentage, resets_at: (.w.resets_at // null), duration }
-            | pick($prev[.key]))
-        | select(length > 0)
-        | { agent: "claude-code", name: "Claude Code", updated_at: (now | floor), windows: . }
-      ' 2>/dev/null)
-      [ -n "$limits_json" ] && write_atomic "$limits_file" "$limits_json"
+      if printf '%s' "$input" | jq -e '.quota != null and (.quota | type) == "object"' >/dev/null 2>&1; then
+        limits_file="$data_dir/limits/agy.json"
+        old_pools=$(jq -c '.pools // {}' "$limits_file" 2>/dev/null) || old_pools='{}'
+        [ -n "$old_pools" ] || old_pools='{}'
+        limits_json=$(printf '%s' "$input" | jq -c --argjson old "$old_pools" '
+          def parse_ts:
+            if type == "string" then
+              (sub("\\.[0-9]+Z$"; "Z") | try fromdateiso8601 catch null)
+            else null end
+            | if (. // 0) > 0 then . else null end;
+          def pick($o):
+            if $o == null or $o.resets_at == null or $o.resets_at <= now then .
+            elif .resets_at == null or .resets_at < $o.resets_at - 60 then $o
+            elif .resets_at > $o.resets_at + 60 then .
+            elif $o.used_percentage > .used_percentage then $o
+            else . end;
+          def build_pool($buckets; $old_list):
+            ($old_list | map({ (.key): . }) | add // {}) as $prev |
+            [ $buckets[] | select(.b != null and .b.remaining_fraction != null)
+              | {
+                  key,
+                  used_percentage: ((1 - .b.remaining_fraction) * 100 | if . < 0 then 0 elif . > 100 then 100 else . end),
+                  resets_at: (.b.reset_time | parse_ts),
+                  duration
+                }
+              | pick($prev[.key]) ];
+          {
+            gemini: build_pool([
+              { key: "5h", duration: 18000, b: .quota["gemini-5h"] },
+              { key: "7d", duration: 604800, b: .quota["gemini-weekly"] }
+            ]; $old.gemini // []),
+            other: build_pool([
+              { key: "5h", duration: 18000, b: .quota["3p-5h"] },
+              { key: "7d", duration: 604800, b: .quota["3p-weekly"] }
+            ]; $old.other // [])
+          }
+          | select((.gemini | length) + (.other | length) > 0)
+          | { agent: "agy", name: "agy", updated_at: (now | floor), pools: . }
+        ' 2>/dev/null)
+        [ -n "$limits_json" ] && write_atomic "$limits_file" "$limits_json"
+      else
+        limits_file="$data_dir/limits/claude-code.json"
+        old_windows=$(jq -c '.windows // []' "$limits_file" 2>/dev/null) || old_windows='[]'
+        [ -n "$old_windows" ] || old_windows='[]'
+        limits_json=$(printf '%s' "$input" | jq -c --argjson old "$old_windows" '
+          def pick($o):
+            if $o == null or $o.resets_at == null or $o.resets_at <= now then .
+            elif .resets_at == null or .resets_at < $o.resets_at - 60 then $o
+            elif .resets_at > $o.resets_at + 60 then .
+            elif $o.used_percentage > .used_percentage then $o
+            else . end;
+          ($old | map({ (.key): . }) | add // {}) as $prev |
+          [
+            { key: "5h", duration: 18000, w: .rate_limits.five_hour },
+            { key: "7d", duration: 604800, w: .rate_limits.seven_day }
+          ]
+          | if any(.[]; .w.used_percentage != null) then . else [] end
+          | map(if .w.used_percentage != null then . else .w = { used_percentage: 0 } end
+              | { key, used_percentage: .w.used_percentage, resets_at: (.w.resets_at // null), duration }
+              | pick($prev[.key]))
+          | select(length > 0)
+          | { agent: "claude-code", name: "Claude Code", updated_at: (now | floor), windows: . }
+        ' 2>/dev/null)
+        [ -n "$limits_json" ] && write_atomic "$limits_file" "$limits_json"
+      fi
     fi
   fi
   exit 0

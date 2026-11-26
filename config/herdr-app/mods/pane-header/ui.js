@@ -78,27 +78,31 @@ export const METRICS = {
   glyphCol: 20,
   ring: 22,
   ringStroke: 2,
+  agentIcon: 12,
+  claudeIcon: 14,
 };
 
 export const cells = (n) => n * METRICS.cell;
 
-// 仮の名簿 (状態の色 peach、green、blue と被らない色)
-export const ROSTER = [
-  { name: "Mocha", color: "flamingo" },
-  { name: "Latte", color: "rosewater" },
-  { name: "Pecan", color: "maroon" },
-  { name: "Maple", color: "pink" },
-  { name: "Cocoa", color: "mauve" },
-  { name: "Ginger", color: "teal" },
-  { name: "Olive", color: "sapphire" },
-  { name: "Basil", color: "lavender" },
-];
+const CLAUDE_MODEL = /\b(claude|opus|sonnet|haiku)\b/i;
 
-// 仮のマーク。"Mocha 2" の番号は除いて名簿を引く
-export function mark(name) {
-  const base = String(name ?? "").replace(/\s+\d+$/, "");
-  const entry = ROSTER.find((e) => e.name === base);
-  return { letter: base.charAt(0).toUpperCase(), color: PALETTE[entry ? entry.color : "overlay2"] };
+// エージェントのアイコン。usage と同じ SVG を使う (claude は横長なので一回り大きく、agy で Claude 系のモデルは青)
+export function agentIconSpec(program, model = null) {
+  const key = program?.key ?? "";
+  const name = String(program?.name ?? "").toLowerCase();
+  if (key === "claude" || program?.icon === "icons/claude.svg") {
+    return { src: "icons/claude.svg", tint: false, color: null, size: METRICS.claudeIcon };
+  }
+  if (key === "agy" || key === "antigravity" || name === "agy" || name === "antigravity" || program?.icon === "icons/antigravity.svg") {
+    if (typeof model === "string" && CLAUDE_MODEL.test(model)) {
+      return { src: "icons/claude.svg", tint: true, color: PALETTE.blue, size: METRICS.claudeIcon };
+    }
+    return { src: "icons/antigravity.svg", tint: false, color: null, size: METRICS.agentIcon };
+  }
+  if (program?.icon) {
+    return { src: program.icon, tint: Boolean(program.tint), color: program.color ?? null, size: METRICS.agentIcon };
+  }
+  return null;
 }
 
 export function mostUrgent(statuses) {
@@ -135,24 +139,24 @@ export function formatDuration(ms) {
   return `${Math.floor(minutes / 60)}h${pad(minutes % 60)}m`;
 }
 
-// 12 時の位置から時計回りに描く輪の弧。SVG の path (M start A r r 0 largeArc 1 end) に使う
-export function ringArc(fraction, outer, stroke) {
-  if (!(fraction > 0)) return null;
-  const r = (outer - stroke) / 2;
-  const cx = outer / 2;
-  const cy = outer / 2;
-  const start = [cx, cy - r];
-  if (fraction >= 0.999) return { r, cx, cy, start, end: start, largeArc: false, full: true };
+// 12 時を 0、時計回りに 1 周を 1 とする角度の円周上の点
+export function ringPoint(cx, cy, r, fraction) {
   const angle = fraction * 2 * Math.PI;
-  return {
-    r,
-    cx,
-    cy,
-    start,
-    end: [cx + r * Math.sin(angle), cy - r * Math.cos(angle)],
-    largeArc: fraction > 0.5,
-    full: false,
-  };
+  return [cx + r * Math.sin(angle), cy - r * Math.cos(angle)];
+}
+
+// from から to まで (0 から 1) の弧を、1/8 周以下の点列に分ける (gpui の arc_to は半周で半径がずれる)
+export function arcSteps(from, to, outer, stroke) {
+  const a = Math.max(0, from);
+  const b = Math.min(1, to);
+  if (!(b - a > 0)) return null;
+  const r = (outer - stroke) / 2;
+  const c = outer / 2;
+  const steps = Math.max(1, Math.ceil((b - a) * 8));
+  const start = ringPoint(c, c, r, a);
+  const points = [];
+  for (let i = 1; i <= steps; i++) points.push(ringPoint(c, c, r, a + ((b - a) * i) / steps));
+  return { r, start, points };
 }
 
 const baseName = (path) => path.replace(/\/+$/, "").split("/").pop() || path;

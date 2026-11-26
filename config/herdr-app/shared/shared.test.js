@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import {
   GLYPH,
+  METRICS,
   PROCESS_ICONS,
   STATUS,
   PALETTE,
@@ -11,8 +12,8 @@ import {
   tokensToCompact,
   formatTokens,
   formatDuration,
-  ringArc,
-  mark,
+  arcSteps,
+  agentIconSpec,
   paneLabel,
   isRemoteSpace,
   isRemoteAddress,
@@ -46,17 +47,51 @@ test("formatDuration", () => {
   assert.equal(formatDuration(60 * 60_000), "1h00m");
   assert.equal(formatDuration(125 * 60_000), "2h05m");
 });
-test("ringArc", () => {
-  assert.equal(ringArc(0, 22, 2), null);
-  assert.equal(ringArc(1, 22, 2).full, true);
-  const half = ringArc(0.5, 22, 2);
+test("arcSteps", () => {
+  assert.equal(arcSteps(0, 0, 22, 2), null);
+  const full = arcSteps(0, 1, 22, 2);
+  assert.equal(full.r, 10);
+  assert.equal(full.points.length, 8);
+  assert.deepEqual(full.start, [11, 1]);
+  assert.deepEqual(full.points.at(-1).map(Math.round), [11, 1]);
+  const half = arcSteps(0, 0.5, 22, 2);
+  assert.equal(half.points.length, 4);
   assert.deepEqual(half.start, [11, 1]); // r = (22 - 2) / 2 = 10、中心 (11, 11)
-  assert.deepEqual(half.end.map(Math.round), [11, 21]);
-  assert.equal(ringArc(0.75, 22, 2).largeArc, true);
+  assert.deepEqual(half.points.at(-1).map(Math.round), [11, 21]);
 });
-test("mark", () => {
-  assert.deepEqual(mark("Mocha 2"), { letter: "M", color: PALETTE.flamingo });
-  assert.equal(mark("Zzz").color, PALETTE.overlay2);
+test("agentIconSpec", () => {
+  assert.deepEqual(agentIconSpec({ key: "claude", icon: "icons/claude.svg" }), {
+    src: "icons/claude.svg",
+    tint: false,
+    color: null,
+    size: METRICS.claudeIcon,
+  });
+  assert.deepEqual(agentIconSpec({ key: "agy" }, "Gemini 4 Neon"), {
+    src: "icons/antigravity.svg",
+    tint: false,
+    color: null,
+    size: METRICS.agentIcon,
+  });
+  assert.deepEqual(agentIconSpec({ key: "agy" }, "Claude Opus 4.6"), {
+    src: "icons/claude.svg",
+    tint: true,
+    color: PALETTE.blue,
+    size: METRICS.claudeIcon,
+  });
+  assert.deepEqual(agentIconSpec({ key: "program", name: "agy" }, "Sonnet 4.5"), {
+    src: "icons/claude.svg",
+    tint: true,
+    color: PALETTE.blue,
+    size: METRICS.claudeIcon,
+  });
+  assert.deepEqual(agentIconSpec({ key: "codex", icon: "icons/codex.svg", tint: true, color: "#fff" }), {
+    src: "icons/codex.svg",
+    tint: true,
+    color: "#fff",
+    size: METRICS.agentIcon,
+  });
+  assert.equal(agentIconSpec({ key: "unknown", icon: null }), null);
+  assert.equal(agentIconSpec(null), null);
 });
 test("paneLabel", () => {
   const home = "/Users/x";
