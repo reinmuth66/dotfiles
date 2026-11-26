@@ -145,7 +145,7 @@ export default class Usage extends View {
         .h(15)
         .items_center()
         .gap(cells(1))
-        // 使用率は "100%" の幅で右寄せ、残り時間は "16h42m" の幅で左寄せにして、行ごとに位置を揃える
+        // 使用率は "100%" の幅、残り時間は "16h42m" の幅を取り、どちらも右寄せにして、行ごとに位置を揃える
         .child(
           h_flex()
             .flex_none()
@@ -154,7 +154,14 @@ export default class Usage extends View {
             .text_color(v ? v.barColor : PALETTE.text)
             .child(v ? `${Math.round(v.used)}%` : ""),
         )
-        .child(div().flex_none().w(cells(6)).text_color(v ? v.remainingColor : PALETTE.text).child(v?.remaining ?? ""));
+        .child(
+          h_flex()
+            .flex_none()
+            .w(cells(6))
+            .justify_end()
+            .text_color(v ? v.remainingColor : PALETTE.text)
+            .child(v?.remaining ?? ""),
+        );
     return v_flex().flex_none().items_center().child(ring).child(div().h(RING_GAP)).child(row(v5)).child(row(v7));
   }
 
