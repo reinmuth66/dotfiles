@@ -28,7 +28,7 @@ import {
 import { METRICS, PALETTE, REMOTE_LABEL, isRemoteAddress, isRemoteSpace } from "./ui.js";
 import { repoRoot } from "./data.js";
 import { openArgv, openCwd, openTerminalOf, OPEN_LABEL } from "./open.js";
-import { wtrAction, WTR_NAME, WTR_PROGRAM, WTR_START } from "./wtr.js";
+import { shellIsIdle, wtrAction, WTR_NAME, WTR_PROGRAM, WTR_START } from "./wtr.js";
 import {
   MAX_TEXT_BYTES,
   PREVIEW_CACHE_DIR,
@@ -120,7 +120,16 @@ async function withTmpDir(fn) {
 async function ensureWtr() {
   const action = wtrAction(terminals());
   if (action === "start") await hc(WTR_START).catch(() => {});
-  else if (action === "exec") await hc(["send", WTR_NAME, `exec ${WTR_PROGRAM}`]).catch(() => {});
+  else if (action === "check") {
+    const r = await hc(["get", WTR_NAME, "--json"]).catch(() => null);
+    let info = null;
+    try {
+      info = r?.code === 0 ? JSON.parse(r.stdout) : null;
+    } catch {
+      // 読めなければ何もしない
+    }
+    if (shellIsIdle(info)) await hc(["send", WTR_NAME, `exec ${WTR_PROGRAM}`]).catch(() => {});
+  }
 }
 
 export default class Preview extends View {
