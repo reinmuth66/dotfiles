@@ -47,6 +47,16 @@ import {
 const FONT = "Moralerspace Neon HW";
 const PAD_RIGHT = 10;
 
+// Moralerspace Neon HW (16px) の Nerd Font グリフは advance (8.4px) より実描画幅が広く、
+// x=0 から右にはみ出して描かれるため、advance 幅のまま中央揃えすると右にずれる。
+// 実描画幅を要素幅にして中央揃えすることで、SVG アイコン＋輪と中心を揃える
+const GLYPH_WIDTH = {
+  [GLYPH.spaceClosed]: 12,
+  [GLYPH.spaceOpen]: 12,
+  [GLYPH.shell]: 13.3,
+  [GLYPH.yazi]: 13.3,
+};
+
 function load(key, fallback) {
   try {
     const text = localStorage.getItem(key);
@@ -99,7 +109,7 @@ function ringElement(fraction, color) {
 
 function agentIcon(program, model) {
   const spec = agentIconSpec(program, model);
-  if (!spec) return div().text_size(METRICS.agentIcon).text_color(PALETTE.overlay2).child(GLYPH.terminal);
+  if (!spec) return div().w(METRICS.agentIcon).text_size(METRICS.agentIcon).text_color(PALETTE.overlay2).child(GLYPH.terminal);
   if (spec.tint) return svg(spec.src).text_color(spec.color ?? PALETTE.text).w(spec.size).h(spec.size);
   return image(spec.src).w(spec.size).h(spec.size);
 }
@@ -348,7 +358,13 @@ export default class Workspace extends View {
   }
 
   glyph(text, color) {
-    return div().flex_none().text_size(METRICS.glyphSize).text_color(color).child(text);
+    const w = GLYPH_WIDTH[text];
+    return div()
+      .flex_none()
+      .when(w != null, (el) => el.w(w))
+      .text_size(METRICS.glyphSize)
+      .text_color(color)
+      .child(text);
   }
 
   rightSide(r, now) {

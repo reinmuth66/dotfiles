@@ -76,10 +76,10 @@ export const METRICS = {
   treeRow: 24,
   padLeft: 10,
   glyphCol: 20,
-  ring: 22,
-  ringStroke: 2,
-  agentIcon: 12,
-  claudeIcon: 14,
+  ring: 16,
+  ringStroke: 1.5,
+  agentIcon: 9,
+  claudeIcon: 10,
 };
 
 export const cells = (n) => n * METRICS.cell;

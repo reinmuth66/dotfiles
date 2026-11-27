@@ -156,8 +156,12 @@ export function buildStructure({ nested, agents, subagents, sessions = {}, colla
     for (const tab of space.tabs) {
       const list = tabAgents(tab);
       const subsOf = (a) => subagents[a.address] ?? [];
-      if (list.length === 1 && subsOf(list[0]).length === 0) {
-        rows.push(agentRow(list[0], td, sessions, { spaceId: space.id }));
+      if (list.length === 1) {
+        const agent = list[0];
+        const subs = subsOf(agent);
+        const agentOpen = !collapsed.has(`agent:${agent.address}`);
+        rows.push(agentRow(agent, td, sessions, { spaceId: space.id, hasChildren: subs.length > 0, open: agentOpen }));
+        if (agentOpen) for (const sub of subs) rows.push(subRow(agent, sub, td + 1, agent.status));
         continue;
       }
       rows.push({

@@ -66,17 +66,29 @@ test("buildStructure: エージェントが 1 つのタブは畳む", () => {
   assert.equal(rows[1].program.key, "claude");
   assert.deepEqual(rows.map((r) => r.key), ["space:s1", "agent:t1", "tab:b", "tab:c"]);
 });
-test("buildStructure: サブエージェントがいれば展開し、畳める", () => {
+test("buildStructure: 1 エージェントのタブはサブエージェントがいても tab 行を省いて展開・畳める", () => {
   const nested = [{ space: sp("s1", [tab("a")]), depth: 0 }];
   const base = { nested, agents: [ag("t1", "a", "working")], subagents: { t1: [{ id: "x", type: "Explore" }] }, sessions: { t1: { model: "Opus 5.5" } } };
-  assert.deepEqual(buildStructure({ ...base, collapsed: new Set() }).map((r) => r.kind), ["space", "tab", "agent", "sub"]);
-  assert.deepEqual(buildStructure({ ...base, collapsed: new Set(["agent:t1"]) }).map((r) => r.kind), ["space", "tab", "agent"]);
+  assert.deepEqual(
+    buildStructure({ ...base, collapsed: new Set() }).map((r) => [r.kind, r.depth]),
+    [["space", 0], ["agent", 1], ["sub", 2]],
+  );
+  assert.deepEqual(buildStructure({ ...base, collapsed: new Set(["agent:t1"]) }).map((r) => r.kind), ["space", "agent"]);
   assert.deepEqual(buildStructure({ ...base, collapsed: new Set(["space:s1"]) }).map((r) => r.kind), ["space"]);
   const rows = buildStructure({ ...base, collapsed: new Set() });
-  assert.equal(rows[2].hasChildren, true);
-  assert.equal(rows[2].open, true);
-  assert.equal(rows[3].key, "sub:t1:x");
-  assert.equal(rows[3].label, "Explore");
+  assert.equal(rows[1].hasChildren, true);
+  assert.equal(rows[1].open, true);
+  assert.equal(rows[2].key, "sub:t1:x");
+  assert.equal(rows[2].label, "Explore");
+});
+test("buildStructure: 複数エージェントのタブでサブエージェントがいるときは tab → agent → sub", () => {
+  const nested = [{ space: sp("s1", [tab("a")]), depth: 0 }];
+  const agents = [ag("t1", "a", "working"), ag("t2", "a", "idle")];
+  const rows = buildStructure({ nested, agents, subagents: { t1: [{ id: "x", type: "Explore" }] }, sessions: {}, collapsed: new Set() });
+  assert.deepEqual(
+    rows.map((r) => [r.kind, r.depth]),
+    [["space", 0], ["tab", 1], ["agent", 2], ["sub", 3], ["agent", 2]],
+  );
 });
 test("buildStructure: エージェントが 2 つのタブは下に並べ、worktree は字下げ、モデルが無ければプログラム名・tab_name", () => {
   const nested = [
