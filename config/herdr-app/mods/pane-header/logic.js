@@ -21,7 +21,7 @@ export function headerFor({ pane, session, repoRoot, home }) {
       effort: session?.effort ?? null,
       tokens: left == null ? null : formatTokens(left),
       tokensColor: pct == null ? null : contextColor(pct),
-      ring: pct == null ? null : Math.min(1, pct / 100),
+      ring: pct == null ? 0 : Math.min(1, pct / 100),
       ringColor: pct == null ? null : contextColor(pct),
     };
   }

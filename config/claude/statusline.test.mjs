@@ -174,6 +174,24 @@ test("herdr の中 (agy): model.effort、context_window_size 0、quota を扱う
   assert.equal(readJson("app/data/sessions/t-agy-zero.json").context, null);
 });
 
+test("herdr の中 (agy): cycle_mode だけを右端に表示し、default (未設定) では出さない", () => {
+  const base = { product: "antigravity", terminal_width: 20 };
+  const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, "");
+  assert.equal(run(base, "t-mode-default").stdout, "");
+
+  const rAuto = run({ ...base, cycle_mode: "auto" }, "t-mode-auto");
+  assert.equal(stripAnsi(rAuto.stdout), `${" ".repeat(16)}auto\n`);
+  assert.match(rAuto.stdout, /\x1b\[38;2;245;169;127m/);
+
+  const rPlan = run({ ...base, cycle_mode: "plan" }, "t-mode-plan");
+  assert.equal(stripAnsi(rPlan.stdout), `${" ".repeat(16)}plan\n`);
+  assert.match(rPlan.stdout, /\x1b\[38;2;138;173;244m/);
+
+  const rAccept = run({ ...base, cycle_mode: "accept-edits" }, "t-mode-accept");
+  assert.equal(stripAnsi(rAccept.stdout), `${" ".repeat(8)}accept-edits\n`);
+  assert.match(rAccept.stdout, /\x1b\[38;2;166;218;149m/);
+});
+
 test("herdr の外では今までどおり表示する", () => {
   const r = run(fixture, undefined);
   assert.match(r.stdout, /Opus 5\.5/);

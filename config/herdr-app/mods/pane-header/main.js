@@ -28,7 +28,7 @@ function ringElement(fraction, color) {
     if (path) layers.push(window.paint_path(path, c).absolute().top(0).left(0).size_full());
   };
   add(0, 1, PALETTE.surface0);
-  if (fraction > 0) add(0, fraction, color);
+  if (fraction > 0 && color) add(0, fraction, color);
   return div().relative().flex_none().w(METRICS.ring).h(METRICS.ring).children(layers);
 }
 
@@ -67,7 +67,7 @@ export default class PaneHeader extends View {
       .flex()
       .items_center()
       .justify_center()
-      .when(h.ring != null, (box) => box.child(div().absolute().top(0).left(0).child(ringElement(h.ring, h.ringColor))))
+      .child(div().absolute().top(0).left(0).child(ringElement(h.ring, h.ringColor)))
       .child(agentIcon(h.program, h.model).flex_none());
   }
 

@@ -93,7 +93,7 @@ function ringElement(fraction, color) {
     if (path) layers.push(window.paint_path(path, c).absolute().top(0).left(0).size_full());
   };
   add(0, 1, PALETTE.surface0);
-  if (fraction > 0) add(0, fraction, color);
+  if (fraction > 0 && color) add(0, fraction, color);
   return div().relative().flex_none().w(METRICS.ring).h(METRICS.ring).children(layers);
 }
 
@@ -364,16 +364,14 @@ export default class Workspace extends View {
     const slot = [];
     const session = contextFor(r.address, this.sessions);
     const pct = contextPercent(session?.context);
-    if (pct != null) {
-      const offset = (cells(METRICS.slotCells) - METRICS.ring) / 2;
-      slot.push(
-        div()
-          .absolute()
-          .left(offset)
-          .top((METRICS.row - METRICS.ring) / 2)
-          .child(ringElement(Math.min(1, pct / 100), contextColor(pct))),
-      );
-    }
+    const offset = (cells(METRICS.slotCells) - METRICS.ring) / 2;
+    slot.push(
+      div()
+        .absolute()
+        .left(offset)
+        .top((METRICS.row - METRICS.ring) / 2)
+        .child(ringElement(pct == null ? 0 : Math.min(1, pct / 100), pct == null ? null : contextColor(pct))),
+    );
     slot.push(agentIcon(r.program, session?.model ?? null).flex_none());
     if (r.hasChildren) {
       slot.push(

@@ -14,16 +14,16 @@ test("エージェントの見出し", () => {
   assert.equal(h.ringColor, PALETTE.green);
   assert.ok(Math.abs(h.ring - 0.233) < 1e-9);
 });
-test("セッションのファイルがなければプログラム名だけ", () => {
+test("セッションのファイルがなければプログラム名と 0% の輪", () => {
   const h = headerFor({ pane: pane({ status: "idle", program: claude }), session: null, repoRoot: null, home: "/Users/x" });
-  assert.deepEqual([h.label, h.effort, h.tokens, h.ring], ["Claude Code", null, null, null]);
+  assert.deepEqual([h.label, h.effort, h.tokens, h.ring, h.ringColor], ["Claude Code", null, null, 0, null]);
 });
 test("シェルの見出しは paneLabel と同じ", () => {
   assert.deepEqual(headerFor({ pane: pane({ cwd: "/Users/x/dotfiles/modules" }), session: null, repoRoot: "/Users/x/dotfiles", home: "/Users/x" }), { kind: "plain", icon: GLYPH.shell, text: "dotfiles/modules" });
 });
-test("effort と context が null なら出さない、輪は 1 で止める", () => {
+test("effort と context が null でも輪は 0 で出し、1 で止める", () => {
   const h = headerFor({ pane: pane({ program: claude }), session: { model: "Opus 5.5", effort: null, context: null }, repoRoot: null, home: "/Users/x" });
-  assert.deepEqual([h.kind, h.label, h.effort, h.tokens, h.tokensColor, h.ring, h.ringColor], ["agent", "Opus 5.5", null, null, null, null, null]);
+  assert.deepEqual([h.kind, h.label, h.effort, h.tokens, h.tokensColor, h.ring, h.ringColor], ["agent", "Opus 5.5", null, null, null, 0, null]);
   const full = headerFor({ pane: pane({ program: claude }), session: { model: "m", effort: "low", context: { used: 210000, size: 200000 } }, repoRoot: null, home: "/Users/x" });
   assert.deepEqual([full.ring, full.tokens, full.ringColor], [1, "0.0K", PALETTE.red]);
 });

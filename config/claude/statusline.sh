@@ -235,6 +235,24 @@ if [ -n "${HC_TERMINAL_ID+x}" ]; then
       fi
     fi
   fi
+  # agy ではカスタム statusLine が組み込みの行を置き換えるため、mode (cycle_mode) だけを右端に出す
+  if [ "$(printf '%s' "$input" | jq -r '.product // empty' 2>/dev/null)" = "antigravity" ]; then
+    cycle_mode=$(printf '%s' "$input" | jq -r '.cycle_mode // empty' 2>/dev/null)
+    if [ -n "$cycle_mode" ]; then
+      term_width=$(printf '%s' "$input" | jq -r '.terminal_width // 0' 2>/dev/null)
+      case "$cycle_mode" in
+      auto) mode_color="$PEACH" ;;
+      plan) mode_color="$BLUE" ;;
+      accept-edits) mode_color="$GREEN" ;;
+      *) mode_color="$OVERLAY0" ;;
+      esac
+      pad=0
+      if [[ $term_width =~ ^[0-9]+$ ]] && [ "$term_width" -gt "${#cycle_mode}" ]; then
+        pad=$((term_width - ${#cycle_mode}))
+      fi
+      printf '%*s%b%s%b\n' "$pad" "" "$mode_color" "$cycle_mode" "$RESET"
+    fi
+  fi
   exit 0
 fi
 
