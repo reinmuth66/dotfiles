@@ -41,7 +41,7 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
 - 個人設定のルールは 2 つに分ける。Claude Code と agy の両方に効かせるものは `config/agents/AGENTS.md` (`agy.nix` が `~/.gemini/AGENTS.md` に配る)、Claude Code だけのもの (agy:worker への任せ方、superpowers、`/code-review`) は `config/agents/CLAUDE.md` (`claude.nix` が `~/.claude/CLAUDE.md` に配り、先頭の `@` で `AGENTS.md` を読み込む)。`statusline.sh` は `config/claude/` から `claude.nix` が配る。
 - このリポジトリの skill の正本は `.agents/skills/` (agy が読む)。`.claude/skills` はそこへのシンボリックリンクで、Claude Code はこれを通して読む。skill は `.agents/skills/` に足す。
 - ルールのフォルダ (`.agents/rules/`、`.claude/rules/`) は使わない。Claude Code は agy の `trigger:` を無視し、agy は `trigger:` の無いファイルを読まず、`trigger: glob` は agy の CLI では効かない。リポジトリのルールは `AGENTS.md` に書く (両方が読む)。
-- ユーザー全体の skill は `~/.claude/skills` に置けば、agy も `~/.gemini/config/skills.json` (`agy.nix`) を通して読む。agy に要らないものは、そこの `exclude` に足す。MCP サーバーは `modules/mcp.nix` の `programs.mcp.servers` にだけ書く (両方に入る)。
+- ユーザー全体の skill は `~/.claude/skills` に置けば、agy も `~/.gemini/config/skills.json` (`agy.nix`) を通して読む。agy に要らないものは、そこの `exclude` に足す。どのプロジェクトでも使う MCP サーバーは `modules/mcp.nix` の `programs.mcp.servers` にだけ書く (両方に入る)。特定のフォルダだけで使うものは、そのフォルダの `.mcp.json` (Claude Code が読む。`.claude/settings.local.json` の `enabledMcpjsonServers` で有効にする) に書き、agy には `.agents/plugins/<名前>/plugin.json` (`{"name":"<名前>"}`) と、`.mcp.json` を指すシンボリックリンク `mcp_config.json` を置く (書き方が同じなので 1 つを共有できる。agy はそのフォルダの中でだけ読む)。
 
 ## モジュールの補足
 

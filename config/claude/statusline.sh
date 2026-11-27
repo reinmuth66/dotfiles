@@ -3,6 +3,7 @@
 # Catppuccin Macchiato
 RED='\033[38;2;237;135;150m'
 PEACH='\033[38;2;245;169;127m'
+YELLOW='\033[38;2;238;212;159m'
 OVERLAY0='\033[38;2;110;115;141m'
 RESET='\033[0m'
 MAUVE='\033[38;2;198;160;246m'
@@ -241,7 +242,7 @@ if [ -n "${HC_TERMINAL_ID+x}" ]; then
     if [ -n "$cycle_mode" ]; then
       term_width=$(printf '%s' "$input" | jq -r '.terminal_width // 0' 2>/dev/null)
       case "$cycle_mode" in
-      auto) mode_color="$PEACH" ;;
+      auto) mode_color="$YELLOW" ;;
       plan) mode_color="$BLUE" ;;
       accept-edits) mode_color="$GREEN" ;;
       *) mode_color="$OVERLAY0" ;;

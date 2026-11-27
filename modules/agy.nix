@@ -16,6 +16,7 @@ let
     statusLine = {
       type = "command";
       command = "~/.gemini/antigravity-cli/statusline.sh";
+      stack_with_default = false;
     };
   };
   settingsFile = (pkgs.formats.json { }).generate "agy-settings.json" settings;

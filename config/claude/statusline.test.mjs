@@ -181,7 +181,7 @@ test("herdr の中 (agy): cycle_mode だけを右端に表示し、default (未�
 
   const rAuto = run({ ...base, cycle_mode: "auto" }, "t-mode-auto");
   assert.equal(stripAnsi(rAuto.stdout), `${" ".repeat(16)}auto\n`);
-  assert.match(rAuto.stdout, /\x1b\[38;2;245;169;127m/);
+  assert.match(rAuto.stdout, /\x1b\[38;2;238;212;159m/);
 
   const rPlan = run({ ...base, cycle_mode: "plan" }, "t-mode-plan");
   assert.equal(stripAnsi(rPlan.stdout), `${" ".repeat(16)}plan\n`);
