@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nestSpaces, contextFor, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, tabOpenKey, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS } from "./logic.js";
+import { nestSpaces, contextFor, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, tabOpenKey, isFocusRow, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS } from "./logic.js";
 
 const sp = (id, tabs, extra = {}) => ({ id, name: id, folder: `/r/${id}`, status: null, tabs, ...extra });
 const tab = (id, extra = {}) => ({ id, name: id, named: false, status: null, working_since: null, changed_at: null, ...extra });
@@ -131,6 +131,17 @@ test("buildStructure: エージェントが 2 つのタブは下に並べ、work
   assert.equal(rows[4].status, null);
   const closed = buildStructure({ nested, agents, subagents: {}, sessions: {}, collapsed: new Set(["space:s1", "space:s2"]) });
   assert.deepEqual(closed.map((r) => r.status), ["blocked", "done"]);
+});
+test("isFocusRow: focus の pane とそれを含むタブと space、サブエージェントは親に従う", () => {
+  const focus = { space: "s1", tab: "a", pane: "p1", terminal: "t1" };
+  assert.equal(isFocusRow({ kind: "space", spaceId: "s1" }, focus), true);
+  assert.equal(isFocusRow({ kind: "space", spaceId: "s2" }, focus), false);
+  assert.equal(isFocusRow({ kind: "tab", tabId: "a" }, focus), true);
+  assert.equal(isFocusRow({ kind: "pane", paneId: "p2" }, focus), false);
+  assert.equal(isFocusRow({ kind: "agent", address: "t1" }, focus), true);
+  assert.equal(isFocusRow({ kind: "sub", address: "t1" }, focus), true);
+  assert.equal(isFocusRow({ kind: "agent", address: "t2" }, { ...focus, terminal: null }), false);
+  assert.equal(isFocusRow({ kind: "space", spaceId: "s1" }, null), false);
 });
 test("buildGroups と agentOrder: 入力待ちが先、Idle は畳める", () => {
   const agents = [ag("t1", "a", "working"), ag("t2", "b", "blocked"), ag("t3", "c", "idle")];

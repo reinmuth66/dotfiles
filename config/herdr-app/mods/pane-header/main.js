@@ -3,16 +3,16 @@
 // 同梱の pane mod を元にした。props: { pane, terminal }。押すとその枠に移る
 import { View, div, image, svg, PathBuilder } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { home, panes, props, run, theme } from "herdr";
-import { GLYPH, METRICS, PALETTE, agentIconSpec, arcSteps, isRemoteAddress } from "./ui.js";
+import { focused, home, panes, props, run, theme } from "herdr";
+import { GLYPH, GLYPH_INK, METRICS, PALETTE, agentIconSpec, arcSteps, isRemoteAddress, tone, toneColor } from "./ui.js";
 import { repoRootNow, watchJsonDir } from "./data.js";
 import { headerFor, isAgentPane } from "./logic.js";
 
 const FONT = "Moralerspace Neon HW";
-const TEXT = 12;
+// 端末と同じ大きさ (settings.json の font_size)。文字の始まり (padLeft + 輪 + gap = 34px) が端末の 4 文字目の位置に
+// 重なるので、同じ大きさにすると下の端末の文字と列が揃う
+const TEXT = 13;
 const SEP = " · ";
-// glyphSize の記号の見た目の幅 (workspace の GLYPH_WIDTH と同じ値)
-const GLYPH_INK = 13.3;
 
 function arcPath(from, to, outer, stroke) {
   const arc = arcSteps(from, to, outer, stroke);
@@ -73,7 +73,7 @@ export default class PaneHeader extends View {
       .child(agentIcon(h.program, h.model).flex_none());
   }
 
-  agent(el, h) {
+  agent(el, h, c) {
     return el
       .child(this.agentMark(h))
       .child(
@@ -81,16 +81,15 @@ export default class PaneHeader extends View {
           .flex_1()
           .min_w(0)
           .items_center()
-          .child(div().flex_none().text_color(PALETTE.text).child(h.label))
-          .when(Boolean(h.effort), (row) =>
-            row.child(div().truncate().text_color(PALETTE.subtext0).child(SEP + h.effort)),
-          ),
+          .child(div().flex_none().text_color(c.name).child(h.label))
+          .when(Boolean(h.effort), (row) => row.child(div().truncate().text_color(c.extra).child(SEP + h.effort))),
       )
-      .when(h.tokens != null, (row) => row.child(div().flex_none().text_color(h.tokensColor).child(h.tokens)));
+      .when(h.tokens != null, (row) => row.child(div().flex_none().text_color(c.tokens).child(h.tokens)));
   }
 
-  // 記号の字の送り幅は見た目より広く、輪の幅の箱で中央に寄せると右にずれる。見た目の幅 (GLYPH_INK) の箱に入れてから寄せる
-  plain(el, h) {
+  // 記号は送り幅より広く右へはみ出すので、見た目の幅 (GLYPH_INK) の箱に入れてから輪の幅の中央に寄せる
+  plain(el, h, c) {
+    const ink = GLYPH_INK[h.icon];
     return el
       .child(
         div()
@@ -98,9 +97,16 @@ export default class PaneHeader extends View {
           .w(METRICS.ring)
           .flex()
           .justify_center()
-          .child(div().flex_none().w(GLYPH_INK).text_size(METRICS.glyphSize).text_color(PALETTE.overlay0).child(h.icon)),
+          .child(
+            div()
+              .flex_none()
+              .when(ink != null, (g) => g.w(ink))
+              .text_size(METRICS.glyphSize)
+              .text_color(PALETTE.overlay0)
+              .child(h.icon),
+          ),
       )
-      .child(div().flex_1().min_w(0).truncate().text_color(PALETTE.subtext0).child(h.text));
+      .child(div().flex_1().min_w(0).truncate().text_color(c.name).child(h.text));
   }
 
   render(cx) {
@@ -127,6 +133,9 @@ export default class PaneHeader extends View {
       .text_size(TEXT)
       .text_color(PALETTE.text)
       .on_click(() => run("pane.focus", { pane: p.pane }));
-    return h.kind === "agent" ? this.agent(el, h) : this.plain(el, h);
+    // focus している枠だけ濃く (TONE)
+    const on = focused()?.pane === p.pane;
+    const c = { ...tone(on), tokens: toneColor(h.tokensColor, on) };
+    return h.kind === "agent" ? this.agent(el, h, c) : this.plain(el, h, c);
   }
 }

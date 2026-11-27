@@ -1,9 +1,5 @@
 // 利用制限の表示の組み立て。herdr に依存しない (node --test で試す)
-import { PALETTE } from "./ui.js";
-
-export function dim(color) {
-  return `${color}99`;
-}
+import { PALETTE, dim } from "./ui.js";
 
 export function pickAgyPool(pools, nowSec) {
   const gemini = Array.isArray(pools?.gemini) ? pools.gemini : [];

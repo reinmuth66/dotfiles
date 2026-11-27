@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PALETTE } from "./ui.js";
-import { dim, pickAgyPool, windowView } from "./logic.js";
+import { PALETTE, dim } from "./ui.js";
+import { pickAgyPool, windowView } from "./logic.js";
 
 test("pickAgyPool: Gemini が尽きたら other、リセットを過ぎたら gemini に戻る", () => {
   const now = 1_000_000;

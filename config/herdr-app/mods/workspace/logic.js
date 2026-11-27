@@ -219,4 +219,15 @@ export function buildGroups({ agents, subagents, sessions = {}, collapsed }) {
   return rows;
 }
 
-export const agentOrder = (rows) => rows.filter((r) => r.kind === "agent").map((r) => r.address);
+// focus している pane の行と、それを含むタブと space の行 (濃く出す)。サブエージェントは親のエージェントに従う。
+// focus は herdr の focused() ({ space, tab, pane, terminal } か null)
+export function isFocusRow(row, focus) {
+  if (!focus) return false;
+  if (row.kind === "space") return row.spaceId === focus.space;
+  if (row.kind === "tab") return row.tabId === focus.tab;
+  if (row.kind === "pane") return row.paneId === focus.pane;
+  if (row.kind === "agent" || row.kind === "sub") return focus.terminal != null && row.address === focus.terminal;
+  return false;
+}
+
+export const agentOrder =(rows) => rows.filter((r) => r.kind === "agent").map((r) => r.address);

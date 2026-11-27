@@ -27,6 +27,7 @@ export const PROCESS_ICONS = {
   git: "\u{e702}",
   lazygit: "\u{e702}",
   gh: "\u{e709}",
+  "gh-dash": "\u{e702}",
   lua: "\u{e620}",
   nvim: "\u{e62b}",
   vim: "\u{e62b}",
@@ -34,6 +35,24 @@ export const PROCESS_ICONS = {
   python3: "\u{e73c}",
   ssh: "\u{f233}",
   yazi: GLYPH.yazi,
+};
+
+// glyphSize で描いた記号の見た目の幅 (px)。記号は送り幅 (8.4px) より広く、左端から右へはみ出して描かれるので、
+// 送り幅のまま中央に寄せると右にずれる。この幅の箱に入れてから寄せる。フォント (Moralerspace Neon HW) で描いて測った値
+export const GLYPH_INK = {
+  [GLYPH.spaceClosed]: 12,
+  [GLYPH.spaceOpen]: 12,
+  [GLYPH.tabClosed]: 12,
+  [GLYPH.tabOpen]: 12,
+  [GLYPH.shell]: 13.3,
+  [GLYPH.yazi]: 13.3,
+  [GLYPH.terminal]: 16,
+  [PROCESS_ICONS.git]: 12.7,
+  [PROCESS_ICONS.gh]: 12.1,
+  [PROCESS_ICONS.lua]: 14,
+  [PROCESS_ICONS.nvim]: 14,
+  [PROCESS_ICONS.python]: 12.1,
+  [PROCESS_ICONS.ssh]: 14.8,
 };
 
 export const STATUS = {
@@ -66,6 +85,18 @@ export const PALETTE = {
   overlay0: "#6e738d",
   surface0: "#363a4f",
 };
+
+// 文字の濃さ。名前 (space、タブ、pane、エージェント) は name、付け足しの情報 (effort、時間、サブエージェント) は extra、
+// 記号は overlay0。focus している pane とそれを含むタブと space は on、ほかは off
+export const TONE = {
+  on: { name: PALETTE.text, extra: PALETTE.subtext0 },
+  off: { name: PALETTE.subtext0, extra: PALETTE.overlay0 },
+};
+export const tone = (on) => (on ? TONE.on : TONE.off);
+// 色を保ったまま透かして暗くする (#rrggbb → #rrggbbaa)。usage の残り時間と、off のときの意味で色が決まる文字
+export const dim = (color) => `${color}99`;
+// 意味で色が決まる文字 (コンテキストの残り) は、off のときだけ dim
+export const toneColor = (color, on) => (on || !color ? color : dim(color));
 
 export const METRICS = {
   fontSize: 13,

@@ -6,6 +6,7 @@ import {
   agents,
   checking,
   exec,
+  focused,
   home,
   nextCommand,
   panes,
@@ -17,6 +18,7 @@ import {
 } from "herdr";
 import {
   GLYPH,
+  GLYPH_INK,
   METRICS,
   PALETTE,
   STATUS,
@@ -28,6 +30,7 @@ import {
   isRemoteAddress,
   isRemoteSpace,
   paneLabel,
+  tone,
 } from "./ui.js";
 import { RETRY_MS, repoRootNow, watchJsonDir } from "./data.js";
 import { describe, domainTag } from "./domains.js";
@@ -39,6 +42,7 @@ import {
   buildStructure,
   collectSubagents,
   contextFor,
+  isFocusRow,
   nestSpaces,
   nextTick,
   tabOpenKey,
@@ -48,17 +52,6 @@ import {
 const FONT = "Moralerspace Neon HW";
 const PAD_RIGHT = 10;
 
-// Moralerspace Neon HW (16px) の Nerd Font グリフは advance (8.4px) より実描画幅が広く、
-// x=0 から右にはみ出して描かれるため、advance 幅のまま中央揃えすると右にずれる。
-// 実描画幅を要素幅にして中央揃えすることで、SVG アイコン＋輪と中心を揃える
-const GLYPH_WIDTH = {
-  [GLYPH.spaceClosed]: 12,
-  [GLYPH.spaceOpen]: 12,
-  [GLYPH.shell]: 13.3,
-  [GLYPH.yazi]: 13.3,
-  [GLYPH.tabClosed]: 13.3,
-  [GLYPH.tabOpen]: 13.3,
-};
 
 function load(key, fallback) {
   try {
@@ -376,7 +369,8 @@ export default class Workspace extends View {
   }
 
   glyph(text, color) {
-    const w = GLYPH_WIDTH[text];
+    // 見た目の幅の箱にして中央に寄せ、SVG のアイコンと輪に中心を揃える (GLYPH_INK)
+    const w = GLYPH_INK[text];
     return div()
       .flex_none()
       .when(w != null, (el) => el.w(w))
@@ -385,10 +379,10 @@ export default class Workspace extends View {
       .child(text);
   }
 
-  rightSide(r, now) {
+  rightSide(r, now, c) {
     const time = r.kind === "agent" ? agentTime(this.times[r.address], now) : null;
     return [
-      ...(time ? [div().flex_none().pr(cells(1)).text_color(PALETTE.subtext0).child(time)] : []),
+      ...(time ? [div().flex_none().pr(cells(1)).text_color(c.extra).child(time)] : []),
       statusGlyph(r.status),
     ];
   }
@@ -436,11 +430,12 @@ export default class Workspace extends View {
   renderRow(r, i, ctx) {
     const { now, focused } = ctx;
     const base = { focused };
+    const c = tone(isFocusRow(r, ctx.focus));
     if (r.kind === "space") {
       return this.row(r, i, {
         ...base,
         slot: [this.glyph(r.open ? GLYPH.spaceOpen : GLYPH.spaceClosed, PALETTE.mauve)],
-        name: [div().truncate().text_color(PALETTE.text).child(r.label)],
+        name: [div().truncate().text_color(c.name).child(r.label)],
         right: [statusGlyph(r.status)],
         onClick: () => this.toggle(r.key),
       });
@@ -461,7 +456,7 @@ export default class Workspace extends View {
                 })
             : this.glyph(label.icon, PALETTE.overlay0),
         ],
-        name: [div().truncate().text_color(PALETTE.subtext0).child(label.text)],
+        name: [div().truncate().text_color(c.name).child(label.text)],
         right: [statusGlyph(r.status)],
         onClick: () => run("tab.select", { id: r.tabId }),
       });
@@ -471,16 +466,16 @@ export default class Workspace extends View {
       return this.row(r, i, {
         ...base,
         slot: [this.glyph(label.icon, PALETTE.overlay0)],
-        name: [div().truncate().text_color(PALETTE.subtext0).child(label.text)],
+        name: [div().truncate().text_color(c.name).child(label.text)],
         onClick: () => run("pane.focus", { pane: r.paneId }),
       });
     }
     if (r.kind === "agent") {
-      const name = [div().flex_none().text_color(PALETTE.text).child(r.label)];
+      const name = [div().flex_none().text_color(c.name).child(r.label)];
       let second = null;
       // 札と 2 行目は状態の表示でだけ出す
       if (this.view === "status") {
-        if (r.spaceName) name.push(div().truncate().text_color(PALETTE.overlay2).child(r.spaceName));
+        if (r.spaceName) name.push(div().truncate().text_color(c.extra).child(r.spaceName));
         const actions = activityFor(r.address, this.activity, ctx.liveAgents, this.sessions)?.actions;
         const list = Array.isArray(actions) ? actions.filter((a) => a && typeof a === "object") : [];
         const tag = domainTag(list);
@@ -492,7 +487,7 @@ export default class Workspace extends View {
         second,
         slot: this.agentSlot(r),
         name,
-        right: this.rightSide(r, now),
+        right: this.rightSide(r, now, c),
         onClick: () => run("agent.focus", { terminal: r.address }),
       });
     }
@@ -500,7 +495,7 @@ export default class Workspace extends View {
       return this.row(r, i, {
         ...base,
         slot: [],
-        name: [div().truncate().text_color(PALETTE.overlay2).child(r.label)],
+        name: [div().truncate().text_color(c.extra).child(r.label)],
         right: [statusGlyph(r.status)],
         onClick: () => run("agent.focus", { terminal: r.address }),
       });
@@ -543,6 +538,7 @@ export default class Workspace extends View {
       cx,
       liveAgents,
       focused: this.handle.is_focused(),
+      focus: focused(),
       panes: allPanes,
       spaceById: new Map(spaceList.map((s) => [s.id, s])),
     };
