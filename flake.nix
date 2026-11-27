@@ -23,7 +23,7 @@
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    nixpkgs-spotify.url = "github:nixos/nixpkgs/4fe25e12eb9f4c744966dd3de5a05246cf098601";
+    nixpkgs-spotify.url = "github:nixos/nixpkgs/619c39f6eac5d1ed6b8f073a9414baf7034b2356";
     spicetify-nix = {
       url = "github:Gerg-L/spicetify-nix";
       inputs.nixpkgs.follows = "nixpkgs-spotify";
