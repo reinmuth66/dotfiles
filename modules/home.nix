@@ -22,6 +22,7 @@
     ./wezterm.nix
     ./nvim.nix
     ./nh.nix
+    ./mcp.nix
     ./claude.nix
     ./agy.nix
     ./herdr-app.nix

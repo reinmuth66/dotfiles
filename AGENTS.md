@@ -38,8 +38,10 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
 
 - 設定ファイルは、`programs.*` で表現できない、または Lua や JSON-with-comments など Nix に変換しにくい場合に、`config/<tool>/` に置く。モジュール内で `xdg.configFile` を宣言する。
 - Nix ストアのパスが変わるたびに macOS の権限 (Accessibility など) が外れるなら、`/wrap-app-permission` スキルで `.app` に包む。
-- `~/.claude/CLAUDE.md` は `config/agents/AGENTS.md` から、`statusline.sh` は `config/claude/` から、`modules/claude.nix` が配る。
+- 個人設定のルールは 2 つに分ける。Claude Code と agy の両方に効かせるものは `config/agents/AGENTS.md` (`agy.nix` が `~/.gemini/AGENTS.md` に配る)、Claude Code だけのもの (agy:worker への任せ方、superpowers、`/code-review`) は `config/agents/CLAUDE.md` (`claude.nix` が `~/.claude/CLAUDE.md` に配り、先頭の `@` で `AGENTS.md` を読み込む)。`statusline.sh` は `config/claude/` から `claude.nix` が配る。
 - このリポジトリの skill の正本は `.agents/skills/` (agy が読む)。`.claude/skills` はそこへのシンボリックリンクで、Claude Code はこれを通して読む。skill は `.agents/skills/` に足す。
+- ルールのフォルダ (`.agents/rules/`、`.claude/rules/`) は使わない。Claude Code は agy の `trigger:` を無視し、agy は `trigger:` の無いファイルを読まず、`trigger: glob` は agy の CLI では効かない。リポジトリのルールは `AGENTS.md` に書く (両方が読む)。
+- ユーザー全体の skill は `~/.claude/skills` に置けば、agy も `~/.gemini/config/skills.json` (`agy.nix`) を通して読む。agy に要らないものは、そこの `exclude` に足す。MCP サーバーは `modules/mcp.nix` の `programs.mcp.servers` にだけ書く (両方に入る)。
 
 ## モジュールの補足
 
@@ -63,7 +65,7 @@ GitHub Actions のアクションは commit SHA で固定し、タグをコメ�
   - 拡張と線の試験は `node --test` で書き、`nix flake check` (`checks.marp-engine`) が走らせる。`checks.design-system` は、React の部品をまとめた `bundle.js` を確かめる
   - デザインシステムは <https://claude.ai/artifact/LvnvWfqkhouGZxRA2cieud> にある。`config/design-system/` を変えたら publish する。`bundle.js` はリポジトリに置かないので、`nix build .#design-system` の結果 (`result/project/`) をスクラッチパッドにコピーし、それを `root` にして Artifact ツールで同じ URL に送る。`index.d.ts` は `contentType: text/plain` を付ける。索引 `design-system.json` は、直前に読み直してから最後に送る
 - `czg.nix`: conventional commit の TUI。`importNpmLock` で `pkgs/czg/` から作る
-- `claude.nix`: Claude Code 本体は `nix-claude-code` input の overlay (`darwin.nix`) で入れる。`update-claude-code.yaml` が、この input だけを毎日更新して PR を作る。MCP サーバーは `programs.claude-code.mcpServers` で宣言する
+- `claude.nix`: Claude Code 本体は `nix-claude-code` input の overlay (`darwin.nix`) で入れる。`update-claude-code.yaml` が、この input だけを毎日更新して PR を作る。MCP サーバーは `mcp.nix` から `enableMcpIntegration` で入る
   - 外部のプラグインは、タグ固定の `flake = false` input にし、`home.file.".claude/skills/<名前>".source` でフォルダ全体を 1 本のリンクにして置く (個人のプラグインとして読まれ、hooks も効く)。`programs.claude-code.plugins` は中身を 1 つずつリンクするので、Claude Code が hooks を「プラグインの外」と見なして拒む。フックが PATH の `node` や `python3` を呼ぶものは、`pkgs/<名前>/` で絶対パスに書き換える。外すときは、flake input (`nix flake lock` で lock からも消える)、`flake/packages.nix`、`pkgs/<名前>/`、`home.file` の行、`update-<名前>.yaml` を消す
   - `settings.json` は丸ごと置き換えず、activation で jq マージする。Nix に書いたキーが勝ち、`enabledPlugins` や `permissions.allow` など Claude Code が書き込むものは残る。`hooks` だけは Nix の内容で置き換える
   - 自前の mod は `config/claude/mods/<名前>/` に置く。`~/.claude/mods/<名前>` へ `mkOutOfStoreSymlink` で配り、`settings.env.CLAUDE_CODE_PLUGIN_DIRS` に書いて常に読み込ませる (新しい mod は switch が要る)。Claude Code が mod のフォルダに書く `.claude-plugin/types/` は `.gitignore` 済み

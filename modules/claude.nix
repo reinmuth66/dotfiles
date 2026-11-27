@@ -63,14 +63,12 @@ let
 in
 {
   # 本体の pkgs.claude-code は、darwin.nix の overlay で nix-claude-code のものに差し替わっている。
-  # MCP サーバーは home-manager が生成する個人プラグインとして配られる。
+  # MCP サーバーは mcp.nix の programs.mcp から取り、home-manager が生成する個人プラグインとして配られる。
   programs.claude-code = {
     enable = true;
     # 絶対パスで書く。上流の既定値 (~/.claude) と一致していれば CLAUDE_CONFIG_DIR は export されない
     configDir = claudeDir;
-    mcpServers.playwright = {
-      command = "${pkgs.playwright-mcp}/bin/playwright-mcp";
-    };
+    enableMcpIntegration = true;
   };
 
   # settings.json は Claude Code も /permissions や /plugin で書き込むので、丸ごと置き換えずにマージする。
@@ -104,8 +102,9 @@ in
 
   # dotfiles の実体を直接指すので、編集すれば switch しなくても反映される
   home.file = {
+    # Claude 専用の部分。共通の部分 (config/agents/AGENTS.md) は先頭の @ で読み込む
     ".claude/CLAUDE.md".source =
-      config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/config/agents/AGENTS.md";
+      config.lib.file.mkOutOfStoreSymlink "${config.home.homeDirectory}/dotfiles/config/agents/CLAUDE.md";
     ".claude/statusline.sh".source =
       config.lib.file.mkOutOfStoreSymlink "${claudeDotfilesDir}/statusline.sh";
     ".claude/hooks/herdr-record.mjs".source =

@@ -1,12 +1,8 @@
-# 個人設定
+# Claude Code の個人設定
 
-## 応答設定
-- すべての応答は日本語で
-- 絵文字の使用は禁止
+共通の設定 (agy にも配る) は次のファイルにある。
 
-## ツール
-- URL の取得、Web ページの調査、HTML からの抽出には `ax` を使う。WebFetch、`curl`、使い捨てのスクリプトは使わない。使い方は skill `ax` か `ax agent-context` で確認する
-- herdr の中 (環境変数 `HC_TERMINAL_ID` がある) では、skill `terminal-browser` の `terminal-browser action` の代わりに `herdr-browser-action` を使う (引数は同じ。preview の browser の枠のブラウザを操作する)。`terminal-browser ls` と `open` は herdr の中では使わない
+@~/dotfiles/config/agents/AGENTS.md
 
 ## agy
 - superpowers:subagent-driven-development の実装役 (直しを含む) は `subagent_type: "agy:worker"` で起動する。`model` は渡さない (モデルを呼ばないため)
@@ -21,16 +17,9 @@
 - 直しが 4 回目以上になったとき、BLOCKED のとき、META の `status:` が ok でないとき (outside、bad-model、bad-role を除く)、DIGEST に `Status:` の行が無いとき、agy の Claude でも `status: quota` のときは、Claude の実装役 (`subagent_type: "general-purpose"`、`model: "sonnet"`。effort は渡さず、普段の superpowers の実装役と同じく settings の `modelSettings` の値に任せる) に戻す。確認役は、agy が使えなければ superpowers の reviewer に戻す
 
 ## 実装の進め方
-- この節と「レビュー」の節は、superpowers の skill の指示 (「1% でも当てはまれば使う」を含む) より優先する
+- この節、共通の設定の「実装の進め方」、「レビュー」の節は、superpowers の skill の指示 (「1% でも当てはまれば使う」を含む) より優先する
 - 変更が小さく (数ファイル以内で、仕様がはっきりしている) 設計の判断が要らないときは、superpowers の brainstorming と writing-plans を使わずに直接実装する
-- 変更は小さく、かつ完全にする。変更が届くべき場所 (呼び出し元、同じ規則を持つ別の入口、テスト、設定、ドキュメント) は同じ変更で全部直し、後回しの課題にしない。頼まれていない選択肢、設定、互換の層、データの修復は足さない。保存済みのデータの修復が要るときは先に聞く
-- コードベースに既にあるもの、標準ライブラリ、入っている依存を、新しく書くより先に使う
-- レビューの指摘は、実際に起こりうる入力 (利用者、実際のファイル、連携先、並行して動く処理が作るもの) を名指しできるものだけを直す。前のレビューの直しで足したコードへの指摘や、直しが元のコードより大きくなる指摘は、利用者に判断を仰ぐ
 
 ## レビュー
 - バグを探すレビューは `/code-review` を使う。superpowers の最終レビュー (subagent-driven-development の whole-branch review) と requesting-code-review の代わりに、ブランチの差分に `/code-review medium` を走らせ、その指摘を最終レビューの指摘として扱う (直しは 1 つの subagent にまとめて渡す)
 - superpowers のタスクごとのレビュー (計画どおりかの確認) は、そのまま superpowers の reviewer に任せる
-
-## 禁止事項
-- `pip3 install`などpythonライブラリの無許可インストール
-- ファイル編集での`sed -i`の使用。代わりにEditツールを使う
