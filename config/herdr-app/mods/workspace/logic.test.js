@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nestSpaces, contextFor, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS } from "./logic.js";
+import { nestSpaces, contextFor, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, tabOpenKey, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS } from "./logic.js";
 
 const sp = (id, tabs, extra = {}) => ({ id, name: id, folder: `/r/${id}`, status: null, tabs, ...extra });
 const tab = (id, extra = {}) => ({ id, name: id, named: false, status: null, working_since: null, changed_at: null, ...extra });
@@ -84,11 +84,33 @@ test("buildStructure: 1 エージェントのタブはサブエージェント�
 test("buildStructure: 複数エージェントのタブでサブエージェントがいるときは tab → agent → sub", () => {
   const nested = [{ space: sp("s1", [tab("a")]), depth: 0 }];
   const agents = [ag("t1", "a", "working"), ag("t2", "a", "idle")];
-  const rows = buildStructure({ nested, agents, subagents: { t1: [{ id: "x", type: "Explore" }] }, sessions: {}, collapsed: new Set() });
+  const rows = buildStructure({ nested, agents, subagents: { t1: [{ id: "x", type: "Explore" }] }, sessions: {}, collapsed: new Set([tabOpenKey("a")]) });
   assert.deepEqual(
     rows.map((r) => [r.kind, r.depth]),
     [["space", 0], ["tab", 1], ["agent", 2], ["sub", 3], ["agent", 2]],
   );
+});
+test("buildStructure: 複数 pane のタブは最初は畳み、開くと pane の並びでエージェントと端末を並べる", () => {
+  const nested = [{ space: sp("s1", [tab("a")]), depth: 0 }];
+  const agents = [ag("t1", "a", "working", { pane: "p2" })];
+  const panes = [{ pane: "p1", tab: "a" }, { pane: "p2", tab: "a" }, { pane: "q", tab: "other" }];
+  const base = { nested, agents, subagents: {}, sessions: {}, panes };
+  const folded = buildStructure({ ...base, collapsed: new Set() });
+  assert.deepEqual(folded.map((r) => [r.kind, r.depth]), [["space", 0], ["tab", 1]]);
+  assert.equal(folded[1].hasChildren, true);
+  assert.equal(folded[1].open, false);
+  assert.equal(folded[1].status, "working");
+  assert.equal(folded[1].program.name, "Claude Code");
+  const opened = buildStructure({ ...base, collapsed: new Set([tabOpenKey("a")]) });
+  assert.deepEqual(opened.map((r) => [r.kind, r.depth, r.key]), [["space", 0, "space:s1"], ["tab", 1, "tab:a"], ["pane", 2, "pane:p1"], ["agent", 2, "agent:t1"]]);
+  assert.equal(opened[1].status, null);
+});
+test("buildStructure: pane が 1 つのタブは開閉の矢印を持たない", () => {
+  const nested = [{ space: sp("s1", [tab("a"), tab("b")]), depth: 0 }];
+  const panes = [{ pane: "p1", tab: "a" }, { pane: "p2", tab: "b" }];
+  const rows = buildStructure({ nested, agents: [ag("t1", "b", "idle", { pane: "p2" })], subagents: {}, sessions: {}, panes, collapsed: new Set() });
+  assert.deepEqual(rows.map((r) => [r.kind, r.hasChildren]), [["space", true], ["tab", false], ["agent", false]]);
+  assert.equal(rows[1].program, null);
 });
 test("buildStructure: エージェントが 2 つのタブは下に並べ、worktree は字下げ、モデルが無ければプログラム名・tab_name", () => {
   const nested = [
@@ -96,14 +118,16 @@ test("buildStructure: エージェントが 2 つのタブは下に並べ、work
     { space: sp("s2", [tab("z")]), depth: 1 },
   ];
   const agents = [ag("t1", "a", "idle"), ag("t2", "a", "blocked"), ag("t3", "z", "done", { space: "s2", program: null })];
-  const rows = buildStructure({ nested, agents, subagents: {}, sessions: { t1: { model: "Opus 5.5" } }, collapsed: new Set() });
+  const rows = buildStructure({ nested, agents, subagents: {}, sessions: { t1: { model: "Opus 5.5" } }, collapsed: new Set([tabOpenKey("a")]) });
   assert.deepEqual(rows.map((r) => [r.kind, r.depth, r.label]), [
     ["space", 0, "s1"], ["tab", 1, null], ["agent", 2, "Opus 5.5"], ["agent", 2, "Claude Code"],
     ["space", 1, "s2"], ["agent", 2, "z"],
   ]);
   // 開いた space は中の行が状態を出すので、space の行には出さない
   assert.equal(rows[0].status, null);
-  assert.equal(rows[1].status, "blocked");
+  assert.equal(rows[1].status, null);
+  const tabFolded = buildStructure({ nested, agents, subagents: {}, sessions: {}, collapsed: new Set() });
+  assert.equal(tabFolded[1].status, "blocked");
   assert.equal(rows[4].status, null);
   const closed = buildStructure({ nested, agents, subagents: {}, sessions: {}, collapsed: new Set(["space:s1", "space:s2"]) });
   assert.deepEqual(closed.map((r) => r.status), ["blocked", "done"]);

@@ -41,6 +41,7 @@ import {
   contextFor,
   nestSpaces,
   nextTick,
+  tabOpenKey,
   trackAgentTimes,
 } from "./logic.js";
 
@@ -55,6 +56,8 @@ const GLYPH_WIDTH = {
   [GLYPH.spaceOpen]: 12,
   [GLYPH.shell]: 13.3,
   [GLYPH.yazi]: 13.3,
+  [GLYPH.tabClosed]: 13.3,
+  [GLYPH.tabOpen]: 13.3,
 };
 
 function load(key, fallback) {
@@ -132,6 +135,7 @@ export default class Workspace extends View {
     this.tick = null;
     this.tickAt = null; // 予約した描き直しの時刻 (ms)
     this.seenAgents = false; // 一度でも agents() が空でなかったか
+    this.activePane = new Map(); // タブ -> 最後に focus された端末の pane (タブの名前に使う)
     this.handle = cx.focus_handle();
     this.scroll = ScrollHandle.new();
     this.watch = watchJsonDir(cx, "sessions", (files) => {
@@ -209,16 +213,30 @@ export default class Workspace extends View {
     return repoRootNow(this.roots, cwd, cx);
   }
 
-  // エージェントのいないタブの名前と記号。名前は枠の見出しと同じ決まり、rename した名前が先
-  tabLabel(row, spaceById, allPanes, cx) {
-    const pane = allPanes.find((p) => p.tab === row.tabId && p.terminal);
+  // タブの名前と記号。rename した名前、最後に focus された pane の名前、最初のエージェントのプログラム名、
+  // 最初の端末の pane の名前の順。エージェントの pane の名前はプログラム名
+  tabLabel(row, spaceById, allPanes, liveAgents, cx) {
+    const activeId = this.activePane.get(row.tabId);
+    const active = activeId ? allPanes.find((p) => p.pane === activeId && p.tab === row.tabId && p.terminal) : null;
+    const pane = active ?? allPanes.find((p) => p.tab === row.tabId && p.terminal);
+    const label = this.paneText(pane, row.spaceId, spaceById, cx);
+    if (row.label) return { ...label, text: row.label };
+    if (active) {
+      const agent = liveAgents.find((a) => a.pane === active.pane);
+      return agent?.program?.name ? { ...label, text: agent.program.name } : label;
+    }
+    if (row.program?.name) return { ...label, text: row.program.name };
+    return label;
+  }
+
+  // エージェントのいない端末の pane の名前と記号。名前は枠の見出しと同じ決まり
+  paneText(pane, spaceId, spaceById, cx) {
     const program = pane?.program;
     const processName = program ? (program.key === "program" ? program.name : program.key) : "";
-    const icon = processName === "yazi" ? GLYPH.yazi : GLYPH.shell;
-    if (row.label) return { icon, text: row.label };
-    if (!pane) return { icon, text: "" };
-    const remote = isRemoteSpace(spaceById.get(row.spaceId)) || isRemoteAddress(pane.pane);
-    const label = paneLabel({
+    if (!pane) return { icon: GLYPH.shell, text: "" };
+    const remote = isRemoteSpace(spaceById.get(spaceId)) || isRemoteAddress(pane.pane);
+    // 記号も枠の見出しと同じ paneLabel の値を使う
+    return paneLabel({
       programKey: program?.key,
       processName,
       shell: Boolean(program?.shell),
@@ -226,7 +244,6 @@ export default class Workspace extends View {
       repoRoot: remote ? null : this.rootOf(pane.cwd, cx),
       home: home(),
     });
-    return { icon, text: label.text };
   }
 
   updateTimes(liveAgents, spaceList, now) {
@@ -273,6 +290,7 @@ export default class Workspace extends View {
     if (!row) return;
     if (row.kind === "space" || row.kind === "group") this.toggle(row.key);
     else if (row.kind === "tab") run("tab.select", { id: row.tabId });
+    else if (row.kind === "pane") run("pane.focus", { pane: row.paneId });
     else if (row.kind === "agent" || row.kind === "sub") run("agent.focus", { terminal: row.address });
   }
 
@@ -389,9 +407,13 @@ export default class Workspace extends View {
         .child(ringElement(pct == null ? 0 : Math.min(1, pct / 100), pct == null ? null : contextColor(pct))),
     );
     slot.push(agentIcon(r.program, session?.model ?? null).flex_none());
-    if (r.hasChildren) {
-      slot.push(
-        div()
+    if (r.hasChildren) slot.push(this.chevron(r, r.key));
+    return slot;
+  }
+
+  // 記号の左の列に置く開閉の矢印
+  chevron(r, toggleKey) {
+    return div()
           .id(`chev-${r.key}`)
           .absolute()
           .left(-cells(METRICS.indentCells))
@@ -405,13 +427,10 @@ export default class Workspace extends View {
           .text_color(PALETTE.overlay2)
           .on_click((_e, cx) => {
             cx.stop_propagation();
-            this.toggle(r.key);
+            this.toggle(toggleKey);
             cx.notify();
           })
-          .child(r.open ? GLYPH.chevronDown : GLYPH.chevronRight),
-      );
-    }
-    return slot;
+          .child(r.open ? GLYPH.chevronDown : GLYPH.chevronRight);
   }
 
   renderRow(r, i, ctx) {
@@ -427,13 +446,33 @@ export default class Workspace extends View {
       });
     }
     if (r.kind === "tab") {
-      const label = this.tabLabel(r, ctx.spaceById, ctx.panes, ctx.cx);
+      const label = this.tabLabel(r, ctx.spaceById, ctx.panes, ctx.liveAgents, ctx.cx);
+      return this.row(r, i, {
+        ...base,
+        // 複数 pane のタブは開閉で変わるタブの記号 (押すと開閉)、pane が 1 つならその pane の記号 (枠の見出しと同じ)
+        slot: [
+          r.hasChildren
+            ? this.glyph(r.open ? GLYPH.tabOpen : GLYPH.tabClosed, PALETTE.overlay0)
+                .id(`tab-toggle-${r.tabId}`)
+                .on_click((_e, cx) => {
+                  cx.stop_propagation();
+                  this.toggle(tabOpenKey(r.tabId));
+                  cx.notify();
+                })
+            : this.glyph(label.icon, PALETTE.overlay0),
+        ],
+        name: [div().truncate().text_color(PALETTE.subtext0).child(label.text)],
+        right: [statusGlyph(r.status)],
+        onClick: () => run("tab.select", { id: r.tabId }),
+      });
+    }
+    if (r.kind === "pane") {
+      const label = this.paneText(ctx.panes.find((p) => p.pane === r.paneId), r.spaceId, ctx.spaceById, ctx.cx);
       return this.row(r, i, {
         ...base,
         slot: [this.glyph(label.icon, PALETTE.overlay0)],
         name: [div().truncate().text_color(PALETTE.subtext0).child(label.text)],
-        right: [statusGlyph(r.status)],
-        onClick: () => run("tab.select", { id: r.tabId }),
+        onClick: () => run("pane.focus", { pane: r.paneId }),
       });
     }
     if (r.kind === "agent") {
@@ -488,11 +527,13 @@ export default class Workspace extends View {
     this.refreshRepos(spaceList, cx);
     this.updateTimes(liveAgents, spaceList, now);
     const subagents = collectSubagents(liveAgents, this.activity, terminals(), this.sessions, now);
+    const allPanes = panes();
+    for (const p of allPanes) if (p.focused && p.terminal) this.activePane.set(p.tab, p.pane);
     const input = { agents: liveAgents, subagents, sessions: this.sessions, collapsed: this.collapsed };
     const rows =
       this.view === "status"
         ? buildGroups(input)
-        : buildStructure({ ...input, nested: nestSpaces(spaceList, this.repos) });
+        : buildStructure({ ...input, nested: nestSpaces(spaceList, this.repos), panes: allPanes.filter((p) => p.terminal) });
     this.rows = rows;
     this.cursor = Math.min(this.cursor, Math.max(0, rows.length - 1));
     setAgentOrder(agentOrder(rows));
@@ -502,7 +543,7 @@ export default class Workspace extends View {
       cx,
       liveAgents,
       focused: this.handle.is_focused(),
-      panes: panes(),
+      panes: allPanes,
       spaceById: new Map(spaceList.map((s) => [s.id, s])),
     };
     return v_flex()

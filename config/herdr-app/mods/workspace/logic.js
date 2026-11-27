@@ -133,8 +133,13 @@ const subRow = (agent, sub, depth, status) => ({
   address: agent.address,
 });
 
-// space → タブ → エージェント → サブエージェント
-export function buildStructure({ nested, agents, subagents, sessions = {}, collapsed }) {
+// 複数 pane のタブは最初は畳む。開いたタブを collapsed に覚える (他の行とは逆の意味)
+export const tabOpenKey = (tabId) => `tab-open:${tabId}`;
+
+// space → タブ → pane (エージェントか、エージェントのいない端末) → サブエージェント。
+// pane が 1 つのタブはその pane の行がタブの代わり、2 つ以上なら畳めるタブの行の下に全部の pane を並べる。
+// panes は端末の pane ({ pane, tab }) を並び順で
+export function buildStructure({ nested, agents, subagents, sessions = {}, collapsed, panes = [] }) {
   const rows = [];
   for (const { space, depth } of nested) {
     const tabAgents = (tab) => agents.filter((a) => a.tab === tab.id);
@@ -155,29 +160,40 @@ export function buildStructure({ nested, agents, subagents, sessions = {}, colla
     const td = depth + 1;
     for (const tab of space.tabs) {
       const list = tabAgents(tab);
-      const subsOf = (a) => subagents[a.address] ?? [];
-      if (list.length === 1) {
-        const agent = list[0];
-        const subs = subsOf(agent);
-        const agentOpen = !collapsed.has(`agent:${agent.address}`);
-        rows.push(agentRow(agent, td, sessions, { spaceId: space.id, hasChildren: subs.length > 0, open: agentOpen }));
-        if (agentOpen) for (const sub of subs) rows.push(subRow(agent, sub, td + 1, agent.status));
+      const pushAgent = (agent, depth) => {
+        const subs = subagents[agent.address] ?? [];
+        const open = !collapsed.has(`agent:${agent.address}`);
+        rows.push(agentRow(agent, depth, sessions, { spaceId: space.id, hasChildren: subs.length > 0, open }));
+        if (open) for (const sub of subs) rows.push(subRow(agent, sub, depth + 1, agent.status));
+      };
+      // pane の並びでエージェントと端末を並べる。panes に無いエージェントは後ろに足す
+      const byPane = new Map(list.filter((a) => a.pane != null).map((a) => [a.pane, a]));
+      const units = panes.filter((p) => p.tab === tab.id).map((p) => byPane.get(p.pane) ?? { pane: p.pane });
+      for (const a of list) if (!units.includes(a)) units.push(a);
+      if (units.length === 1 && units[0].address) {
+        pushAgent(units[0], td);
         continue;
       }
+      const several = units.length > 1;
+      const open = several && collapsed.has(tabOpenKey(tab.id));
       rows.push({
         key: `tab:${tab.id}`,
         kind: "tab",
         depth: td,
         label: tab.named ? tab.name : null,
-        status: mostUrgent([tab.status, ...list.map((a) => a.status)].filter(Boolean)),
+        // 名前の 2 番目の候補: 最初のエージェントのプログラム
+        program: list[0]?.program ?? null,
+        // 開いたタブは中の行が状態を出す
+        status: open ? null : mostUrgent([tab.status, ...list.map((a) => a.status)].filter(Boolean)),
         tabId: tab.id,
         spaceId: space.id,
+        hasChildren: several,
+        open,
       });
-      for (const agent of list) {
-        const subs = subsOf(agent);
-        const open = !collapsed.has(`agent:${agent.address}`);
-        rows.push(agentRow(agent, td + 1, sessions, { spaceId: space.id, hasChildren: subs.length > 0, open }));
-        if (open) for (const sub of subs) rows.push(subRow(agent, sub, td + 2, agent.status));
+      if (!open) continue;
+      for (const unit of units) {
+        if (unit.address) pushAgent(unit, td + 1);
+        else rows.push({ key: `pane:${unit.pane}`, kind: "pane", depth: td + 1, paneId: unit.pane, tabId: tab.id, spaceId: space.id, status: null });
       }
     }
   }

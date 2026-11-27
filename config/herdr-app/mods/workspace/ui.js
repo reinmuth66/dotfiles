@@ -18,6 +18,8 @@ export const GLYPH = {
   diffRemoved: "\u{f458}",
   branch: "\u{f418}",
   terminal: "\u{f489}",
+  tabClosed: "\u{f0570}",
+  tabOpen: "\u{f00c7}",
 };
 
 // WezTerm の process_icons から。yazi だけ md_duck

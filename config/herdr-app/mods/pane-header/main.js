@@ -11,6 +11,8 @@ import { headerFor, isAgentPane } from "./logic.js";
 const FONT = "Moralerspace Neon HW";
 const TEXT = 12;
 const SEP = " · ";
+// glyphSize の記号の見た目の幅 (workspace の GLYPH_WIDTH と同じ値)
+const GLYPH_INK = 13.3;
 
 function arcPath(from, to, outer, stroke) {
   const arc = arcSteps(from, to, outer, stroke);
@@ -87,6 +89,7 @@ export default class PaneHeader extends View {
       .when(h.tokens != null, (row) => row.child(div().flex_none().text_color(h.tokensColor).child(h.tokens)));
   }
 
+  // 記号の字の送り幅は見た目より広く、輪の幅の箱で中央に寄せると右にずれる。見た目の幅 (GLYPH_INK) の箱に入れてから寄せる
   plain(el, h) {
     return el
       .child(
@@ -95,9 +98,7 @@ export default class PaneHeader extends View {
           .w(METRICS.ring)
           .flex()
           .justify_center()
-          .text_size(METRICS.glyphSize)
-          .text_color(PALETTE.overlay0)
-          .child(h.icon),
+          .child(div().flex_none().w(GLYPH_INK).text_size(METRICS.glyphSize).text_color(PALETTE.overlay0).child(h.icon)),
       )
       .child(div().flex_1().min_w(0).truncate().text_color(PALETTE.subtext0).child(h.text));
   }
