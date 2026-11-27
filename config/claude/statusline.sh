@@ -147,13 +147,18 @@ if [ -n "${HC_TERMINAL_ID+x}" ]; then
     data_dir="${HERDR_APP_HOME:-$HOME/.config/herdr-app}/data"
     if mkdir -p "$data_dir/limits" "$data_dir/sessions"; then
       session_json=$(printf '%s' "$input" | jq -c --arg terminal "$HC_TERMINAL_ID" '
-        (.effort.level // .model.effort // null) as $effort | {
+        def nonempty: if type == "string" and length > 0 then . else null end;
+        ([((.model.display_name | nonempty) // "") | capture(" \\((?<e>minimal|low|medium|high|xhigh|extra high|max)\\)$"; "i").e | ascii_downcase][0]) as $name_effort |
+        ((.effort.level | nonempty) // (.model.effort | nonempty) // $name_effort) as $effort |
+        (.model.effort | nonempty) as $model_effort | {
         terminal: $terminal,
         session_id: (.session_id // null),
         cwd: (.cwd // null),
         model: (if .model.display_name == null then null
-          elif (.model.effort // "") != "" then (.model.display_name | sub(" \\(" + $effort + "\\)$"; ""; "i"))
-          else .model.display_name end),
+          else (.model.display_name
+            | (if $model_effort != null then sub(" \\(" + $model_effort + "\\)$"; ""; "i") else . end)
+            | sub(" \\((minimal|low|medium|high|xhigh|extra high|max)\\)$"; ""; "i"))
+          end),
         effort: $effort,
         context: (if .context_window.current_usage == null or (.context_window.context_window_size // 0) <= 0 then null else {
           used: ((.context_window.current_usage.input_tokens // 0)

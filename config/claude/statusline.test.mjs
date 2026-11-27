@@ -172,6 +172,22 @@ test("herdr の中 (agy): model.effort、context_window_size 0、quota を扱う
 
   run({ ...agyFixture, context_window: { context_window_size: 0, current_usage: { input_tokens: 10 } } }, "t-agy-zero");
   assert.equal(readJson("app/data/sessions/t-agy-zero.json").context, null);
+
+  // モデル切替直後に model.effort が欠けたり古い値と食い違っても、model から effort 表記を落とす
+  run({ ...agyFixture, model: { id: "Gemini 4 Neon (High)", display_name: "Gemini 4 Neon (High)" } }, "t-agy-no-effort");
+  const sNoEffort = readJson("app/data/sessions/t-agy-no-effort.json");
+  assert.deepEqual([sNoEffort.model, sNoEffort.effort], ["Gemini 4 Neon", "high"]);
+
+  run(
+    { ...agyFixture, model: { id: "Gemini 4 Neon (High)", display_name: "Gemini 4 Neon (High)", effort: "medium" } },
+    "t-agy-mismatch",
+  );
+  const sMismatch = readJson("app/data/sessions/t-agy-mismatch.json");
+  assert.equal(sMismatch.model, "Gemini 4 Neon");
+
+  // effort 以外の括弧表記 (1M context など) は残す
+  run({ ...fixture, model: { display_name: "Opus 4.6 (1M context)" } }, "t-claude-ctx");
+  assert.equal(readJson("app/data/sessions/t-claude-ctx.json").model, "Opus 4.6 (1M context)");
 });
 
 test("herdr の中 (agy): cycle_mode だけを右端に表示し、default (未設定) では出さない", () => {
