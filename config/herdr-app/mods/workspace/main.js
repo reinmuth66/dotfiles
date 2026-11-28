@@ -40,11 +40,22 @@ import {
   agentTime,
   buildGroups,
   buildStructure,
+  closeKey,
   collectSubagents,
   contextFor,
+  effectiveCollapsed,
+  focusContainers,
+  highlightKey,
   isFocusRow,
+  moveTarget,
   nestSpaces,
   nextTick,
+  openKey,
+  pruneHeld,
+  stepAgent,
+  stepGroup,
+  stepSpace,
+  stepTab,
   tabOpenKey,
   trackAgentTimes,
 } from "./logic.js";
@@ -116,6 +127,7 @@ export default class Workspace extends View {
     this.view = view === "status" ? "status" : "structure";
     const collapsed = load("collapsed", null);
     this.collapsed = new Set(Array.isArray(collapsed) ? collapsed : ["group:idle"]);
+    this.held = new Set(); // focus 中に自分で閉じた鍵
     const times = load("times", {});
     this.times = times && typeof times === "object" && !Array.isArray(times) ? times : {};
     this.sessions = {};
@@ -123,13 +135,10 @@ export default class Workspace extends View {
     this.reposKey = null;
     this.reposAt = null; // 最後に読み終えた時刻 (ms)
     this.roots = new Map(); // cwd → git のルート (repoRootNow が使う)
-    this.cursor = 0;
-    this.rows = [];
     this.tick = null;
     this.tickAt = null; // 予約した描き直しの時刻 (ms)
     this.seenAgents = false; // 一度でも agents() が空でなかったか
     this.activePane = new Map(); // タブ -> 最後に focus された端末の pane (タブの名前に使う)
-    this.handle = cx.focus_handle();
     this.scroll = ScrollHandle.new();
     this.watch = watchJsonDir(cx, "sessions", (files) => {
       this.sessions = files;
@@ -144,8 +153,7 @@ export default class Workspace extends View {
     cx.spawn(async (cx) => {
       for (;;) {
         const c = await nextCommand();
-        if (c === "toggle-view") this.toggleView();
-        else if (c === "focus") this.handle.focus();
+        this.handleCommand(c);
         cx.notify();
       }
     });
@@ -160,14 +168,83 @@ export default class Workspace extends View {
 
   toggleView() {
     this.view = this.view === "structure" ? "status" : "structure";
-    this.cursor = 0;
     save("view", this.view);
   }
 
-  toggle(key) {
-    if (this.collapsed.has(key)) this.collapsed.delete(key);
-    else this.collapsed.add(key);
+  // 自動で開いた行を閉じる場合もあるため、開閉は反転ではなく明示的に設定する
+  setOpen(key, open, containers = []) {
+    const isTab = key.startsWith("tab-open:");
+    if (open) {
+      if (isTab) this.collapsed.add(key);
+      else this.collapsed.delete(key);
+      this.held.delete(key);
+    } else {
+      if (isTab) this.collapsed.delete(key);
+      else this.collapsed.add(key);
+      if (containers.includes(key)) this.held.add(key);
+    }
     save("collapsed", [...this.collapsed]);
+  }
+
+  handleCommand(c) {
+    if (c === "toggle-view") {
+      this.toggleView();
+      return;
+    }
+    const focus = focused();
+    const spaceList = spaces();
+    const liveAgents = agents();
+    const allPanes = panes();
+    const termPanes = allPanes.filter((p) => p.terminal);
+    const nested = nestSpaces(spaceList, this.repos);
+    const groups = () =>
+      buildGroups({ agents: liveAgents, subagents: {}, sessions: this.sessions, collapsed: new Set(), times: this.times });
+
+    if (c === "next" || c === "prev") {
+      const dir = c === "next" ? 1 : -1;
+      if (this.view === "structure") {
+        const id = stepTab(nested, focus, dir);
+        if (id != null) run("tab.select", { id });
+      } else {
+        const terminal = stepAgent(groups(), focus, dir);
+        if (terminal != null) run("agent.focus", { terminal });
+      }
+      return;
+    }
+    if (c === "next-group" || c === "prev-group") {
+      const dir = c === "next-group" ? 1 : -1;
+      if (this.view === "structure") {
+        const id = stepSpace(nested, focus, dir);
+        if (id != null) run("space.select", { id });
+      } else {
+        const terminal = stepGroup(groups(), focus, dir);
+        if (terminal != null) run("agent.focus", { terminal });
+      }
+      return;
+    }
+    if (c === "move-down" || c === "move-up" || c === "move-group-down" || c === "move-group-up") {
+      if (this.view !== "structure") return;
+      const dir = c === "move-down" || c === "move-group-down" ? 1 : -1;
+      const level = c === "move-group-down" || c === "move-group-up" ? "space" : "tab";
+      const target = moveTarget(nested, focus, dir, level);
+      if (target) run(target.command, target.args);
+      return;
+    }
+    if (c === "open" || c === "open-group" || c === "close" || c === "close-group") {
+      const level = c === "open-group" || c === "close-group" ? "group" : "small";
+      const containers = focusContainers({ view: this.view, nested, agents: liveAgents, panes: termPanes, focus });
+      this.held = pruneHeld(this.held, containers);
+      const collapsed = effectiveCollapsed(this.collapsed, containers, this.held);
+      const subagents = collectSubagents(liveAgents, this.activity, terminals(), this.sessions, Date.now());
+      const input = { agents: liveAgents, subagents, sessions: this.sessions, collapsed };
+      const rows =
+        this.view === "status"
+          ? buildGroups({ ...input, times: this.times })
+          : buildStructure({ ...input, nested, panes: termPanes });
+      const opening = c === "open" || c === "open-group";
+      const key = opening ? openKey(rows, focus, containers, level) : closeKey(rows, focus, containers, level);
+      if (key) this.setOpen(key, opening, containers);
+    }
   }
 
   // space ごとの git の場所 (worktree の入れ子に使う)。folder が変わったときに読み直す。
@@ -279,33 +356,27 @@ export default class Workspace extends View {
     });
   }
 
-  activate(row) {
-    if (!row) return;
-    if (row.kind === "space" || row.kind === "group") this.toggle(row.key);
-    else if (row.kind === "tab") run("tab.select", { id: row.tabId });
-    else if (row.kind === "pane") run("pane.focus", { pane: row.paneId });
-    else if (row.kind === "agent" || row.kind === "sub") run("agent.focus", { terminal: row.address });
-  }
-
-  key(e, cx) {
-    const m = e.modifiers ?? {};
-    if (m.control || m.alt || m.platform) return;
-    const last = Math.max(0, this.rows.length - 1);
-    if (e.key === "j") this.cursor = Math.min(last, this.cursor + 1);
-    else if (e.key === "k") this.cursor = Math.max(0, this.cursor - 1);
-    else if (e.key === "enter") this.activate(this.rows[this.cursor]);
-    else if (e.key === "escape") run("pane.go", { direction: "right" });
-    else return;
-    if (this.cursor < this.rows.length) this.scroll.scroll_to_item(this.cursor);
-    cx.stop_propagation();
-    cx.notify();
-  }
-
   // [段 × 字下げ][記号の枠][間][名前 …][右端]
   // baseline: まとまりの見出し。印を木構造の記号の枠ではなく、帯の全体の記号の列 (glyphCol) に置く
   // second: 2 行目の文 (状態の表示のエージェントの行だけ)。名前の文字の頭に揃え、上を 2px 空ける
-  row(r, i, { slot, name, right = [], onClick, focused, baseline = false, second = null }) {
+  row(r, { slot, name, right = [], onClick, onSlotClick = null, highlight = false, baseline = false, second = null }) {
     const indent = METRICS.padLeft + r.depth * cells(METRICS.indentCells);
+    const slotBox = div()
+      .relative()
+      .flex_none()
+      .w(baseline ? METRICS.glyphCol : cells(METRICS.slotCells))
+      .h_full()
+      .flex()
+      .items_center()
+      .when(!baseline, (el) => el.justify_center())
+      .when(onSlotClick, (el) =>
+        el.id(`slot-${r.key}`).on_click((_e, cx) => {
+          cx.stop_propagation();
+          onSlotClick(cx);
+          cx.notify();
+        }),
+      )
+      .children(slot);
     const line = h_flex()
       .flex_none()
       .w_full()
@@ -313,17 +384,7 @@ export default class Workspace extends View {
       .pl(indent)
       .pr(PAD_RIGHT)
       .items_center()
-      .child(
-        div()
-          .relative()
-          .flex_none()
-          .w(baseline ? METRICS.glyphCol : cells(METRICS.slotCells))
-          .h_full()
-          .flex()
-          .items_center()
-          .when(!baseline, (el) => el.justify_center())
-          .children(slot),
-      )
+      .child(slotBox)
       .when(!baseline, (el) => el.child(div().flex_none().w(cells(METRICS.gapCells))))
       .child(h_flex().flex_1().min_w(0).gap(cells(1)).items_center().children(name))
       .children(right);
@@ -345,9 +406,8 @@ export default class Workspace extends View {
       : line;
     return el
       .id(`row-${r.key}`)
-      .when(focused && i === this.cursor, (el) => el.bg(PALETTE.surface0))
+      .when(highlight, (el) => el.bg(PALETTE.surface0))
       .on_click((_e, cx) => {
-        this.cursor = i;
         onClick?.(cx);
         cx.notify();
       });
@@ -401,69 +461,47 @@ export default class Workspace extends View {
         .child(ringElement(pct == null ? 0 : Math.min(1, pct / 100), pct == null ? null : contextColor(pct))),
     );
     slot.push(agentIcon(r.program, session?.model ?? null).flex_none());
-    if (r.hasChildren) slot.push(this.chevron(r, r.key));
     return slot;
   }
 
-  // 記号の左の列に置く開閉の矢印
-  chevron(r, toggleKey) {
-    return div()
-          .id(`chev-${r.key}`)
-          .absolute()
-          .left(-cells(METRICS.indentCells))
-          .top(0)
-          .w(cells(METRICS.slotCells))
-          .h_full()
-          .flex()
-          .items_center()
-          .justify_center()
-          .text_size(METRICS.glyphSize)
-          .text_color(PALETTE.overlay2)
-          .on_click((_e, cx) => {
-            cx.stop_propagation();
-            this.toggle(toggleKey);
-            cx.notify();
-          })
-          .child(r.open ? GLYPH.chevronDown : GLYPH.chevronRight);
-  }
-
-  renderRow(r, i, ctx) {
-    const { now, focused } = ctx;
-    const base = { focused };
+  renderRow(r, ctx) {
+    const { now } = ctx;
+    const base = { highlight: r.key === ctx.highlight };
     const c = tone(isFocusRow(r, ctx.focus));
     if (r.kind === "space") {
-      return this.row(r, i, {
+      return this.row(r, {
         ...base,
         slot: [this.glyph(r.open ? GLYPH.spaceOpen : GLYPH.spaceClosed, PALETTE.mauve)],
         name: [div().truncate().text_color(c.name).child(r.label)],
         right: [statusGlyph(r.status)],
-        onClick: () => this.toggle(r.key),
+        onSlotClick: r.hasChildren ? () => this.setOpen(r.key, !r.open, ctx.containers) : null,
+        onClick: () => run("space.select", { id: r.spaceId }),
       });
     }
     if (r.kind === "tab") {
       const label = this.tabLabel(r, ctx.spaceById, ctx.panes, ctx.liveAgents, ctx.cx);
-      return this.row(r, i, {
+      return this.row(r, {
         ...base,
         // 複数 pane のタブは開閉で変わるタブの記号 (押すと開閉)、pane が 1 つならその pane の記号 (枠の見出しと同じ)
         slot: [
           r.hasChildren
             ? this.glyph(r.open ? GLYPH.tabOpen : GLYPH.tabClosed, PALETTE.overlay0)
-                .id(`tab-toggle-${r.tabId}`)
-                .on_click((_e, cx) => {
-                  cx.stop_propagation();
-                  this.toggle(tabOpenKey(r.tabId));
-                  cx.notify();
-                })
             : this.glyph(label.icon, PALETTE.overlay0),
         ],
         name: [div().truncate().text_color(c.name).child(label.text)],
-        right: [statusGlyph(r.status)],
+        right: [
+          ...(r.paneCount
+            ? [div().flex_none().w(METRICS.glyphSize).flex().justify_end().text_color(c.extra).child(String(r.paneCount))]
+            : []),
+          statusGlyph(r.status),
+        ],
+        onSlotClick: r.hasChildren ? () => this.setOpen(tabOpenKey(r.tabId), !r.open, ctx.containers) : null,
         onClick: () => run("tab.select", { id: r.tabId }),
       });
     }
     if (r.kind === "pane") {
       const label = this.paneText(ctx.panes.find((p) => p.pane === r.paneId), r.spaceId, ctx.spaceById, ctx.cx);
-      return this.row(r, i, {
+      return this.row(r, {
         ...base,
         slot: [this.glyph(label.icon, PALETTE.overlay0)],
         name: [div().truncate().text_color(c.name).child(label.text)],
@@ -482,17 +520,18 @@ export default class Workspace extends View {
         if (tag) name.push(this.tag(tag));
         second = describe(list[0] ?? null);
       }
-      return this.row(r, i, {
+      return this.row(r, {
         ...base,
         second,
         slot: this.agentSlot(r),
         name,
         right: this.rightSide(r, now, c),
+        onSlotClick: r.hasChildren ? () => this.setOpen(r.key, !r.open, ctx.containers) : null,
         onClick: () => run("agent.focus", { terminal: r.address }),
       });
     }
     if (r.kind === "sub") {
-      return this.row(r, i, {
+      return this.row(r, {
         ...base,
         slot: [],
         name: [div().truncate().text_color(c.extra).child(r.label)],
@@ -501,7 +540,7 @@ export default class Workspace extends View {
       });
     }
     // まとまりの見出し: 一番左の列に印、名前、右端に数 (畳んだときは数の前に矢印)
-    return this.row(r, i, {
+    return this.row(r, {
       ...base,
       baseline: true,
       slot: [statusGlyph(r.status)],
@@ -510,7 +549,7 @@ export default class Workspace extends View {
         ...(r.open ? [] : [this.glyph(GLYPH.chevronRight, PALETTE.overlay2)]),
         div().flex_none().w(METRICS.glyphSize).flex().justify_end().text_color(PALETTE.subtext0).child(String(r.count)),
       ],
-      onClick: () => this.toggle(r.key),
+      onClick: () => this.setOpen(r.key, !r.open, ctx.containers),
     });
   }
 
@@ -523,22 +562,27 @@ export default class Workspace extends View {
     this.updateTimes(liveAgents, spaceList, now);
     const subagents = collectSubagents(liveAgents, this.activity, terminals(), this.sessions, now);
     const allPanes = panes();
+    const termPanes = allPanes.filter((p) => p.terminal);
     for (const p of allPanes) if (p.focused && p.terminal) this.activePane.set(p.tab, p.pane);
-    const input = { agents: liveAgents, subagents, sessions: this.sessions, collapsed: this.collapsed };
+    const nested = nestSpaces(spaceList, this.repos);
+    const focus = focused();
+    const containers = focusContainers({ view: this.view, nested, agents: liveAgents, panes: termPanes, focus });
+    this.held = pruneHeld(this.held, containers);
+    const collapsed = effectiveCollapsed(this.collapsed, containers, this.held);
+    const input = { agents: liveAgents, subagents, sessions: this.sessions, collapsed };
     const rows =
       this.view === "status"
-        ? buildGroups(input)
-        : buildStructure({ ...input, nested: nestSpaces(spaceList, this.repos), panes: allPanes.filter((p) => p.terminal) });
-    this.rows = rows;
-    this.cursor = Math.min(this.cursor, Math.max(0, rows.length - 1));
+        ? buildGroups({ ...input, times: this.times })
+        : buildStructure({ ...input, nested, panes: termPanes });
     setAgentOrder(agentOrder(rows));
     this.schedule(liveAgents, now, cx);
     const ctx = {
       now,
       cx,
       liveAgents,
-      focused: this.handle.is_focused(),
-      focus: focused(),
+      focus,
+      containers,
+      highlight: highlightKey(rows, focus, containers),
       panes: allPanes,
       spaceById: new Map(spaceList.map((s) => [s.id, s])),
     };
@@ -548,8 +592,6 @@ export default class Workspace extends View {
       .font_family(FONT)
       .text_size(METRICS.fontSize)
       .text_color(PALETTE.text)
-      .track_focus(this.handle)
-      .on_key_down((e, cx) => this.key(e, cx))
       .child(
         v_flex()
           .id("workspace-list")
@@ -557,7 +599,7 @@ export default class Workspace extends View {
           .min_h(0)
           .overflow_y_scrollbar()
           .track_scroll(this.scroll)
-          .children(rows.map((r, i) => this.renderRow(r, i, ctx))),
+          .children(rows.map((r) => this.renderRow(r, ctx))),
       );
   }
 }

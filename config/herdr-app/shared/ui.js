@@ -102,7 +102,7 @@ export const METRICS = {
   fontSize: 13,
   cell: 6.9,
   glyphSize: 16,
-  indentCells: 3,
+  indentCells: 2,
   gapCells: 1,
   slotCells: 2,
   row: 28,
