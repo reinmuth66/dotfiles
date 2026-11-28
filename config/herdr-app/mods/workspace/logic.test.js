@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nestSpaces, contextFor, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, tabOpenKey, isFocusRow, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS, stepTab, stepSpace, stepAgent, stepGroup, moveTarget, closeKey, openKey } from "./logic.js";
+import { nestSpaces, contextFor, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, tabOpenKey, isFocusRow, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS, stepTab, stepSpace, stepAgent, stepGroup, moveTarget, closeKey, openKey, focusContainers, effectiveCollapsed, pruneHeld, highlightKey } from "./logic.js";
 
 const sp = (id, tabs, extra = {}) => ({ id, name: id, folder: `/r/${id}`, status: null, tabs, ...extra });
 const tab = (id, extra = {}) => ({ id, name: id, named: false, status: null, working_since: null, changed_at: null, ...extra });
@@ -361,4 +361,116 @@ test("closeKey / openKey: focus が一覧に無ければ null", () => {
   assert.equal(openKey(rows, null, [], "small"), null);
   assert.equal(closeKey(rows, null, [], "small"), null);
   assert.equal(closeKey(rows, { space: "wtr", tab: "w", pane: null, terminal: "wtr" }, [], "group"), null);
+});
+
+test("focusContainers: 複数 pane の tab にいると space と tab の鍵", () => {
+  const nested = [{ space: sp("s1", [tab("a")]), depth: 0 }];
+  const panes = [{ pane: "p1", tab: "a" }, { pane: "p2", tab: "a" }];
+  const focus = { space: "s1", tab: "a", pane: "p1", terminal: null };
+  assert.deepEqual(focusContainers({ view: "structure", nested, agents: [], panes, focus }), ["space:s1", tabOpenKey("a")]);
+});
+
+test("focusContainers: pane が 1 つの tab では space の鍵だけ", () => {
+  const nested = [{ space: sp("s1", [tab("a")]), depth: 0 }];
+  const panes = [{ pane: "p1", tab: "a" }];
+  const focus = { space: "s1", tab: "a", pane: "p1", terminal: "t1" };
+  assert.deepEqual(focusContainers({ view: "structure", nested, agents: [ag("t1", "a", "working", { pane: "p1" })], panes, focus }), ["space:s1"]);
+});
+
+test("focusContainers: status では group の鍵", () => {
+  const agents = [ag("t1", "a", "working"), ag("t2", "b", "blocked")];
+  const focus = { space: "s1", tab: "a", pane: "p1", terminal: "t1" };
+  assert.deepEqual(focusContainers({ view: "status", nested: [], agents, panes: [], focus }), ["group:working"]);
+  assert.deepEqual(focusContainers({ view: "status", nested: [], agents, panes: [], focus: { ...focus, terminal: "other" } }), []);
+});
+
+test("focusContainers: focus が null なら []", () => {
+  const nested = [{ space: sp("s1", [tab("a")]), depth: 0 }];
+  assert.deepEqual(focusContainers({ view: "structure", nested, agents: [], panes: [], focus: null }), []);
+  assert.deepEqual(focusContainers({ view: "status", nested, agents: [ag("t1", "a", "working")], panes: [], focus: null }), []);
+  assert.deepEqual(focusContainers({ view: "structure", nested, agents: [], panes: [], focus: { space: "gone", tab: "a" } }), []);
+});
+
+test("effectiveCollapsed: 閉じた space に focus があると開き、tab-open は足し、held は閉じたまま、他はそのまま", () => {
+  const collapsed = new Set(["space:s1", "space:s2", "group:idle"]);
+  const containers = ["space:s1", tabOpenKey("a")];
+  const opened = effectiveCollapsed(collapsed, containers, new Set());
+  assert.equal(opened.has("space:s1"), false);
+  assert.equal(opened.has(tabOpenKey("a")), true);
+  assert.equal(opened.has("space:s2"), true);
+  assert.equal(opened.has("group:idle"), true);
+  // 元の collapsed は変えない
+  assert.equal(collapsed.has("space:s1"), true);
+  assert.equal(collapsed.has(tabOpenKey("a")), false);
+
+  const kept = effectiveCollapsed(collapsed, containers, new Set(["space:s1", tabOpenKey("a")]));
+  assert.equal(kept.has("space:s1"), true);
+  assert.equal(kept.has(tabOpenKey("a")), false);
+  assert.equal(kept.has("space:s2"), true);
+});
+
+test("pruneHeld: 離れた鍵を捨てる", () => {
+  const held = new Set(["space:s1", tabOpenKey("a"), "group:idle"]);
+  const next = pruneHeld(held, ["space:s1", tabOpenKey("b")]);
+  assert.deepEqual([...next], ["space:s1"]);
+  assert.equal(held.size, 3);
+});
+
+test("highlightKey: 表に出た pane / agent の行、閉じた tab なら tab の行、閉じた space なら space の行", () => {
+  const nested = [{ space: sp("s1", [tab("a"), tab("b")]), depth: 0 }];
+  const agents = [ag("t1", "a", "working", { pane: "p2" })];
+  const panes = [{ pane: "p1", tab: "a" }, { pane: "p2", tab: "a" }, { pane: "p3", tab: "b" }];
+  const focusPane = { space: "s1", tab: "a", pane: "p1", terminal: null };
+  const focusAgent = { space: "s1", tab: "a", pane: "p2", terminal: "t1" };
+  const containers = ["space:s1", tabOpenKey("a")];
+
+  const opened = buildStructure({ nested, agents, subagents: {}, panes, collapsed: new Set([tabOpenKey("a")]) });
+  assert.equal(highlightKey(opened, focusPane, containers), "pane:p1");
+  assert.equal(highlightKey(opened, focusAgent, containers), "agent:t1");
+  // 1 pane の非エージェント tab はその tab の行
+  assert.equal(highlightKey(opened, { space: "s1", tab: "b", pane: "p3", terminal: null }, ["space:s1"]), "tab:b");
+
+  const folded = buildStructure({ nested, agents, subagents: {}, panes, collapsed: new Set() });
+  assert.equal(highlightKey(folded, focusPane, containers), "tab:a");
+  assert.equal(highlightKey(folded, focusAgent, containers), "tab:a");
+
+  const spaceClosed = buildStructure({ nested, agents, subagents: {}, panes, collapsed: new Set(["space:s1"]) });
+  assert.equal(highlightKey(spaceClosed, focusPane, containers), "space:s1");
+
+  const groupClosed = buildGroups({ agents, subagents: {}, collapsed: new Set(["group:working"]) });
+  assert.equal(highlightKey(groupClosed, focusAgent, ["group:working"]), "group:working");
+
+  assert.equal(highlightKey(opened, null, []), null);
+});
+
+test("buildGroups: まとまりの中を since の古い順", () => {
+  const agents = [
+    ag("t1", "a", "working"),
+    ag("t2", "b", "working"),
+    ag("t3", "c", "working"),
+    ag("t4", "d", "working"),
+    ag("t5", "e", "working"),
+  ];
+  const times = {
+    t1: { since: 3000 },
+    t2: { since: 1000 },
+    t4: { since: 1000 },
+    // t3, t5 は since なし → 後ろに元の順で並ぶ
+  };
+  const rows = buildGroups({ agents, subagents: {}, collapsed: new Set(), times });
+  assert.deepEqual(agentOrder(rows), ["t2", "t4", "t1", "t3", "t5"]);
+});
+
+test("buildStructure: 複数 pane の tab だけ paneCount を持つ", () => {
+  const nested = [{ space: sp("s1", [tab("a"), tab("b"), tab("c")]), depth: 0 }];
+  const agents = [ag("t1", "c", "idle", { pane: "p4" })];
+  const panes = [{ pane: "p1", tab: "a" }, { pane: "p2", tab: "a" }, { pane: "p3", tab: "b" }, { pane: "p4", tab: "c" }];
+  const rows = buildStructure({ nested, agents, subagents: {}, panes, collapsed: new Set() });
+  const tabA = rows.find((r) => r.key === "tab:a");
+  const tabB = rows.find((r) => r.key === "tab:b");
+  const tabC = rows.find((r) => r.key === "tab:c");
+  assert.equal(tabA.paneCount, 2);
+  assert.equal(tabB.paneCount, undefined);
+  assert.equal("paneCount" in tabB, false);
+  assert.equal(tabC, undefined);
 });
