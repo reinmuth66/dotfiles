@@ -11,13 +11,12 @@ export const LIMITS = {
   workspace: { id: "workspace", min: 80, max: 1200, fallback: 300 },
 };
 
-// キーは WezTerm の resize_pane と同じ: u 上、o 左、a 下、i 右。
-// o と i はプレビューの幅、Shift を付けると帯の幅、u と a は帯の中の一覧の高さ
+// h と l はプレビューの幅、Shift を付けると帯の幅、j と k は帯の中の一覧の高さ
 const MOVES = {
-  o: { target: "preview", delta: -STEP },
-  i: { target: "preview", delta: STEP },
-  u: { target: "workspace", delta: -STEP },
-  a: { target: "workspace", delta: STEP },
+  h: { target: "preview", delta: STEP },
+  l: { target: "preview", delta: -STEP },
+  j: { target: "workspace", delta: STEP },
+  k: { target: "workspace", delta: -STEP },
 };
 
 // 押したキーを、境目の動き、モードを抜けること ("exit")、モードを畳んでキーを素通しにすること
@@ -27,7 +26,9 @@ export function keyToMove(key, modifiers = {}) {
   if (key === "enter" || key === "escape") return "exit";
   const move = MOVES[key];
   if (!move) return null;
-  if (modifiers.shift && (key === "o" || key === "i")) return { ...move, target: "sidebar" };
+  if (modifiers.shift && (key === "h" || key === "l")) {
+    return { target: "sidebar", delta: -move.delta };
+  }
   return { ...move };
 }
 
@@ -42,4 +43,11 @@ const SIDEBAR_MODES = ["both", "list", "tree"];
 export function nextSidebarMode(mode) {
   const i = SIDEBAR_MODES.indexOf(mode);
   return SIDEBAR_MODES[(i + 1) % SIDEBAR_MODES.length];
+}
+
+// wtr の出し入れの次の一手を決める
+export function wtrStep({ hidden, active, onWtr }) {
+  if (hidden || active !== "wtr") return "show";
+  if (!onWtr) return "focus";
+  return "hide";
 }

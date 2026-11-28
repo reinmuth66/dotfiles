@@ -1,12 +1,12 @@
-// 大きさを変えるモードと、帯の 3 通りの切り替え。
+// 大きさを変えるモードと、帯の 3 通りの切り替え、wtr の出し入れ。
 // レイアウトの floating に置く。モードの間だけ「RESIZE」と描き、それ以外は何も描かない。
-// コマンド: resize-mode.start (モードに入る)、resize-mode.cycle-sidebar (帯の出し分け)
+// コマンド: resize-mode.start (モードに入る)、resize-mode.cycle-sidebar (帯の出し分け)、resize-mode.wtr (wtr の出し入れ)
 // 判断は logic.js にある。ここは herdr とのやり取りだけ。
 
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { checking, focused, layout, nextCommand, run, theme } from "herdr";
-import { keyToMove, nextSize, nextSidebarMode, LIMITS } from "./logic.js";
+import { keyToMove, nextSize, nextSidebarMode, wtrStep, LIMITS } from "./logic.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -15,6 +15,18 @@ function find(node, id) {
     if (found) return found;
   }
   return null;
+}
+
+function currentFocus() {
+  const f = focused();
+  return { pane: f?.pane ?? null, terminal: f?.terminal ?? null };
+}
+
+function focusTarget(back) {
+  if (back?.pane) run("pane.focus", { pane: back.pane });
+  else if (back?.terminal) run("pane.focus", { terminal: back.terminal });
+  else return false;
+  return true;
 }
 
 // spec のブロックを delta だけ動かす。下限と上限はレイアウトの min/max を優先する
@@ -46,6 +58,7 @@ export default class ResizeMode extends View {
     this.handle = cx.focus_handle();
     this.active = false;
     this.back = null; // モードに入る前のフォーカス
+    this.wtrBack = null; // wtr を開く前のフォーカス
     this.sidebarMode = loadSidebarMode();
     if (checking()) return;
     applySidebarMode(this.sidebarMode);
@@ -54,6 +67,7 @@ export default class ResizeMode extends View {
         const c = await nextCommand();
         if (c === "start") this.start(cx);
         else if (c === "cycle-sidebar") this.cycleSidebar();
+        else if (c === "wtr") this.toggleWtr(cx);
         else if (c === "focus" && this.active) this.handle.focus();
         cx.notify();
       }
@@ -61,10 +75,7 @@ export default class ResizeMode extends View {
   }
 
   start(cx) {
-    if (!this.active) {
-      const f = focused();
-      this.back = { pane: f?.pane ?? null, terminal: f?.terminal ?? null };
-    }
+    if (!this.active) this.back = currentFocus();
     this.active = true;
     this.handle.focus();
     // 描く前は focus を受ける要素がないので、描いたあとにもう一度取る
@@ -94,9 +105,31 @@ export default class ResizeMode extends View {
     this.active = false;
     const back = this.back;
     this.back = null;
-    if (back?.pane) run("pane.focus", { pane: back.pane });
-    else if (back?.terminal) run("pane.focus", { terminal: back.terminal });
-    else run("pane.go", { direction: "left" });
+    if (!focusTarget(back)) run("pane.go", { direction: "left" });
+  }
+
+  toggleWtr(cx) {
+    const area = find(layout(), "preview-area");
+    const step = wtrStep({
+      hidden: Boolean(area?.hidden),
+      active: area?.active ?? null,
+      onWtr: focused()?.terminal === "wtr",
+    });
+    if (step === "show") {
+      this.wtrBack = currentFocus();
+      run("layout.show", { id: "preview-area" });
+      run("layout.select", { stack: "preview-area", child: "wtr" });
+      // 欄が出た直後でないと pane.focus が no such pane で失敗する
+      cx.timer.after(50, () => run("pane.focus", { terminal: "wtr" }));
+    } else if (step === "focus") {
+      this.wtrBack = currentFocus();
+      run("pane.focus", { terminal: "wtr" });
+    } else {
+      run("layout.hide", { id: "preview-area" });
+      const back = this.wtrBack;
+      this.wtrBack = null;
+      focusTarget(back);
+    }
   }
 
   cycleSidebar() {

@@ -1,17 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { keyToMove, nextSize, nextSidebarMode, LIMITS } from "./logic.js";
+import { keyToMove, nextSize, nextSidebarMode, wtrStep, LIMITS } from "./logic.js";
 
-// キーは WezTerm の resize_pane と同じ: u 上、o 左、a 下、i 右、Enter で抜ける。
-// o と i はプレビューの幅、Shift を付けた O と I は帯の幅、u と a は帯の中の一覧の高さ
+// h/l はプレビューの幅、Shift を付けた H/L は帯の幅、j/k は帯の中の一覧の高さ、Enter/Escape で抜ける
 test("keyToMove: 境目を動かすキー", () => {
-  assert.deepEqual(keyToMove("o"), { target: "preview", delta: -20 });
-  assert.deepEqual(keyToMove("i"), { target: "preview", delta: 20 });
-  assert.deepEqual(keyToMove("o", { shift: true }), { target: "sidebar", delta: -20 });
-  assert.deepEqual(keyToMove("i", { shift: true }), { target: "sidebar", delta: 20 });
-  assert.deepEqual(keyToMove("u"), { target: "workspace", delta: -20 });
-  assert.deepEqual(keyToMove("a"), { target: "workspace", delta: 20 });
-  assert.equal(keyToMove("x"), null);
+  assert.deepEqual(keyToMove("h"), { target: "preview", delta: 20 });
+  assert.deepEqual(keyToMove("l"), { target: "preview", delta: -20 });
+  assert.deepEqual(keyToMove("h", { shift: true }), { target: "sidebar", delta: -20 });
+  assert.deepEqual(keyToMove("l", { shift: true }), { target: "sidebar", delta: 20 });
+  assert.deepEqual(keyToMove("j"), { target: "workspace", delta: 20 });
+  assert.deepEqual(keyToMove("k"), { target: "workspace", delta: -20 });
+  for (const k of ["u", "o", "a", "i", "x"]) {
+    assert.equal(keyToMove(k), null);
+  }
 });
 
 test("keyToMove: Enter と Escape で抜ける", () => {
@@ -46,4 +47,15 @@ test("nextSidebarMode", () => {
   assert.equal(nextSidebarMode("both"), "list");
   assert.equal(nextSidebarMode("list"), "tree");
   assert.equal(nextSidebarMode("tree"), "both");
+});
+
+test("wtrStep: preview-area と focus の状態から次の動きを決める", () => {
+  assert.equal(wtrStep({ hidden: true, active: "wtr", onWtr: false }), "show");
+  assert.equal(wtrStep({ hidden: true, active: "browser", onWtr: false }), "show");
+  assert.equal(wtrStep({ hidden: false, active: "browser", onWtr: false }), "show");
+  assert.equal(wtrStep({ active: "browser", onWtr: false }), "show");
+  assert.equal(wtrStep({ hidden: false, active: "wtr", onWtr: false }), "focus");
+  assert.equal(wtrStep({ active: "wtr", onWtr: false }), "focus");
+  assert.equal(wtrStep({ hidden: false, active: "wtr", onWtr: true }), "hide");
+  assert.equal(wtrStep({ active: "wtr", onWtr: true }), "hide");
 });
