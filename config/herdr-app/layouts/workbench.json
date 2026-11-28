@@ -95,8 +95,8 @@
           "radius": 0,
           "background": "#00000000",
           "lone": true,
-          "border": { "width": 0.5, "color": "border" },
-          "focus": { "width": 0.5, "color": "border" },
+          "border": { "width": 1, "color": "#6e738d" },
+          "focus": { "width": 1, "color": "#6e738d" },
           "veil": 0.2,
           "header": {
             "content": { "mod": "pane-header" },

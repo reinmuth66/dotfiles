@@ -133,9 +133,6 @@ const subRow = (agent, sub, depth, status) => ({
   address: agent.address,
 });
 
-// 複数 pane のタブは最初は畳む。開いたタブを collapsed に覚える (他の行とは逆の意味)
-export const tabOpenKey = (tabId) => `tab-open:${tabId}`;
-
 // pane の並びでエージェントと端末を並べる。panes に無いエージェントは後ろに足す
 function tabUnits(tabId, agents, panes) {
   const list = agents.filter((a) => a.tab === tabId);
@@ -145,62 +142,37 @@ function tabUnits(tabId, agents, panes) {
   return { list, units };
 }
 
-// space → タブ → pane (エージェントか、エージェントのいない端末) → サブエージェント。
-// pane が 1 つのタブはその pane の行がタブの代わり、2 つ以上なら畳めるタブの行の下に全部の pane を並べる。
+// space → タブ → サブエージェント。space は畳まない。
+// タブは 1 行で、そのタブで最後に focus された pane (activePanes: タブ → pane、無ければ並びの最初) を代表にする。
+// 代表がエージェントならエージェントの行 (サブエージェントを下に並べる)、そうでなければタブの行。
 // panes は端末の pane ({ pane, tab }) を並び順で
-export function buildStructure({ nested, agents, subagents, sessions = {}, collapsed, panes = [] }) {
+export function buildStructure({ nested, agents, subagents, sessions = {}, collapsed, panes = [], activePanes = new Map() }) {
   const rows = [];
   for (const { space, depth } of nested) {
-    const tabAgents = (tab) => agents.filter((a) => a.tab === tab.id);
-    const statuses = space.tabs.flatMap((t) => [t.status, ...tabAgents(t).map((a) => a.status)]).filter(Boolean);
-    const open = !collapsed.has(`space:${space.id}`);
-    rows.push({
-      key: `space:${space.id}`,
-      kind: "space",
-      depth,
-      label: space.name,
-      // 開いているときは中の行が状態を出すので、畳んだときだけまとめて出す
-      status: open ? null : mostUrgent(statuses),
-      spaceId: space.id,
-      open,
-      hasChildren: space.tabs.length > 0,
-    });
-    if (!open) continue;
+    rows.push({ key: `space:${space.id}`, kind: "space", depth, label: space.name, status: null, spaceId: space.id });
     const td = depth + 1;
     for (const tab of space.tabs) {
-      const pushAgent = (agent, depth) => {
-        const subs = subagents[agent.address] ?? [];
-        const open = !collapsed.has(`agent:${agent.address}`);
-        rows.push(agentRow(agent, depth, sessions, { spaceId: space.id, hasChildren: subs.length > 0, open }));
-        if (open) for (const sub of subs) rows.push(subRow(agent, sub, depth + 1, agent.status));
-      };
       const { list, units } = tabUnits(tab.id, agents, panes);
-      if (units.length === 1 && units[0].address) {
-        pushAgent(units[0], td);
+      const active = activePanes.get(tab.id);
+      const rep = units.find((u) => active != null && u.pane === active) ?? units[0];
+      if (rep?.address) {
+        const subs = subagents[rep.address] ?? [];
+        const open = !collapsed.has(`agent:${rep.address}`);
+        rows.push(agentRow(rep, td, sessions, { spaceId: space.id, hasChildren: subs.length > 0, open }));
+        if (open) for (const sub of subs) rows.push(subRow(rep, sub, td + 1, rep.status));
         continue;
       }
-      const several = units.length > 1;
-      const open = several && collapsed.has(tabOpenKey(tab.id));
       rows.push({
         key: `tab:${tab.id}`,
         kind: "tab",
         depth: td,
         label: tab.named ? tab.name : null,
-        // 名前の 2 番目の候補: 最初のエージェントのプログラム
-        program: list[0]?.program ?? null,
-        // 開いたタブは中の行が状態を出す
-        status: open ? null : mostUrgent([tab.status, ...list.map((a) => a.status)].filter(Boolean)),
+        // 代表の端末の pane (名前と記号に使う)
+        paneId: rep?.pane ?? null,
+        status: mostUrgent([tab.status, ...list.map((a) => a.status)].filter(Boolean)),
         tabId: tab.id,
         spaceId: space.id,
-        hasChildren: several,
-        open,
-        ...(several ? { paneCount: units.length } : {}),
       });
-      if (!open) continue;
-      for (const unit of units) {
-        if (unit.address) pushAgent(unit, td + 1);
-        else rows.push({ key: `pane:${unit.pane}`, kind: "pane", depth: td + 1, paneId: unit.pane, tabId: tab.id, spaceId: space.id, status: null });
-      }
     }
   }
   return rows;
@@ -235,13 +207,12 @@ export function buildGroups({ agents, subagents, sessions = {}, collapsed, times
   return rows;
 }
 
-// focus している pane の行と、それを含むタブと space の行 (濃く出す)。サブエージェントは親のエージェントに従う。
+// focus している pane のエージェントかタブの行と、それを含む space の行 (濃く出す)。サブエージェントは親のエージェントに従う。
 // focus は herdr の focused() ({ space, tab, pane, terminal } か null)
 export function isFocusRow(row, focus) {
   if (!focus) return false;
   if (row.kind === "space") return row.spaceId === focus.space;
   if (row.kind === "tab") return row.tabId === focus.tab;
-  if (row.kind === "pane") return row.paneId === focus.pane;
   if (row.kind === "agent" || row.kind === "sub") return focus.terminal != null && row.address === focus.terminal;
   return false;
 }
@@ -314,28 +285,15 @@ export function moveTarget(nested, focus, dir, level) {
   return { command: "space.move", args: { id: space.id, index } };
 }
 
+// 開閉できるのは状態の表示のまとまり (group) と、その中の focus のエージェントのサブエージェント (small)
 function resolveToggleTargets(rows, focus, containers) {
   const groupKey = containers?.[0] ?? null;
   if (!groupKey) return null;
   const groupRow = rows.find((r) => r.key === groupKey) ?? null;
-  if (!groupRow) return null;
-  let smallKey = null;
-  let smallRow = null;
-  if (groupRow.kind === "space") {
-    const tabOpen = containers[1] ?? null;
-    if (tabOpen) {
-      const tabId = tabOpen.slice("tab-open:".length);
-      smallRow = rows.find((r) => r.kind === "tab" && r.tabId === tabId) ?? null;
-      if (smallRow) smallKey = tabOpen;
-    }
-  } else if (groupRow.kind === "group" && focus?.terminal != null) {
-    const agentRow = rows.find((r) => r.kind === "agent" && r.address === focus.terminal) ?? null;
-    if (agentRow?.hasChildren) {
-      smallRow = agentRow;
-      smallKey = agentRow.key;
-    }
-  }
-  return { groupKey, groupRow, smallKey, smallRow };
+  if (groupRow?.kind !== "group") return null;
+  const agentRow = focus?.terminal != null ? rows.find((r) => r.kind === "agent" && r.address === focus.terminal) : null;
+  const smallRow = agentRow?.hasChildren ? agentRow : null;
+  return { groupKey, groupRow, smallKey: smallRow?.key ?? null, smallRow };
 }
 
 // 開く対象の鍵 (閉じていればその鍵、開いていれば null)
@@ -359,34 +317,17 @@ export function closeKey(rows, focus, containers, level) {
   return null;
 }
 
-// focus 中の pane を含む、閉じうる行の鍵を外から内の順で返す
-export function focusContainers({ view, nested = [], agents = [], panes = [], focus }) {
-  if (!focus) return [];
-  if (view === "structure") {
-    const entry = nested.find((n) => n.space.id === focus.space);
-    if (!entry) return [];
-    const out = [`space:${entry.space.id}`];
-    if (focus.tab != null && entry.space.tabs.some((t) => t.id === focus.tab)) {
-      if (tabUnits(focus.tab, agents, panes).units.length > 1) out.push(tabOpenKey(focus.tab));
-    }
-    return out;
-  }
-  if (view === "status") {
-    if (focus.terminal == null) return [];
-    const agent = agents.find((a) => a.address === focus.terminal);
-    return agent?.status ? [`group:${agent.status}`] : [];
-  }
-  return [];
+// focus 中のエージェントを含む、閉じうるまとまりの鍵。構造の表示は畳む行が無いので []
+export function focusContainers({ view, agents = [], focus }) {
+  if (!focus || view !== "status" || focus.terminal == null) return [];
+  const agent = agents.find((a) => a.address === focus.terminal);
+  return agent?.status ? [`group:${agent.status}`] : [];
 }
 
-// collapsed を写し、held に無い containers の鍵を開いた状態にする (tab-open: は足す、それ以外は消す)
+// collapsed を写し、held に無い containers の鍵を開いた状態にする
 export function effectiveCollapsed(collapsed, containers, held = new Set()) {
   const next = new Set(collapsed);
-  for (const key of containers) {
-    if (held.has(key)) continue;
-    if (key.startsWith("tab-open:")) next.add(key);
-    else next.delete(key);
-  }
+  for (const key of containers) if (!held.has(key)) next.delete(key);
   return next;
 }
 
@@ -400,17 +341,15 @@ export function pruneHeld(held, containers) {
   return next;
 }
 
-// ハイライトする行の鍵。表に出ている focus の pane / agent / 1 pane の tab の行、無ければ containers を内から外へ
+// ハイライトする行の鍵。表に出ている focus のエージェントかタブの行、無ければ containers を内から外へ
 export function highlightKey(rows, focus, containers = []) {
   if (!focus) return null;
-  const leaf = rows.find((r) => (r.kind === "pane" || r.kind === "agent") && isFocusRow(r, focus));
+  const leaf = rows.find((r) => r.kind === "agent" && isFocusRow(r, focus));
   if (leaf) return leaf.key;
   const tab = rows.find((r) => r.kind === "tab" && isFocusRow(r, focus));
   if (tab) return tab.key;
   for (let i = containers.length - 1; i >= 0; i--) {
-    const k = containers[i];
-    const rowKey = k.startsWith("tab-open:") ? `tab:${k.slice("tab-open:".length)}` : k;
-    if (rows.some((r) => r.key === rowKey)) return rowKey;
+    if (rows.some((r) => r.key === containers[i])) return containers[i];
   }
   return null;
 }

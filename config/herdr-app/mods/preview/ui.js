@@ -3,8 +3,7 @@
 // 使う mod のフォルダに cp で写す (shared.test.js が、写しが正本と同じことを確かめる)。
 
 export const GLYPH = {
-  spaceClosed: "\u{f003c}",
-  spaceOpen: "\u{f120e}",
+  space: "\u{f120e}",
   yazi: "\u{f01e5}",
   shell: "\u{f018d}",
   chevronRight: "\u{f0142}",
@@ -18,8 +17,6 @@ export const GLYPH = {
   diffRemoved: "\u{f458}",
   branch: "\u{f418}",
   terminal: "\u{f489}",
-  tabClosed: "\u{f0570}",
-  tabOpen: "\u{f00c7}",
 };
 
 // WezTerm の process_icons から。yazi だけ md_duck
@@ -40,10 +37,7 @@ export const PROCESS_ICONS = {
 // glyphSize で描いた記号の見た目の幅 (px)。記号は送り幅 (8.4px) より広く、左端から右へはみ出して描かれるので、
 // 送り幅のまま中央に寄せると右にずれる。この幅の箱に入れてから寄せる。フォント (Moralerspace Neon HW) で描いて測った値
 export const GLYPH_INK = {
-  [GLYPH.spaceClosed]: 12,
-  [GLYPH.spaceOpen]: 12,
-  [GLYPH.tabClosed]: 12,
-  [GLYPH.tabOpen]: 12,
+  [GLYPH.space]: 12,
   [GLYPH.shell]: 13.3,
   [GLYPH.yazi]: 13.3,
   [GLYPH.terminal]: 16,
@@ -83,6 +77,7 @@ export const PALETTE = {
   subtext0: "#a5adcb",
   overlay2: "#939ab7",
   overlay0: "#6e738d",
+  surface2: "#5b6078",
   surface0: "#363a4f",
 };
 

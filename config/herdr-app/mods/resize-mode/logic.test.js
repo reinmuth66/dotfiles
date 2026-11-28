@@ -2,17 +2,20 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { keyToMove, nextSize, nextSidebarMode, wtrStep, LIMITS } from "./logic.js";
 
-// h/l はプレビューの幅、Shift を付けた H/L は帯の幅、j/k は帯の中の一覧の高さ、Enter/Escape で抜ける
+// u/a/o/i は pane の境目 (上/下/左/右)、Shift を付けた J/L はプレビューの幅、I/K は帯の中の一覧の高さ、y/h は帯の幅、Enter/Escape で抜ける
 test("keyToMove: 境目を動かすキー", () => {
-  assert.deepEqual(keyToMove("h"), { target: "preview", delta: 20 });
-  assert.deepEqual(keyToMove("l"), { target: "preview", delta: -20 });
-  assert.deepEqual(keyToMove("h", { shift: true }), { target: "sidebar", delta: -20 });
-  assert.deepEqual(keyToMove("l", { shift: true }), { target: "sidebar", delta: 20 });
-  assert.deepEqual(keyToMove("j"), { target: "workspace", delta: 20 });
-  assert.deepEqual(keyToMove("k"), { target: "workspace", delta: -20 });
-  for (const k of ["u", "o", "a", "i", "x"]) {
-    assert.equal(keyToMove(k), null);
-  }
+  assert.deepEqual(keyToMove("u"), { target: "pane", direction: "up" });
+  assert.deepEqual(keyToMove("a"), { target: "pane", direction: "down" });
+  assert.deepEqual(keyToMove("o"), { target: "pane", direction: "left" });
+  assert.deepEqual(keyToMove("i"), { target: "pane", direction: "right" });
+  assert.deepEqual(keyToMove("j", { shift: true }), { target: "preview", delta: 20 });
+  assert.deepEqual(keyToMove("l", { shift: true }), { target: "preview", delta: -20 });
+  assert.deepEqual(keyToMove("k", { shift: true }), { target: "workspace", delta: 20 });
+  assert.deepEqual(keyToMove("i", { shift: true }), { target: "workspace", delta: -20 });
+  assert.deepEqual(keyToMove("y"), { target: "sidebar", delta: -20 });
+  assert.deepEqual(keyToMove("h"), { target: "sidebar", delta: 20 });
+  for (const k of ["j", "k", "l", "x", "constructor"]) assert.equal(keyToMove(k), null);
+  for (const k of ["u", "a", "o", "x", "constructor"]) assert.equal(keyToMove(k, { shift: true }), null);
 });
 
 test("keyToMove: Enter と Escape で抜ける", () => {

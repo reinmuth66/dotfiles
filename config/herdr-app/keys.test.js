@@ -9,13 +9,15 @@ const global = keys.global ?? {};
 const terminal = keys.terminal ?? {};
 
 const expected = {
-  "cmd-h": "pane.go:left", "cmd-j": "pane.go:down", "cmd-k": "pane.go:up", "cmd-l": "pane.go:right",
-  "cmd-ctrl-h": "pane.swap:left", "cmd-ctrl-j": "pane.swap:down", "cmd-ctrl-k": "pane.swap:up", "cmd-ctrl-l": "pane.swap:right",
+  // pane の向きは ijkl (i 上、k 下、j 左、l 右)。タブと space (状態の表示ではエージェントとまとまり) は上下だけで y 上、h 下。
+  // 修飾なしがタブ、shift が space、ctrl を足すと並べ替え、alt を足すと開閉 (y で閉じ、h で開く)
+  "cmd-j": "pane.go:left", "cmd-k": "pane.go:down", "cmd-i": "pane.go:up", "cmd-l": "pane.go:right",
+  "cmd-ctrl-j": "pane.swap:left", "cmd-ctrl-k": "pane.swap:down", "cmd-ctrl-i": "pane.swap:up", "cmd-ctrl-l": "pane.swap:right",
   "cmd-d": "pane.split:right", "cmd-shift-d": "pane.split:down", "cmd-shift-w": "pane.close", "cmd-shift-enter": "pane.zoom",
-  "cmd-shift-j": "workspace.next", "cmd-shift-k": "workspace.prev", "cmd-shift-h": "workspace.close", "cmd-shift-l": "workspace.open",
-  "cmd-alt-j": "workspace.next-group", "cmd-alt-k": "workspace.prev-group", "cmd-alt-h": "workspace.close-group", "cmd-alt-l": "workspace.open-group",
-  "cmd-ctrl-shift-j": "workspace.move-down", "cmd-ctrl-shift-k": "workspace.move-up",
-  "cmd-ctrl-alt-j": "workspace.move-group-down", "cmd-ctrl-alt-k": "workspace.move-group-up",
+  "cmd-h": "workspace.next", "cmd-y": "workspace.prev", "cmd-alt-y": "workspace.close", "cmd-alt-h": "workspace.open",
+  "cmd-shift-h": "workspace.next-group", "cmd-shift-y": "workspace.prev-group", "cmd-alt-shift-y": "workspace.close-group", "cmd-alt-shift-h": "workspace.open-group",
+  "cmd-ctrl-h": "workspace.move-down", "cmd-ctrl-y": "workspace.move-up",
+  "cmd-ctrl-shift-h": "workspace.move-group-down", "cmd-ctrl-shift-y": "workspace.move-group-up",
   "cmd-t": "tab.new", "cmd-w": "tab.close", "cmd-n": "space.new", "f2": "tab.rename", "shift-f2": "space.rename",
   "cmd-b": "layout.toggle:sidebar", "cmd-shift-b": "resize-mode.cycle-sidebar", "cmd-u": "workspace.toggle-view",
   "cmd-p": "resize-mode.wtr", "cmd-r": "resize-mode.start", "cmd-e": "layout.switch",

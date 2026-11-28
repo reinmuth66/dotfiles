@@ -6,7 +6,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { checking, focused, layout, nextCommand, run, theme } from "herdr";
-import { keyToMove, nextSize, nextSidebarMode, wtrStep, LIMITS } from "./logic.js";
+import { keyToMove, nextSize, nextSidebarMode, wtrStep, LIMITS, STEP } from "./logic.js";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -153,7 +153,10 @@ export default class ResizeMode extends View {
       return;
     }
     if (move === "exit") this.exit();
-    else resize(LIMITS[move.target], move.delta);
+    // focus はこの mod にあるので、モードに入る前の pane を名指しする
+    else if (move.target === "pane") {
+      if (this.back?.pane) run("pane.resize", { direction: move.direction, pane: this.back.pane, px: STEP });
+    } else resize(LIMITS[move.target], move.delta);
     cx.stop_propagation();
     cx.notify();
   }

@@ -56,12 +56,17 @@ import {
   stepGroup,
   stepSpace,
   stepTab,
-  tabOpenKey,
   trackAgentTimes,
 } from "./logic.js";
 
 const FONT = "Moralerspace Neon HW";
 const PAD_RIGHT = 10;
+
+// space の記号の右端から名前までを、tree のフォルダ (閉じた f07b) の記号の右端から名前までに揃える。
+// tree は記号を送り幅 (16px で 8.4px) のまま枠の中央に置き、f07b の描画の右端は 14.77px (フォントから測った値)。
+// space の記号は GLYPH_INK の幅の箱で枠の中央に置く
+const TREE_FOLDER_GAP = cells(METRICS.slotCells + METRICS.gapCells) - ((cells(METRICS.slotCells) - 8.4) / 2 + 14.77);
+const SPACE_GAP = (cells(METRICS.slotCells) + GLYPH_INK[GLYPH.space]) / 2 + TREE_FOLDER_GAP - cells(METRICS.slotCells);
 
 
 function load(key, fallback) {
@@ -102,14 +107,15 @@ function arcPath(from, to, outer, stroke) {
   return builder.build();
 }
 
-// コンテキストの使用率の輪。全周に下地 (surface0) を敷き、12 時から時計回りに使用分を重ねる
-function ringElement(fraction, color) {
+// コンテキストの使用率の輪。全周に下地を敷き、12 時から時計回りに使用分を重ねる。
+// 下地は surface0。ハイライトの行は背景が surface0 なので surface2 にする
+function ringElement(fraction, color, highlight) {
   const layers = [];
   const add = (from, to, c) => {
     const path = arcPath(from, to, METRICS.ring, METRICS.ringStroke);
     if (path) layers.push(window.paint_path(path, c).absolute().top(0).left(0).size_full());
   };
-  add(0, 1, PALETTE.surface0);
+  add(0, 1, highlight ? PALETTE.surface2 : PALETTE.surface0);
   if (fraction > 0 && color) add(0, fraction, color);
   return div().relative().flex_none().w(METRICS.ring).h(METRICS.ring).children(layers);
 }
@@ -138,7 +144,7 @@ export default class Workspace extends View {
     this.tick = null;
     this.tickAt = null; // 予約した描き直しの時刻 (ms)
     this.seenAgents = false; // 一度でも agents() が空でなかったか
-    this.activePane = new Map(); // タブ -> 最後に focus された端末の pane (タブの名前に使う)
+    this.activePane = new Map(); // タブ -> 最後に focus された端末の pane (タブの代表に使う)
     this.scroll = ScrollHandle.new();
     this.lastHighlightIndex = -1;
     this.watch = watchJsonDir(cx, "sessions", (files) => {
@@ -174,14 +180,11 @@ export default class Workspace extends View {
 
   // 自動で開いた行を閉じる場合もあるため、開閉は反転ではなく明示的に設定する
   setOpen(key, open, containers = []) {
-    const isTab = key.startsWith("tab-open:");
     if (open) {
-      if (isTab) this.collapsed.add(key);
-      else this.collapsed.delete(key);
+      this.collapsed.delete(key);
       this.held.delete(key);
     } else {
-      if (isTab) this.collapsed.delete(key);
-      else this.collapsed.add(key);
+      this.collapsed.add(key);
       if (containers.includes(key)) this.held.add(key);
     }
     save("collapsed", [...this.collapsed]);
@@ -195,8 +198,6 @@ export default class Workspace extends View {
     const focus = focused();
     const spaceList = spaces();
     const liveAgents = agents();
-    const allPanes = panes();
-    const termPanes = allPanes.filter((p) => p.terminal);
     const nested = nestSpaces(spaceList, this.repos);
     const groups = () =>
       buildGroups({ agents: liveAgents, subagents: {}, sessions: this.sessions, collapsed: new Set(), times: this.times });
@@ -233,15 +234,13 @@ export default class Workspace extends View {
     }
     if (c === "open" || c === "open-group" || c === "close" || c === "close-group") {
       const level = c === "open-group" || c === "close-group" ? "group" : "small";
-      const containers = focusContainers({ view: this.view, nested, agents: liveAgents, panes: termPanes, focus });
+      // 開閉できるのは状態の表示だけ
+      if (this.view !== "status") return;
+      const containers = focusContainers({ view: this.view, agents: liveAgents, focus });
       this.held = pruneHeld(this.held, containers);
       const collapsed = effectiveCollapsed(this.collapsed, containers, this.held);
       const subagents = collectSubagents(liveAgents, this.activity, terminals(), this.sessions, Date.now());
-      const input = { agents: liveAgents, subagents, sessions: this.sessions, collapsed };
-      const rows =
-        this.view === "status"
-          ? buildGroups({ ...input, times: this.times })
-          : buildStructure({ ...input, nested, panes: termPanes });
+      const rows = buildGroups({ agents: liveAgents, subagents, sessions: this.sessions, collapsed, times: this.times });
       const opening = c === "open" || c === "open-group";
       const key = opening ? openKey(rows, focus, containers, level) : closeKey(rows, focus, containers, level);
       if (key) this.setOpen(key, opening, containers);
@@ -284,20 +283,11 @@ export default class Workspace extends View {
     return repoRootNow(this.roots, cwd, cx);
   }
 
-  // タブの名前と記号。rename した名前、最後に focus された pane の名前、最初のエージェントのプログラム名、
-  // 最初の端末の pane の名前の順。エージェントの pane の名前はプログラム名
-  tabLabel(row, spaceById, allPanes, liveAgents, cx) {
-    const activeId = this.activePane.get(row.tabId);
-    const active = activeId ? allPanes.find((p) => p.pane === activeId && p.tab === row.tabId && p.terminal) : null;
-    const pane = active ?? allPanes.find((p) => p.tab === row.tabId && p.terminal);
+  // タブの名前と記号。記号は代表の pane のもの、名前は rename した名前か代表の pane の名前
+  tabLabel(row, spaceById, allPanes, cx) {
+    const pane = allPanes.find((p) => p.pane === row.paneId && p.terminal);
     const label = this.paneText(pane, row.spaceId, spaceById, cx);
-    if (row.label) return { ...label, text: row.label };
-    if (active) {
-      const agent = liveAgents.find((a) => a.pane === active.pane);
-      return agent?.program?.name ? { ...label, text: agent.program.name } : label;
-    }
-    if (row.program?.name) return { ...label, text: row.program.name };
-    return label;
+    return row.label ? { ...label, text: row.label } : label;
   }
 
   // エージェントのいない端末の pane の名前と記号。名前は枠の見出しと同じ決まり
@@ -360,7 +350,8 @@ export default class Workspace extends View {
   // [段 × 字下げ][記号の枠][間][名前 …][右端]
   // baseline: まとまりの見出し。印を木構造の記号の枠ではなく、帯の全体の記号の列 (glyphCol) に置く
   // second: 2 行目の文 (状態の表示のエージェントの行だけ)。名前の文字の頭に揃え、上を 2px 空ける
-  row(r, { slot, name, right = [], onClick, onSlotClick = null, highlight = false, baseline = false, second = null }) {
+  // gap: 記号の枠と名前の間 (px)
+  row(r, { slot, name, right = [], onClick, onSlotClick = null, highlight = false, baseline = false, second = null, gap = cells(METRICS.gapCells) }) {
     const indent = METRICS.padLeft + r.depth * cells(METRICS.indentCells);
     const slotBox = div()
       .relative()
@@ -386,10 +377,10 @@ export default class Workspace extends View {
       .pr(PAD_RIGHT)
       .items_center()
       .child(slotBox)
-      .when(!baseline, (el) => el.child(div().flex_none().w(cells(METRICS.gapCells))))
+      .when(!baseline, (el) => el.child(div().flex_none().w(gap)))
       .child(h_flex().flex_1().min_w(0).gap(cells(1)).items_center().children(name))
       .children(right);
-    const nameLeft = indent + (baseline ? METRICS.glyphCol : cells(METRICS.slotCells + METRICS.gapCells));
+    const nameLeft = indent + (baseline ? METRICS.glyphCol : cells(METRICS.slotCells) + gap);
     const el = second
       ? v_flex()
           .flex_none()
@@ -449,7 +440,7 @@ export default class Workspace extends View {
   }
 
   // 輪とアイコンを記号の枠の中心に合わせて重ねる。輪は枠からはみ出してよい
-  agentSlot(r) {
+  agentSlot(r, highlight) {
     const slot = [];
     const session = contextFor(r.address, this.sessions);
     const pct = contextPercent(session?.context);
@@ -459,7 +450,7 @@ export default class Workspace extends View {
         .absolute()
         .left(offset)
         .top((METRICS.row - METRICS.ring) / 2)
-        .child(ringElement(pct == null ? 0 : Math.min(1, pct / 100), pct == null ? null : contextColor(pct))),
+        .child(ringElement(pct == null ? 0 : Math.min(1, pct / 100), pct == null ? null : contextColor(pct), highlight)),
     );
     slot.push(agentIcon(r.program, session?.model ?? null).flex_none());
     return slot;
@@ -472,41 +463,21 @@ export default class Workspace extends View {
     if (r.kind === "space") {
       return this.row(r, {
         ...base,
-        slot: [this.glyph(r.open ? GLYPH.spaceOpen : GLYPH.spaceClosed, PALETTE.mauve)],
+        gap: SPACE_GAP,
+        slot: [this.glyph(GLYPH.space, PALETTE.mauve)],
         name: [div().truncate().text_color(c.name).child(r.label)],
-        right: [statusGlyph(r.status)],
-        onSlotClick: r.hasChildren ? () => this.setOpen(r.key, !r.open, ctx.containers) : null,
         onClick: () => run("space.select", { id: r.spaceId }),
       });
     }
     if (r.kind === "tab") {
-      const label = this.tabLabel(r, ctx.spaceById, ctx.panes, ctx.liveAgents, ctx.cx);
-      return this.row(r, {
-        ...base,
-        // 複数 pane のタブは開閉で変わるタブの記号 (押すと開閉)、pane が 1 つならその pane の記号 (枠の見出しと同じ)
-        slot: [
-          r.hasChildren
-            ? this.glyph(r.open ? GLYPH.tabOpen : GLYPH.tabClosed, PALETTE.overlay0)
-            : this.glyph(label.icon, PALETTE.overlay0),
-        ],
-        name: [div().truncate().text_color(c.name).child(label.text)],
-        right: [
-          ...(r.paneCount
-            ? [div().flex_none().w(METRICS.glyphSize).flex().justify_end().text_color(c.extra).child(String(r.paneCount))]
-            : []),
-          statusGlyph(r.status),
-        ],
-        onSlotClick: r.hasChildren ? () => this.setOpen(tabOpenKey(r.tabId), !r.open, ctx.containers) : null,
-        onClick: () => run("tab.select", { id: r.tabId }),
-      });
-    }
-    if (r.kind === "pane") {
-      const label = this.paneText(ctx.panes.find((p) => p.pane === r.paneId), r.spaceId, ctx.spaceById, ctx.cx);
+      // タブの代表の pane (最後に focus された pane) の記号と名前 (枠の見出しと同じ)
+      const label = this.tabLabel(r, ctx.spaceById, ctx.panes, ctx.cx);
       return this.row(r, {
         ...base,
         slot: [this.glyph(label.icon, PALETTE.overlay0)],
         name: [div().truncate().text_color(c.name).child(label.text)],
-        onClick: () => run("pane.focus", { pane: r.paneId }),
+        right: [statusGlyph(r.status)],
+        onClick: () => run("tab.select", { id: r.tabId }),
       });
     }
     if (r.kind === "agent") {
@@ -524,7 +495,7 @@ export default class Workspace extends View {
       return this.row(r, {
         ...base,
         second,
-        slot: this.agentSlot(r),
+        slot: this.agentSlot(r, base.highlight),
         name,
         right: this.rightSide(r, now, c),
         onSlotClick: r.hasChildren ? () => this.setOpen(r.key, !r.open, ctx.containers) : null,
@@ -567,14 +538,14 @@ export default class Workspace extends View {
     for (const p of allPanes) if (p.focused && p.terminal) this.activePane.set(p.tab, p.pane);
     const nested = nestSpaces(spaceList, this.repos);
     const focus = focused();
-    const containers = focusContainers({ view: this.view, nested, agents: liveAgents, panes: termPanes, focus });
+    const containers = focusContainers({ view: this.view, agents: liveAgents, focus });
     this.held = pruneHeld(this.held, containers);
     const collapsed = effectiveCollapsed(this.collapsed, containers, this.held);
     const input = { agents: liveAgents, subagents, sessions: this.sessions, collapsed };
     const rows =
       this.view === "status"
         ? buildGroups({ ...input, times: this.times })
-        : buildStructure({ ...input, nested, panes: termPanes });
+        : buildStructure({ ...input, nested, panes: termPanes, activePanes: this.activePane });
     setAgentOrder(agentOrder(rows));
     this.schedule(liveAgents, now, cx);
     const highlight = highlightKey(rows, focus, containers);

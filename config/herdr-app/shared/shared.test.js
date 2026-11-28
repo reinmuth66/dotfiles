@@ -21,7 +21,7 @@ import {
 import { OPEN_LABEL, openArgv, openCwd, openTerminalOf } from "./open.js";
 
 test("GLYPH と STATUS の番号は glyphnames.json の値", () => {
-  assert.equal(GLYPH.spaceClosed.codePointAt(0), 0xf003c);
+  assert.equal(GLYPH.space.codePointAt(0), 0xf120e);
   assert.equal(GLYPH.rootOpen.codePointAt(0), 0xf0dcf);
   assert.equal(STATUS.working.glyph.codePointAt(0), 0xf07c3);
   assert.equal(PROCESS_ICONS.yazi, GLYPH.yazi);
