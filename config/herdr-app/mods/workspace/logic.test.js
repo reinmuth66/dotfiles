@@ -298,6 +298,29 @@ test("moveTarget: 別のコンピューターの space をまたぐと null", ()
   assert.equal(moveTarget(nested, { space: "laptop/s3" }, -1, "space"), null);
 });
 
+test("moveTarget: worktree で表示順と herdr の並びが違っても space.index の順で動く", () => {
+  const nested = [
+    { space: sp("A", [], { index: 1 }), depth: 0 },
+    { space: sp("C", [], { index: 3 }), depth: 1 },
+    { space: sp("B", [], { index: 2 }), depth: 0 },
+  ];
+  assert.deepEqual(moveTarget(nested, { space: "C" }, -1, "space"), { command: "space.move", args: { id: "C", index: 2 } });
+  assert.deepEqual(moveTarget(nested, { space: "C" }, 1, "space"), { command: "space.move", args: { id: "C", index: 1 } });
+});
+
+test("moveTarget: herdr の並びで隣が remote なら null、remote が間にあっても端は同じコンピューターの最大で回る", () => {
+  const nested = [
+    { space: sp("A", [], { index: 1 }), depth: 0 },
+    { space: sp("C", [], { index: 3 }), depth: 1 },
+    { space: sp("laptop/R", [], { index: 2, machine: "laptop" }), depth: 0 },
+  ];
+  // 表示は [A, C, R] だが herdr の並びは [A(1), R(2), C(3)]
+  assert.equal(moveTarget(nested, { space: "A" }, 1, "space"), null);
+  assert.equal(moveTarget(nested, { space: "C" }, -1, "space"), null);
+  assert.deepEqual(moveTarget(nested, { space: "A" }, -1, "space"), { command: "space.move", args: { id: "A", index: 3 } });
+  assert.deepEqual(moveTarget(nested, { space: "C" }, 1, "space"), { command: "space.move", args: { id: "C", index: 1 } });
+});
+
 test("openKey: 閉じていれば開き、開いていれば null", () => {
   const nested = [{ space: sp("s1", [tab("a"), tab("b")]), depth: 0 }];
   const panes = [{ pane: "p1", tab: "a" }, { pane: "p2", tab: "a" }, { pane: "p3", tab: "b" }];

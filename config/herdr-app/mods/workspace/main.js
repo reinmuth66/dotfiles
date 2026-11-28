@@ -140,6 +140,7 @@ export default class Workspace extends View {
     this.seenAgents = false; // 一度でも agents() が空でなかったか
     this.activePane = new Map(); // タブ -> 最後に focus された端末の pane (タブの名前に使う)
     this.scroll = ScrollHandle.new();
+    this.lastHighlightIndex = -1;
     this.watch = watchJsonDir(cx, "sessions", (files) => {
       this.sessions = files;
       cx.notify();
@@ -576,13 +577,19 @@ export default class Workspace extends View {
         : buildStructure({ ...input, nested, panes: termPanes });
     setAgentOrder(agentOrder(rows));
     this.schedule(liveAgents, now, cx);
+    const highlight = highlightKey(rows, focus, containers);
+    const highlightIndex = highlight == null ? -1 : rows.findIndex((r) => r.key === highlight);
+    if (highlightIndex >= 0 && highlightIndex !== this.lastHighlightIndex) {
+      this.scroll.scroll_to_item(highlightIndex);
+    }
+    this.lastHighlightIndex = highlightIndex;
     const ctx = {
       now,
       cx,
       liveAgents,
       focus,
       containers,
-      highlight: highlightKey(rows, focus, containers),
+      highlight,
       panes: allPanes,
       spaceById: new Map(spaceList.map((s) => [s.id, s])),
     };

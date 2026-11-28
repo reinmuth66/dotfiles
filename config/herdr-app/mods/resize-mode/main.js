@@ -110,9 +110,10 @@ export default class ResizeMode extends View {
 
   toggleWtr(cx) {
     const area = find(layout(), "preview-area");
+    if (!area) return;
     const step = wtrStep({
-      hidden: Boolean(area?.hidden),
-      active: area?.active ?? null,
+      hidden: Boolean(area.hidden),
+      active: area.active ?? null,
       onWtr: focused()?.terminal === "wtr",
     });
     if (step === "show") {
@@ -128,7 +129,7 @@ export default class ResizeMode extends View {
       run("layout.hide", { id: "preview-area" });
       const back = this.wtrBack;
       this.wtrBack = null;
-      focusTarget(back);
+      if (!focusTarget(back)) run("pane.go", { direction: "left" });
     }
   }
 
@@ -146,7 +147,7 @@ export default class ResizeMode extends View {
     const move = keyToMove(e.key, e.modifiers ?? {});
     if (!move) return;
     if (move === "collapse") {
-      // キーは止めずに global の操作 (Ctrl+Shift+L の pane.go など) に渡す
+      // キーは止めずに global の操作 (cmd-l の pane.go など) に渡す
       this.collapse();
       cx.notify();
       return;

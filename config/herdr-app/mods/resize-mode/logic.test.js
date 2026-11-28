@@ -20,7 +20,7 @@ test("keyToMove: Enter と Escape で抜ける", () => {
   assert.equal(keyToMove("escape"), "exit"); // Review Focus 3
 });
 
-// 修飾キー付きのキー (Ctrl+Shift+L の pane.go など) は global の操作に渡すが、
+// 修飾キー付きのキー (cmd-l の pane.go など) は global の操作に渡すが、
 // モードは畳む。畳まないと、フォーカスが外へ出たあとも RESIZE の表示が残る
 test("keyToMove: 修飾キー付きのキーでモードを畳む", () => {
   assert.equal(keyToMove("l", { control: true, shift: true }), "collapse");

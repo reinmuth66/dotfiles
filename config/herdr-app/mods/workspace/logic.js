@@ -297,14 +297,17 @@ export function moveTarget(nested, focus, dir, level) {
     return { command: "tab.move", args: { id: focus.tab, by: dir } };
   }
   if (level !== "space") return null;
-  const curIdx = nested.findIndex((n) => n.space.id === focus.space);
+  const ordered = nested
+    .map((n, i) => ({ space: n.space, index: n.space.index ?? i + 1 }))
+    .sort((a, b) => a.index - b.index);
+  const curIdx = ordered.findIndex((o) => o.space.id === focus.space);
   if (curIdx === -1) return null;
-  const space = nested[curIdx].space;
+  const { space, index: cur } = ordered[curIdx];
   if (isRemoteSpace(space)) return null;
-  const target = nested[(curIdx + dir + nested.length) % nested.length]?.space;
+  const target = ordered[(curIdx + dir + ordered.length) % ordered.length]?.space;
   if (!target || isRemoteSpace(target)) return null;
-  const last = Math.max(...nested.map((n, i) => n.space.index ?? i + 1));
-  const cur = space.index ?? curIdx + 1;
+  const sameMachine = ordered.filter((o) => (o.space.machine ?? null) === (space.machine ?? null));
+  const last = Math.max(...sameMachine.map((o) => o.index));
   let index = cur + dir;
   if (index < 1) index = last;
   else if (index > last) index = 1;
