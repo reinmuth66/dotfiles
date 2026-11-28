@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { nestSpaces, contextFor, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, tabOpenKey, isFocusRow, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS } from "./logic.js";
+import { nestSpaces, contextFor, trackAgentTimes, agentTime, nextTick, buildStructure, buildGroups, tabOpenKey, isFocusRow, agentOrder, collectSubagents, activityFor, SUBAGENT_STALE_MS, stepTab, stepSpace, stepAgent, stepGroup, moveTarget, closeKey, openKey } from "./logic.js";
 
 const sp = (id, tabs, extra = {}) => ({ id, name: id, folder: `/r/${id}`, status: null, tabs, ...extra });
 const tab = (id, extra = {}) => ({ id, name: id, named: false, status: null, working_since: null, changed_at: null, ...extra });
@@ -215,4 +215,150 @@ test("collectSubagents: セッションが変わった記録のサブエージ�
   const live = [ag("t1", "a", "working")];
   const activity = { t1: { session_id: "old", subagents: [{ id: "a1", type: "Explore", status: "working", started_at: now }] } };
   assert.deepEqual(collectSubagents(live, activity, [], { t1: { session_id: "new" } }, now), {});
+});
+
+test("stepTab: 同じ space の中で回る", () => {
+  const nested = [{ space: sp("s1", [tab("t1"), tab("t2")]), depth: 0 }];
+  const focus = { space: "s1", tab: "t2", pane: "p2", terminal: null };
+  assert.equal(stepTab(nested, focus, 1), "t1");
+  assert.equal(stepTab(nested, focus, -1), "t1");
+});
+
+test("stepTab: focus が並びに無いと先頭 / 末尾", () => {
+  const nested = [
+    { space: sp("s1", [tab("t1"), tab("t2")]), depth: 0 },
+    { space: sp("s2", [tab("t3"), tab("t4")]), depth: 0 },
+  ];
+  assert.equal(stepTab(nested, null, 1), "t1");
+  assert.equal(stepTab(nested, null, -1), "t4");
+  assert.equal(stepTab(nested, { space: "gone", tab: "x" }, 1), "t1");
+  assert.equal(stepTab(nested, { space: "gone", tab: "x" }, -1), "t4");
+});
+
+test("stepTab / stepSpace / stepAgent: 空なら null", () => {
+  assert.equal(stepTab([], null, 1), null);
+  assert.equal(stepTab([{ space: sp("s1", []), depth: 0 }], null, 1), null);
+  assert.equal(stepSpace([], null, 1), null);
+  assert.equal(stepAgent([], null, 1), null);
+  assert.equal(stepGroup([], null, 1), null);
+});
+
+test("stepSpace: 端で回る", () => {
+  const nested = [
+    { space: sp("s1", []), depth: 0 },
+    { space: sp("s2", []), depth: 0 },
+    { space: sp("s3", []), depth: 0 },
+  ];
+  assert.equal(stepSpace(nested, { space: "s3" }, 1), "s1");
+  assert.equal(stepSpace(nested, { space: "s1" }, -1), "s3");
+  assert.equal(stepSpace(nested, null, 1), "s1");
+  assert.equal(stepSpace(nested, null, -1), "s3");
+});
+
+test("stepAgent: 閉じたまとまりの中も数え、サブエージェントは数えない", () => {
+  const agents = [ag("a1", "t1", "blocked"), ag("a2", "t2", "working")];
+  const groups = buildGroups({ agents, subagents: { a1: [{ id: "sub1", type: "Explore" }] }, collapsed: new Set() });
+  assert.equal(stepAgent(groups, { terminal: "a1" }, 1), "a2");
+  assert.equal(stepAgent(groups, { terminal: "a2" }, 1), "a1");
+  assert.equal(stepAgent(groups, { terminal: "a1" }, -1), "a2");
+  assert.equal(stepAgent(groups, null, 1), "a1");
+  assert.equal(stepAgent(groups, null, -1), "a2");
+});
+
+test("stepGroup: 次のまとまりの先頭", () => {
+  const agents = [ag("a1", "t1", "blocked"), ag("a2", "t2", "blocked"), ag("a3", "t3", "working")];
+  const groups = buildGroups({ agents, subagents: {}, collapsed: new Set() });
+  assert.equal(stepGroup(groups, { terminal: "a2" }, 1), "a3");
+  assert.equal(stepGroup(groups, { terminal: "a3" }, 1), "a1");
+  assert.equal(stepGroup(groups, { terminal: "a1" }, -1), "a3");
+  assert.equal(stepGroup(groups, null, 1), "a1");
+  assert.equal(stepGroup(groups, null, -1), "a3");
+});
+
+test("moveTarget: tab は by、space は index で回る", () => {
+  const nested = [
+    { space: sp("s1", [tab("t1")], { index: 1 }), depth: 0 },
+    { space: sp("s2", [tab("t2")], { index: 2 }), depth: 0 },
+    { space: sp("s3", [tab("t3")], { index: 3 }), depth: 0 },
+  ];
+  assert.deepEqual(moveTarget(nested, { space: "s1", tab: "t1" }, 1, "tab"), { command: "tab.move", args: { id: "t1", by: 1 } });
+  assert.deepEqual(moveTarget(nested, { space: "s3", tab: "t3" }, 1, "space"), { command: "space.move", args: { id: "s3", index: 1 } });
+  assert.deepEqual(moveTarget(nested, { space: "s1", tab: "t1" }, -1, "space"), { command: "space.move", args: { id: "s1", index: 3 } });
+});
+
+test("moveTarget: 別のコンピューターの space をまたぐと null", () => {
+  const nested = [
+    { space: sp("s1", [], { index: 1 }), depth: 0 },
+    { space: sp("s2", [], { index: 2 }), depth: 0 },
+    { space: sp("laptop/s3", [], { index: 3, machine: "laptop" }), depth: 0 },
+  ];
+  assert.equal(moveTarget(nested, { space: "s2" }, 1, "space"), null);
+  assert.equal(moveTarget(nested, { space: "s1" }, -1, "space"), null);
+  assert.deepEqual(moveTarget(nested, { space: "s1" }, 1, "space"), { command: "space.move", args: { id: "s1", index: 2 } });
+  assert.equal(moveTarget(nested, { space: "laptop/s3" }, -1, "space"), null);
+});
+
+test("openKey: 閉じていれば開き、開いていれば null", () => {
+  const nested = [{ space: sp("s1", [tab("a"), tab("b")]), depth: 0 }];
+  const panes = [{ pane: "p1", tab: "a" }, { pane: "p2", tab: "a" }, { pane: "p3", tab: "b" }];
+  const focus = { space: "s1", tab: "a", pane: "p1", terminal: null };
+  const containers = ["space:s1", tabOpenKey("a")];
+
+  const folded = buildStructure({ nested, agents: [], subagents: {}, panes, collapsed: new Set() });
+  assert.equal(openKey(folded, focus, containers, "small"), tabOpenKey("a"));
+  assert.equal(openKey(folded, focus, containers, "group"), null);
+
+  const opened = buildStructure({ nested, agents: [], subagents: {}, panes, collapsed: new Set([tabOpenKey("a")]) });
+  assert.equal(openKey(opened, focus, containers, "small"), null);
+
+  // pane が 1 つの tab は null
+  assert.equal(openKey(folded, { space: "s1", tab: "b", pane: "p3", terminal: null }, ["space:s1"], "small"), null);
+
+  const spaceClosed = buildStructure({ nested, agents: [], subagents: {}, panes, collapsed: new Set(["space:s1"]) });
+  assert.equal(openKey(spaceClosed, focus, containers, "group"), "space:s1");
+  assert.equal(openKey(spaceClosed, focus, containers, "small"), null);
+});
+
+test("closeKey: 閉じた tab では space を閉じる、space も閉じていれば null", () => {
+  const nested = [{ space: sp("s1", [tab("a"), tab("b")]), depth: 0 }];
+  const panes = [{ pane: "p1", tab: "a" }, { pane: "p2", tab: "a" }, { pane: "p3", tab: "b" }];
+  const focus = { space: "s1", tab: "a", pane: "p1", terminal: null };
+  const containers = ["space:s1", tabOpenKey("a")];
+
+  const opened = buildStructure({ nested, agents: [], subagents: {}, panes, collapsed: new Set([tabOpenKey("a")]) });
+  assert.equal(closeKey(opened, focus, containers, "small"), tabOpenKey("a"));
+  assert.equal(closeKey(opened, focus, containers, "group"), "space:s1");
+
+  const folded = buildStructure({ nested, agents: [], subagents: {}, panes, collapsed: new Set() });
+  assert.equal(closeKey(folded, focus, containers, "small"), "space:s1");
+  assert.equal(closeKey(folded, { space: "s1", tab: "b", pane: "p3", terminal: null }, ["space:s1"], "small"), "space:s1");
+
+  const spaceClosed = buildStructure({ nested, agents: [], subagents: {}, panes, collapsed: new Set(["space:s1"]) });
+  assert.equal(closeKey(spaceClosed, focus, containers, "small"), null);
+  assert.equal(closeKey(spaceClosed, focus, containers, "group"), null);
+});
+
+test("closeKey / openKey: status ビューでもサブエージェントとまとまりを開閉できる", () => {
+  const agents = [ag("a1", "t1", "working"), ag("a2", "t2", "working")];
+  const subagents = { a1: [{ id: "s1", type: "Explore" }] };
+  const focus = { space: "s1", tab: "t1", pane: "p1", terminal: "a1" };
+  const containers = ["group:working"];
+
+  const rowsOpen = buildGroups({ agents, subagents, collapsed: new Set() });
+  assert.equal(openKey(rowsOpen, focus, containers, "small"), null);
+  assert.equal(closeKey(rowsOpen, focus, containers, "small"), "agent:a1");
+  assert.equal(closeKey(rowsOpen, focus, containers, "group"), "group:working");
+
+  const rowsSubClosed = buildGroups({ agents, subagents, collapsed: new Set(["agent:a1"]) });
+  assert.equal(openKey(rowsSubClosed, focus, containers, "small"), "agent:a1");
+  assert.equal(closeKey(rowsSubClosed, focus, containers, "small"), "group:working");
+  assert.equal(closeKey(rowsSubClosed, { ...focus, terminal: "a2" }, containers, "small"), "group:working");
+});
+
+test("closeKey / openKey: focus が一覧に無ければ null", () => {
+  const nested = [{ space: sp("s1", [tab("a")]), depth: 0 }];
+  const rows = buildStructure({ nested, agents: [], subagents: {}, panes: [{ pane: "p1", tab: "a" }], collapsed: new Set() });
+  assert.equal(openKey(rows, null, [], "small"), null);
+  assert.equal(closeKey(rows, null, [], "small"), null);
+  assert.equal(closeKey(rows, { space: "wtr", tab: "w", pane: null, terminal: "wtr" }, [], "group"), null);
 });

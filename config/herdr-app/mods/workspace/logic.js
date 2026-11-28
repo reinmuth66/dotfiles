@@ -231,3 +231,111 @@ export function isFocusRow(row, focus) {
 }
 
 export const agentOrder =(rows) => rows.filter((r) => r.kind === "agent").map((r) => r.address);
+
+function stepInList(list, idx, dir) {
+  if (list.length === 0) return null;
+  if (idx === -1) return dir === 1 ? list[0] : list.at(-1);
+  return list[(idx + dir + list.length) % list.length];
+}
+
+// focus の space の中で次 / 前の tab の id (端で回る)。無ければ先頭 / 末尾
+export function stepTab(nested, focus, dir) {
+  const space = focus ? nested.find((n) => n.space.id === focus.space)?.space : null;
+  if (space && space.tabs.length > 0) {
+    const ids = space.tabs.map((t) => t.id);
+    return stepInList(ids, ids.indexOf(focus.tab), dir);
+  }
+  const allTabs = nested.flatMap((n) => n.space.tabs.map((t) => t.id));
+  return stepInList(allTabs, -1, dir);
+}
+
+// 次 / 前の space の id (端で回る)。focus が無ければ先頭 / 末尾
+export function stepSpace(nested, focus, dir) {
+  const ids = nested.map((n) => n.space.id);
+  return stepInList(ids, focus ? ids.indexOf(focus.space) : -1, dir);
+}
+
+// まとまりの行から agent だけを数えて次 / 前の address を返す
+export function stepAgent(groups, focus, dir) {
+  const addrs = agentOrder(groups);
+  return stepInList(addrs, focus?.terminal != null ? addrs.indexOf(focus.terminal) : -1, dir);
+}
+
+// 次 / 前のまとまりの先頭エージェントの address
+export function stepGroup(groups, focus, dir) {
+  const buckets = [];
+  for (const row of groups) {
+    if (row.kind === "group") buckets.push([]);
+    else if (row.kind === "agent" && buckets.length > 0) buckets.at(-1).push(row.address);
+  }
+  const nonEmpty = buckets.filter((b) => b.length > 0);
+  const idx = focus?.terminal != null ? nonEmpty.findIndex((b) => b.includes(focus.terminal)) : -1;
+  return stepInList(nonEmpty, idx, dir)?.[0] ?? null;
+}
+
+// tab.move / space.move の命令を組み立てる。別のコンピューターの space は越えない
+export function moveTarget(nested, focus, dir, level) {
+  if (!focus) return null;
+  if (level === "tab") {
+    if (!focus.tab) return null;
+    return { command: "tab.move", args: { id: focus.tab, by: dir } };
+  }
+  if (level !== "space") return null;
+  const curIdx = nested.findIndex((n) => n.space.id === focus.space);
+  if (curIdx === -1) return null;
+  const space = nested[curIdx].space;
+  if (isRemoteSpace(space)) return null;
+  const target = nested[(curIdx + dir + nested.length) % nested.length]?.space;
+  if (!target || isRemoteSpace(target)) return null;
+  const last = Math.max(...nested.map((n, i) => n.space.index ?? i + 1));
+  const cur = space.index ?? curIdx + 1;
+  let index = cur + dir;
+  if (index < 1) index = last;
+  else if (index > last) index = 1;
+  return { command: "space.move", args: { id: space.id, index } };
+}
+
+function resolveToggleTargets(rows, focus, containers) {
+  const groupKey = containers?.[0] ?? null;
+  if (!groupKey) return null;
+  const groupRow = rows.find((r) => r.key === groupKey) ?? null;
+  if (!groupRow) return null;
+  let smallKey = null;
+  let smallRow = null;
+  if (groupRow.kind === "space") {
+    const tabOpen = containers[1] ?? null;
+    if (tabOpen) {
+      const tabId = tabOpen.slice("tab-open:".length);
+      smallRow = rows.find((r) => r.kind === "tab" && r.tabId === tabId) ?? null;
+      if (smallRow) smallKey = tabOpen;
+    }
+  } else if (groupRow.kind === "group" && focus?.terminal != null) {
+    const agentRow = rows.find((r) => r.kind === "agent" && r.address === focus.terminal) ?? null;
+    if (agentRow?.hasChildren) {
+      smallRow = agentRow;
+      smallKey = agentRow.key;
+    }
+  }
+  return { groupKey, groupRow, smallKey, smallRow };
+}
+
+// 開く対象の鍵 (閉じていればその鍵、開いていれば null)
+export function openKey(rows, focus, containers, level) {
+  const t = resolveToggleTargets(rows, focus, containers);
+  if (!t) return null;
+  if (level === "group") return !t.groupRow.open ? t.groupKey : null;
+  if (level === "small") return t.smallRow && !t.smallRow.open ? t.smallKey : null;
+  return null;
+}
+
+// 閉じる対象の鍵 (開いていればその鍵、閉じていれば 1 つ上の段の鍵)
+export function closeKey(rows, focus, containers, level) {
+  const t = resolveToggleTargets(rows, focus, containers);
+  if (!t) return null;
+  if (level === "group") return t.groupRow.open ? t.groupKey : null;
+  if (level === "small") {
+    if (t.smallRow?.open) return t.smallKey;
+    return t.groupRow.open ? t.groupKey : null;
+  }
+  return null;
+}
