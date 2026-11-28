@@ -3,7 +3,7 @@
 // 同梱の pane mod を元にした。props: { pane, terminal }。押すとその枠に移る
 import { View, div, image, svg, PathBuilder } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { focused, home, panes, props, run, theme } from "herdr";
+import { focused, home, panes, props, run } from "herdr";
 import { GLYPH, GLYPH_INK, METRICS, PALETTE, agentIconSpec, arcSteps, isRemoteAddress, tone, toneColor } from "./ui.js";
 import { repoRootNow, watchJsonDir } from "./data.js";
 import { headerFor, isAgentPane } from "./logic.js";
@@ -120,7 +120,6 @@ export default class PaneHeader extends View {
       repoRoot: remote || isAgentPane(p) ? null : this.rootOf(p.cwd, cx),
       home: home(),
     });
-    const t = theme();
     const el = h_flex()
       .id(`pane-header-${p.pane}`)
       .size_full()
@@ -128,7 +127,7 @@ export default class PaneHeader extends View {
       .gap(8)
       .items_center()
       .border_b(1)
-      .border_color(t.border)
+      .border_color(PALETTE.surface0)
       .font_family(FONT)
       .text_size(TEXT)
       .text_color(PALETTE.text)
